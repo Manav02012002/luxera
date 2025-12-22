@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "luxera"
+version = "0.1.0"
+description = "Luxera View — photometric inspection and validation tools"
+authors = [{ name = "Luxera" }]
+requires-python = ">=3.11"
+
+[tool.setuptools]
+packages = ["luxera"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
