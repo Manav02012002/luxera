@@ -1,0 +1,549 @@
+"""
+Luxera Radiosity Engine
+
+Implements the radiosity method for calculating inter-reflections
+in lighting simulations. This is the core algorithm that distinguishes
+professional lighting software from simple direct illuminance calculations.
+
+The radiosity equation:
+    B_i = E_i + ρ_i * Σ(B_j * F_ij)
+
+Where:
+    B_i = radiosity (exitance) of patch i [lm/m²]
+    E_i = self-emission of patch i [lm/m²]
+    ρ_i = reflectance of patch i [0-1]
+    F_ij = form factor from patch j to patch i
+    
+The form factor F_ij represents the fraction of light leaving patch j
+that arrives at patch i, accounting for geometry and visibility.
+
+References:
+- Cohen & Wallace: "Radiosity and Realistic Image Synthesis" (1993)
+- Sillion & Puech: "Radiosity & Global Illumination" (1994)
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+from typing import List, Optional, Tuple, Dict
+import numpy as np
+from enum import Enum, auto
+
+from luxera.geometry.core import Vector3, Surface, Polygon, Scene, Room
+
+
+# =============================================================================
+# Form Factor Calculation
+# =============================================================================
+
+def _visibility_ray(
+    p1: Vector3, 
+    p2: Vector3, 
+    surfaces: List[Surface],
+    exclude_ids: Tuple[str, str]
+) -> bool:
+    """
+    Check if two points can see each other.
+    
+    Simple ray-surface intersection test. Returns True if visible.
+    
+    Args:
+        p1, p2: Points to check visibility between
+        surfaces: All surfaces in scene
+        exclude_ids: Surface IDs to exclude (the surfaces containing p1, p2)
+    
+    Returns:
+        True if p1 and p2 can see each other
+    """
+    direction = p2 - p1
+    dist = direction.length()
+    
+    if dist < 1e-6:
+        return True
+    
+    direction = direction.normalize()
+    
+    for surface in surfaces:
+        if surface.id in exclude_ids:
+            continue
+        
+        # Ray-polygon intersection
+        normal = surface.normal
+        denom = direction.dot(normal)
+        
+        if abs(denom) < 1e-10:
+            continue  # Ray parallel to surface
+        
+        # Distance to plane
+        d = (surface.centroid - p1).dot(normal) / denom
+        
+        if d <= 0 or d >= dist - 1e-6:
+            continue  # Behind ray origin or beyond target
+        
+        # Intersection point
+        hit_point = p1 + direction * d
+        
+        # Check if inside polygon (simplified 2D projection)
+        if surface.polygon.contains_point_2d(hit_point):
+            return False
+    
+    return True
+
+
+def compute_form_factor_analytic(
+    patch_i: Surface,
+    patch_j: Surface,
+) -> float:
+    """
+    Compute form factor from patch j to patch i using analytic method.
+    
+    For small patches relative to their separation, we can use:
+        F_ij ≈ (cos(θ_i) * cos(θ_j) * A_j) / (π * r²)
+    
+    Where:
+        θ_i = angle between normal of i and direction to j
+        θ_j = angle between normal of j and direction to i
+        A_j = area of patch j
+        r = distance between centroids
+    """
+    # Direction from i to j
+    r_vec = patch_j.centroid - patch_i.centroid
+    r = r_vec.length()
+    
+    if r < 1e-6:
+        return 0.0
+    
+    r_dir = r_vec.normalize()
+    
+    # Angles
+    cos_i = patch_i.normal.dot(r_dir)
+    cos_j = -patch_j.normal.dot(r_dir)  # Negative because pointing toward j
+    
+    if cos_i <= 0 or cos_j <= 0:
+        return 0.0  # Patches facing away from each other
+    
+    # Form factor
+    F = (cos_i * cos_j * patch_j.area) / (math.pi * r * r)
+    
+    return max(0.0, min(1.0, F))
+
+
+def compute_form_factor_monte_carlo(
+    patch_i: Surface,
+    patch_j: Surface,
+    surfaces: List[Surface],
+    num_samples: int = 16,
+) -> float:
+    """
+    Compute form factor using Monte Carlo sampling with visibility.
+    
+    This is more accurate for complex scenes with occlusion.
+    """
+    if patch_i.id == patch_j.id:
+        return 0.0
+    
+    # Sample points on both patches
+    # For simplicity, use centroid + jittered samples
+    centroid_i = patch_i.centroid
+    centroid_j = patch_j.centroid
+    
+    visible_samples = 0
+    total_factor = 0.0
+    
+    for _ in range(num_samples):
+        # Jitter sample points slightly
+        offset_i = Vector3(
+            (np.random.random() - 0.5) * 0.1,
+            (np.random.random() - 0.5) * 0.1,
+            (np.random.random() - 0.5) * 0.1
+        )
+        offset_j = Vector3(
+            (np.random.random() - 0.5) * 0.1,
+            (np.random.random() - 0.5) * 0.1,
+            (np.random.random() - 0.5) * 0.1
+        )
+        
+        p_i = centroid_i + offset_i
+        p_j = centroid_j + offset_j
+        
+        # Check visibility
+        if _visibility_ray(p_i, p_j, surfaces, (patch_i.id, patch_j.id)):
+            visible_samples += 1
+            
+            # Compute contribution
+            r_vec = p_j - p_i
+            r = r_vec.length()
+            if r < 1e-6:
+                continue
+            
+            r_dir = r_vec.normalize()
+            cos_i = patch_i.normal.dot(r_dir)
+            cos_j = -patch_j.normal.dot(r_dir)
+            
+            if cos_i > 0 and cos_j > 0:
+                total_factor += (cos_i * cos_j) / (math.pi * r * r)
+    
+    if visible_samples == 0:
+        return 0.0
+    
+    # Average and scale by area
+    avg_factor = total_factor / num_samples
+    F = avg_factor * patch_j.area
+    
+    return max(0.0, min(1.0, F))
+
+
+# =============================================================================
+# Radiosity Solver
+# =============================================================================
+
+class RadiosityMethod(Enum):
+    """Radiosity solving method."""
+    GATHERING = auto()  # Gauss-Seidel iteration (gather light)
+    SHOOTING = auto()   # Progressive refinement (shoot light)
+    MATRIX = auto()     # Direct matrix solution
+
+
+@dataclass
+class RadiositySettings:
+    """Settings for radiosity calculation."""
+    max_iterations: int = 100
+    convergence_threshold: float = 0.001  # 0.1% change
+    patch_max_area: float = 0.5  # Maximum patch area in m²
+    method: RadiosityMethod = RadiosityMethod.GATHERING
+    use_visibility: bool = True
+    ambient_light: float = 0.0  # Ambient term (lux)
+
+
+@dataclass
+class Patch:
+    """
+    A patch for radiosity calculation.
+    
+    Patches are subdivided surfaces used for more accurate calculations.
+    """
+    id: int
+    polygon: Polygon
+    parent_surface: Surface
+    area: float
+    normal: Vector3
+    centroid: Vector3
+    reflectance: float
+    
+    # Radiosity values
+    emission: float = 0.0  # Self-emission [lm/m²]
+    radiosity: float = 0.0  # Total exitance [lm/m²]
+    irradiance: float = 0.0  # Incident [lm/m²]
+    residual: float = 0.0  # Unshot energy for progressive
+
+
+@dataclass
+class RadiosityResult:
+    """Results of radiosity calculation."""
+    patches: List[Patch]
+    surfaces: List[Surface]
+    iterations: int
+    converged: bool
+    total_flux: float  # Total light in scene [lm]
+    avg_illuminance: float  # Average floor illuminance [lux]
+    
+    def get_surface_illuminance(self, surface_id: str) -> float:
+        """Get average illuminance on a surface."""
+        patches = [p for p in self.patches if p.parent_surface.id == surface_id]
+        if not patches:
+            return 0.0
+        
+        total_area = sum(p.area for p in patches)
+        if total_area < 1e-10:
+            return 0.0
+        
+        weighted_sum = sum(p.irradiance * p.area for p in patches)
+        return weighted_sum / total_area
+
+
+class RadiositySolver:
+    """
+    Radiosity equation solver.
+    
+    Implements the classic radiosity method for calculating inter-reflections
+    in enclosed spaces. This produces physically accurate lighting levels
+    that account for light bouncing off walls, floors, and ceilings.
+    """
+    
+    def __init__(self, settings: RadiositySettings = None):
+        self.settings = settings or RadiositySettings()
+        self.patches: List[Patch] = []
+        self.form_factors: Optional[np.ndarray] = None
+    
+    def _create_patches(self, surfaces: List[Surface]) -> List[Patch]:
+        """Subdivide surfaces into patches."""
+        patches = []
+        patch_id = 0
+        
+        for surface in surfaces:
+            # Subdivide if needed
+            sub_polys = surface.polygon.subdivide(self.settings.patch_max_area)
+            
+            for poly in sub_polys:
+                patch = Patch(
+                    id=patch_id,
+                    polygon=poly,
+                    parent_surface=surface,
+                    area=poly.get_area(),
+                    normal=poly.get_normal(),
+                    centroid=poly.get_centroid(),
+                    reflectance=surface.material.reflectance,
+                    emission=surface.emission if surface.is_emissive else 0.0,
+                )
+                patches.append(patch)
+                patch_id += 1
+        
+        return patches
+    
+    def _compute_form_factors(self, patches: List[Patch], surfaces: List[Surface]) -> np.ndarray:
+        """
+        Compute form factor matrix.
+        
+        F[i,j] = form factor from patch j to patch i
+        """
+        n = len(patches)
+        F = np.zeros((n, n))
+        
+        for i, patch_i in enumerate(patches):
+            for j, patch_j in enumerate(patches):
+                if i == j:
+                    continue
+                
+                if self.settings.use_visibility:
+                    F[i, j] = compute_form_factor_monte_carlo(
+                        patch_i, patch_j, surfaces, num_samples=8
+                    )
+                else:
+                    F[i, j] = compute_form_factor_analytic(patch_i, patch_j)
+        
+        return F
+    
+    def _solve_gathering(self) -> int:
+        """
+        Solve using Gauss-Seidel iteration (gathering).
+        
+        Each patch gathers light from all other patches.
+        """
+        n = len(self.patches)
+        F = self.form_factors
+        
+        # Initialize radiosity to emission
+        for patch in self.patches:
+            patch.radiosity = patch.emission
+        
+        for iteration in range(self.settings.max_iterations):
+            max_change = 0.0
+            
+            for i, patch in enumerate(self.patches):
+                # Gather incoming light
+                incoming = 0.0
+                for j, other in enumerate(self.patches):
+                    if i != j:
+                        incoming += other.radiosity * F[i, j]
+                
+                # New radiosity
+                new_radiosity = patch.emission + patch.reflectance * incoming
+                
+                # Track convergence
+                if patch.radiosity > 0:
+                    change = abs(new_radiosity - patch.radiosity) / patch.radiosity
+                else:
+                    change = abs(new_radiosity - patch.radiosity)
+                max_change = max(max_change, change)
+                
+                patch.radiosity = new_radiosity
+                patch.irradiance = incoming
+            
+            if max_change < self.settings.convergence_threshold:
+                return iteration + 1
+        
+        return self.settings.max_iterations
+    
+    def _solve_shooting(self) -> int:
+        """
+        Solve using progressive refinement (shooting).
+        
+        Patches shoot their unshot energy to other patches.
+        This converges faster for scenes with few bright sources.
+        """
+        n = len(self.patches)
+        F = self.form_factors
+        
+        # Initialize
+        for patch in self.patches:
+            patch.radiosity = patch.emission
+            patch.residual = patch.emission
+        
+        for iteration in range(self.settings.max_iterations):
+            # Find patch with most unshot energy
+            max_energy = 0
+            shooter_idx = -1
+            
+            for i, patch in enumerate(self.patches):
+                energy = patch.residual * patch.area
+                if energy > max_energy:
+                    max_energy = energy
+                    shooter_idx = i
+            
+            if shooter_idx < 0 or max_energy < self.settings.convergence_threshold:
+                return iteration + 1
+            
+            shooter = self.patches[shooter_idx]
+            
+            # Shoot to all other patches
+            for j, receiver in enumerate(self.patches):
+                if j == shooter_idx:
+                    continue
+                
+                # Form factor from shooter to receiver
+                delta_rad = shooter.residual * F[j, shooter_idx]
+                
+                # Receiver gains this, then reflects fraction
+                reflected = receiver.reflectance * delta_rad
+                
+                receiver.radiosity += reflected
+                receiver.residual += reflected
+                receiver.irradiance += delta_rad
+            
+            # Clear shooter's residual
+            shooter.residual = 0
+        
+        return self.settings.max_iterations
+    
+    def solve(
+        self, 
+        surfaces: List[Surface],
+        direct_illuminance: Optional[Dict[str, float]] = None
+    ) -> RadiosityResult:
+        """
+        Solve the radiosity equation for the given surfaces.
+        
+        Args:
+            surfaces: List of surfaces in the scene
+            direct_illuminance: Optional dict mapping surface IDs to their
+                               direct illuminance from luminaires (lux).
+                               This is added as emission for radiosity.
+        
+        Returns:
+            RadiosityResult with patch-level and surface-level results
+        """
+        # Create patches
+        self.patches = self._create_patches(surfaces)
+        
+        if not self.patches:
+            return RadiosityResult(
+                patches=[],
+                surfaces=surfaces,
+                iterations=0,
+                converged=True,
+                total_flux=0,
+                avg_illuminance=0,
+            )
+        
+        # Set emission from direct illuminance
+        if direct_illuminance:
+            for patch in self.patches:
+                surf_id = patch.parent_surface.id
+                if surf_id in direct_illuminance:
+                    # Convert illuminance to exitance (reflected)
+                    E = direct_illuminance[surf_id]
+                    patch.emission = E * patch.reflectance
+        
+        # Compute form factors
+        self.form_factors = self._compute_form_factors(self.patches, surfaces)
+        
+        # Solve
+        if self.settings.method == RadiosityMethod.GATHERING:
+            iterations = self._solve_gathering()
+        elif self.settings.method == RadiosityMethod.SHOOTING:
+            iterations = self._solve_shooting()
+        else:
+            iterations = self._solve_gathering()
+        
+        converged = iterations < self.settings.max_iterations
+        
+        # Compute total flux
+        total_flux = sum(p.radiosity * p.area for p in self.patches)
+        
+        # Compute average floor illuminance
+        floor_patches = [p for p in self.patches if 'floor' in p.parent_surface.id.lower()]
+        if floor_patches:
+            total_floor_area = sum(p.area for p in floor_patches)
+            avg_illuminance = sum(p.irradiance * p.area for p in floor_patches) / total_floor_area
+        else:
+            avg_illuminance = 0
+        
+        # Update parent surfaces with aggregate values
+        for surface in surfaces:
+            patches = [p for p in self.patches if p.parent_surface.id == surface.id]
+            if patches:
+                total_area = sum(p.area for p in patches)
+                surface.illuminance = sum(p.irradiance * p.area for p in patches) / total_area
+                surface.exitance = sum(p.radiosity * p.area for p in patches) / total_area
+        
+        return RadiosityResult(
+            patches=self.patches,
+            surfaces=surfaces,
+            iterations=iterations,
+            converged=converged,
+            total_flux=total_flux,
+            avg_illuminance=avg_illuminance,
+        )
+
+
+# =============================================================================
+# Combined Direct + Indirect Calculation
+# =============================================================================
+
+def calculate_room_lighting(
+    room: Room,
+    luminaires: List,  # List of Luminaire objects from calculation module
+    settings: RadiositySettings = None,
+) -> RadiosityResult:
+    """
+    Calculate complete room lighting including direct and indirect components.
+    
+    This is the main entry point for full room calculations.
+    
+    Args:
+        room: Room geometry
+        luminaires: List of luminaires with IES data and positions
+        settings: Radiosity calculation settings
+    
+    Returns:
+        RadiosityResult with complete lighting solution
+    """
+    from luxera.calculation.illuminance import (
+        calculate_direct_illuminance, 
+        CalculationGrid,
+        Luminaire
+    )
+    
+    surfaces = room.get_surfaces()
+    
+    # Calculate direct illuminance on each surface
+    direct_illuminance = {}
+    
+    for surface in surfaces:
+        # Sample points on surface
+        centroid = surface.centroid
+        normal = surface.normal
+        
+        total_E = 0.0
+        for luminaire in luminaires:
+            E = calculate_direct_illuminance(centroid, normal, luminaire)
+            total_E += E
+        
+        direct_illuminance[surface.id] = total_E
+    
+    # Solve radiosity for inter-reflections
+    solver = RadiositySolver(settings or RadiositySettings())
+    result = solver.solve(surfaces, direct_illuminance)
+    
+    return result
