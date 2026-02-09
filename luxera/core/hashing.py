@@ -45,6 +45,7 @@ def hash_job_spec(project: Any, job_spec: Any) -> str:
         project_dict.pop("results", None)
         project_dict.pop("jobs", None)
         project_dict.pop("root_dir", None)
+        project_dict.pop("agent_history", None)
     payload = {
         "schema_version": getattr(project, "schema_version", None),
         "project": project_dict,

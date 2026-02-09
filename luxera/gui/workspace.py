@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -24,6 +25,8 @@ from luxera.export.en13032_pdf import render_en13032_pdf
 from luxera.export.en12464_report import build_en12464_report_model
 from luxera.export.en12464_pdf import render_en12464_pdf
 from luxera.core.hashing import sha256_file
+from luxera.agent.runtime import AgentRuntime
+from luxera.results.compare import compare_job_results
 
 
 class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
@@ -34,6 +37,7 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
 
         self.project_path: Optional[Path] = None
         self.project: Optional[Project] = None
+        self.agent_runtime = AgentRuntime()
 
         self._build_ui()
         self._wire_actions()
@@ -69,7 +73,14 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
 
         run_menu = menubar.addMenu("&Run")
         self.act_run_job = QtGui.QAction("Run Selected Job", self)
+        self.act_compare_last_two = QtGui.QAction("Compare Last Two Results", self)
         run_menu.addAction(self.act_run_job)
+        run_menu.addAction(self.act_compare_last_two)
+
+        agent_menu = menubar.addMenu("&Agent")
+        self.act_command_palette = QtGui.QAction("Command Palette…", self)
+        self.act_command_palette.setShortcut(QtGui.QKeySequence("Ctrl+K"))
+        agent_menu.addAction(self.act_command_palette)
 
         report_menu = menubar.addMenu("&Report")
         self.act_report_en12464 = QtGui.QAction("Export EN 12464 PDF…", self)
@@ -103,6 +114,23 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
         self.status = self.statusBar()
         self.status.showMessage("Ready")
 
+        # Copilot dock
+        self.copilot = QtWidgets.QDockWidget("Copilot", self)
+        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, self.copilot)
+        cwrap = QtWidgets.QWidget()
+        cv = QtWidgets.QVBoxLayout(cwrap)
+        self.copilot_input = QtWidgets.QLineEdit()
+        self.copilot_input.setPlaceholderText("Ask Luxera Copilot: /place panels target 500 lux")
+        self.copilot_run = QtWidgets.QPushButton("Plan / Preview")
+        self.copilot_apply_run = QtWidgets.QPushButton("Apply + Run (Approve)")
+        self.copilot_output = QtWidgets.QPlainTextEdit()
+        self.copilot_output.setReadOnly(True)
+        cv.addWidget(self.copilot_input)
+        cv.addWidget(self.copilot_run)
+        cv.addWidget(self.copilot_apply_run)
+        cv.addWidget(self.copilot_output)
+        self.copilot.setWidget(cwrap)
+
     def _wire_actions(self) -> None:
         self.act_new.triggered.connect(self.new_project)
         self.act_open.triggered.connect(self.open_project)
@@ -117,10 +145,14 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
         self.act_add_job.triggered.connect(self.add_job)
 
         self.act_run_job.triggered.connect(self.run_selected_job)
+        self.act_compare_last_two.triggered.connect(self.compare_last_two_results)
         self.act_report_en12464.triggered.connect(self.export_en12464)
         self.act_report_en13032.triggered.connect(self.export_en13032)
+        self.act_command_palette.triggered.connect(self.command_palette)
 
         self.tree.itemSelectionChanged.connect(self.on_selection_changed)
+        self.copilot_run.clicked.connect(self.copilot_plan_preview)
+        self.copilot_apply_run.clicked.connect(self.copilot_apply_run_action)
 
     # ----- Project IO -----
     def new_project(self) -> None:
@@ -322,6 +354,28 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
         render_en13032_pdf(model, Path(out))
         self.status.showMessage("EN 13032 PDF exported", 3000)
 
+    def compare_last_two_results(self) -> None:
+        if not self.project or len(self.project.results) < 2:
+            self.status.showMessage("Need at least two results to compare", 3000)
+            return
+        a = self.project.results[-2].job_id
+        b = self.project.results[-1].job_id
+        try:
+            cmp = compare_job_results(self.project, a, b)
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(self, "Compare Failed", str(e))
+            return
+        txt = json.dumps(cmp, indent=2, sort_keys=True)
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle(f"Compare Results: {a} -> {b}")
+        dlg.resize(800, 500)
+        lay = QtWidgets.QVBoxLayout(dlg)
+        edit = QtWidgets.QPlainTextEdit()
+        edit.setReadOnly(True)
+        edit.setPlainText(txt)
+        lay.addWidget(edit)
+        dlg.exec()
+
     # ----- UI helpers -----
     def refresh_tree(self) -> None:
         self.tree.clear()
@@ -340,10 +394,25 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
 
         add_group("Photometry", [(a.metadata.get("filename", a.id), "asset", a.id) for a in self.project.photometry_assets])
         add_group("Rooms", [(r.name, "room", r.id) for r in self.project.geometry.rooms])
+        add_group("Zones", [(z.name, "zone", z.id) for z in self.project.geometry.zones])
+        add_group("Surfaces", [(s.name, "surface", s.id) for s in self.project.geometry.surfaces])
         add_group("Luminaires", [(l.name, "luminaire", l.id) for l in self.project.luminaires])
         add_group("Grids", [(g.name, "grid", g.id) for g in self.project.grids])
+        add_group("Workplanes", [(w.name, "workplane", w.id) for w in self.project.workplanes])
+        add_group("Vertical Planes", [(v.name, "vplane", v.id) for v in self.project.vertical_planes])
+        add_group("Point Sets", [(ps.name, "pointset", ps.id) for ps in self.project.point_sets])
+        add_group("Glare Views", [(gv.name, "glareview", gv.id) for gv in self.project.glare_views])
+        add_group("Compliance Profiles", [(cp.name, "cprofile", cp.id) for cp in self.project.compliance_profiles])
+        add_group("Variants", [(v.name, "variant", v.id) for v in self.project.variants])
         add_group("Jobs", [(j.id, "job", j.id) for j in self.project.jobs])
         add_group("Results", [(r.job_id, "result", r.job_id) for r in self.project.results])
+        add_group(
+            "Agent Log",
+            [
+                (f"{e.get('action', e.get('kind', 'event'))} @ {int(e.get('created_at', 0))}", "agent_event", str(i))
+                for i, e in enumerate(self.project.agent_history)
+            ],
+        )
 
         self.tree.expandAll()
 
@@ -378,12 +447,57 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
             add_row("Name", lum.name)
             add_row("Asset", lum.photometry_asset_id)
             add_row("Position", lum.transform.position)
+        elif role == "zone":
+            zone = next(z for z in self.project.geometry.zones if z.id == role_id)
+            add_row("Name", zone.name)
+            add_row("Rooms", zone.room_ids)
+            add_row("Tags", zone.tags)
+        elif role == "surface":
+            surf = next(s for s in self.project.geometry.surfaces if s.id == role_id)
+            add_row("Name", surf.name)
+            add_row("Kind", surf.kind)
+            add_row("Vertices", len(surf.vertices))
+            add_row("Room", surf.room_id)
         elif role == "grid":
             grid = next(g for g in self.project.grids if g.id == role_id)
             add_row("Name", grid.name)
             add_row("Size", f"{grid.width} x {grid.height} m")
             add_row("Elevation", grid.elevation)
             add_row("Resolution", f"{grid.nx} x {grid.ny}")
+        elif role == "workplane":
+            wp = next(w for w in self.project.workplanes if w.id == role_id)
+            add_row("Name", wp.name)
+            add_row("Elevation", wp.elevation)
+            add_row("Spacing", wp.spacing)
+            add_row("Margin", wp.margin)
+            add_row("Room/Zone", wp.room_id or wp.zone_id)
+        elif role == "vplane":
+            vp = next(v for v in self.project.vertical_planes if v.id == role_id)
+            add_row("Name", vp.name)
+            add_row("Size", f"{vp.width} x {vp.height} m")
+            add_row("Resolution", f"{vp.nx} x {vp.ny}")
+            add_row("Azimuth", vp.azimuth_deg)
+        elif role == "pointset":
+            ps = next(p for p in self.project.point_sets if p.id == role_id)
+            add_row("Name", ps.name)
+            add_row("Points", len(ps.points))
+            add_row("Room/Zone", ps.room_id or ps.zone_id)
+        elif role == "glareview":
+            gv = next(g for g in self.project.glare_views if g.id == role_id)
+            add_row("Name", gv.name)
+            add_row("Observer", gv.observer)
+            add_row("View Dir", gv.view_dir)
+        elif role == "cprofile":
+            cp = next(c for c in self.project.compliance_profiles if c.id == role_id)
+            add_row("Name", cp.name)
+            add_row("Domain", cp.domain)
+            add_row("Standard", cp.standard_ref)
+            add_row("Thresholds", cp.thresholds)
+        elif role == "variant":
+            var = next(v for v in self.project.variants if v.id == role_id)
+            add_row("Name", var.name)
+            add_row("Description", var.description)
+            add_row("Dimming schemes", var.dimming_schemes)
         elif role == "job":
             job = next(j for j in self.project.jobs if j.id == role_id)
             add_row("ID", job.id)
@@ -395,6 +509,95 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
             add_row("Job ID", res.job_id)
             add_row("Hash", res.job_hash)
             add_row("Dir", res.result_dir)
+            for k, v in (res.summary or {}).items():
+                add_row(f"summary.{k}", v)
+        elif role == "agent_event":
+            idx = int(role_id)
+            if 0 <= idx < len(self.project.agent_history):
+                event = self.project.agent_history[idx]
+                for k, v in event.items():
+                    add_row(k, v)
+
+    # ----- Copilot -----
+    def _copilot_execute(self, approved: bool) -> None:
+        if not self.project_path:
+            self.status.showMessage("Open a project first", 3000)
+            return
+        intent = self.copilot_input.text().strip()
+        if not intent:
+            return
+        approvals = {"apply_diff": approved, "run_job": approved}
+        res = self.agent_runtime.execute(str(self.project_path), intent, approvals=approvals)
+        lines = [
+            f"Plan: {res.plan}",
+            f"Diff ops: {res.diff_preview.get('count', 0)}",
+            f"Actions: {[a.kind + ('*' if a.requires_approval else '') for a in res.actions]}",
+            f"Run manifest: {res.run_manifest}",
+            f"Artifacts: {res.produced_artifacts}",
+            f"Warnings: {res.warnings}",
+        ]
+        suggestions = self._inline_suggestions()
+        if suggestions:
+            lines.append("Suggestions:")
+            lines.extend([f"- {s}" for s in suggestions])
+        self.copilot_output.setPlainText("\n".join(lines))
+        # Reload project after runtime mutations.
+        self.project = load_project_schema(self.project_path)
+        self.refresh_tree()
+
+    def copilot_plan_preview(self) -> None:
+        self._copilot_execute(approved=False)
+
+    def copilot_apply_run_action(self) -> None:
+        msg = QtWidgets.QMessageBox.question(
+            self,
+            "Approve Actions",
+            "Approve applying diff and running job?",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            QtWidgets.QMessageBox.No,
+        )
+        if msg != QtWidgets.QMessageBox.Yes:
+            return
+        self._copilot_execute(approved=True)
+
+    def command_palette(self) -> None:
+        commands = [
+            "/place panels target 500 lux",
+            "/grid 0.8 0.25",
+            "/run illuminance",
+            "/report client",
+            "check compliance",
+            "render heatmap",
+        ]
+        cmd, ok = QtWidgets.QInputDialog.getItem(self, "Command Palette", "Command:", commands, 0, False)
+        if not ok or not cmd:
+            return
+        self.copilot_input.setText(cmd)
+        self.copilot_input.setFocus()
+
+    def _inline_suggestions(self) -> list[str]:
+        if not self.project:
+            return []
+        out: list[str] = []
+        if not self.project.photometry_assets:
+            out.append("No photometry assets: import IES/LDT before running jobs.")
+        if not self.project.luminaires:
+            out.append("No luminaires placed: use /place panels target 500 lux.")
+        if not self.project.jobs:
+            out.append("No jobs configured: add a direct job to compute illuminance.")
+        if not self.project.grids:
+            out.append("No grids found: use /grid 0.8 0.25 to create a workplane grid.")
+        else:
+            g = self.project.grids[0]
+            sx = g.width / max(g.nx - 1, 1)
+            sy = g.height / max(g.ny - 1, 1)
+            spacing = max(sx, sy)
+            if spacing > 0.5:
+                out.append(f"Grid spacing is coarse (~{spacing:.2f} m): consider 0.25 m for office compliance studies.")
+        has_radiosity = any(j.type == "radiosity" for j in self.project.jobs)
+        if has_radiosity and not self.project.glare_views:
+            out.append("UGR risk: define glare views for observer-specific glare tables.")
+        return out[:5]
 
 
 def run() -> int:

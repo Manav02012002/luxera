@@ -44,3 +44,14 @@ TILT=NONE
     assert manifest.exists()
     data = json.loads(manifest.read_text(encoding="utf-8"))
     assert "result.json" in data
+    assert "photometry_verify.json" in data
+    assert "grid_heatmap.png" in data
+    assert "grid_isolux.png" in data
+
+    result_json = Path(ref.result_dir) / "result.json"
+    meta = json.loads(result_json.read_text(encoding="utf-8"))
+    assert meta["project"]["schema_version"] == 5
+    assert meta["seed"] == 123
+    assert meta["units"]["illuminance"] == "lux"
+    assert meta["contract_version"] == "solver_result_v1"
+    assert "photometry_verification" in meta

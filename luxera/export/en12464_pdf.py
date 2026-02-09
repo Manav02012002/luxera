@@ -65,6 +65,8 @@ def render_en12464_pdf(model: EN12464ReportModel, out_path: Path) -> Path:
         ["Job Hash", audit.job_hash],
         ["Solver Version", str(audit.solver.get("package_version", "-"))],
         ["Git Commit", str(audit.solver.get("git_commit", "-"))],
+        ["Coordinate Convention", str(audit.coordinate_convention or "-")],
+        ["Units", str(audit.units or {})],
     ]
     story.append(_kv_table(audit_rows))
 
@@ -76,6 +78,16 @@ def render_en12464_pdf(model: EN12464ReportModel, out_path: Path) -> Path:
         story.append(_kv_table(rows if rows else [["Compliance", "-"]]))
     else:
         story.append(Paragraph("Compliance data unavailable.", body))
+
+    if audit.assumptions:
+        story.append(Spacer(1, 0.35 * cm))
+        story.append(Paragraph("Assumptions", h2))
+        story.append(_kv_table([[f"A{i+1}", a] for i, a in enumerate(audit.assumptions)]))
+
+    if audit.unsupported_features:
+        story.append(Spacer(1, 0.35 * cm))
+        story.append(Paragraph("Unsupported Features", h2))
+        story.append(_kv_table([[f"U{i+1}", a] for i, a in enumerate(audit.unsupported_features)]))
 
     doc.build(story)
     return out_path

@@ -18,6 +18,19 @@ from luxera.project.schema import (
     RotationSpec,
     TransformSpec,
     RoomSpec,
+    ZoneSpec,
+    SurfaceSpec,
+    OpeningSpec,
+    ObstructionSpec,
+    LevelSpec,
+    CoordinateSystemSpec,
+    WorkplaneSpec,
+    VerticalPlaneSpec,
+    PointSetSpec,
+    GlareViewSpec,
+    RoadwayGridSpec,
+    ComplianceProfile,
+    ProjectVariant,
 )
 from luxera.project.migrations import migrate_project
 
@@ -40,13 +53,30 @@ def _transform_from_dict(d: Dict[str, Any]) -> TransformSpec:
 
 
 def _project_from_dict(d: Dict[str, Any]) -> Project:
+    geometry = d.get("geometry", {})
     return Project(
         schema_version=d.get("schema_version", 1),
         name=d.get("name", ""),
         geometry=Geometry(
             rooms=[
-                RoomSpec(**r) for r in d.get("geometry", {}).get("rooms", [])
-            ]
+                RoomSpec(**r) for r in geometry.get("rooms", [])
+            ],
+            zones=[ZoneSpec(**z) for z in geometry.get("zones", [])],
+            surfaces=[SurfaceSpec(**s) for s in geometry.get("surfaces", [])],
+            openings=[OpeningSpec(**o) for o in geometry.get("openings", [])],
+            obstructions=[ObstructionSpec(**o) for o in geometry.get("obstructions", [])],
+            levels=[LevelSpec(**lvl) for lvl in geometry.get("levels", [])],
+            coordinate_systems=[
+                CoordinateSystemSpec(
+                    id=cs["id"],
+                    name=cs["name"],
+                    origin=tuple(cs.get("origin", (0.0, 0.0, 0.0))),
+                    rotation=_rotation_from_dict(cs.get("rotation", {"type": "euler_zyx", "euler_deg": [0.0, 0.0, 0.0]})),
+                    units=cs.get("units", "m"),
+                )
+                for cs in geometry.get("coordinate_systems", [])
+            ],
+            length_unit=geometry.get("length_unit", "m"),
         ),
         materials=[MaterialSpec(**m) for m in d.get("materials", [])],
         material_library=[MaterialLibraryEntry(**m) for m in d.get("material_library", [])],
@@ -66,6 +96,14 @@ def _project_from_dict(d: Dict[str, Any]) -> Project:
             for l in d.get("luminaires", [])
         ],
         grids=[CalcGrid(**g) for g in d.get("grids", [])],
+        workplanes=[WorkplaneSpec(**w) for w in d.get("workplanes", [])],
+        vertical_planes=[VerticalPlaneSpec(**vp) for vp in d.get("vertical_planes", [])],
+        point_sets=[PointSetSpec(**ps) for ps in d.get("point_sets", [])],
+        glare_views=[GlareViewSpec(**gv) for gv in d.get("glare_views", [])],
+        roadway_grids=[RoadwayGridSpec(**rg) for rg in d.get("roadway_grids", [])],
+        compliance_profiles=[ComplianceProfile(**cp) for cp in d.get("compliance_profiles", [])],
+        variants=[ProjectVariant(**v) for v in d.get("variants", [])],
+        active_variant_id=d.get("active_variant_id"),
         jobs=[JobSpec(**j) for j in d.get("jobs", [])],
         results=[JobResultRef(**r) for r in d.get("results", [])],
         root_dir=d.get("root_dir"),

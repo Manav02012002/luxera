@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import json
@@ -18,6 +18,10 @@ class AuditHeader:
     solver: Dict[str, Any]
     settings: Dict[str, Any]
     asset_hashes: Dict[str, str]
+    coordinate_convention: Optional[str] = None
+    units: Dict[str, Any] = field(default_factory=dict)
+    assumptions: List[str] = field(default_factory=list)
+    unsupported_features: List[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -72,6 +76,10 @@ def build_en13032_report_model(project: Project, job_ref: JobResultRef) -> EN130
         solver=solver,
         settings=settings,
         asset_hashes=asset_hashes,
+        coordinate_convention=meta.get("coordinate_convention"),
+        units=meta.get("units", {}),
+        assumptions=meta.get("assumptions", []),
+        unsupported_features=meta.get("unsupported_features", []),
     )
 
     summary = meta.get("summary", {})
