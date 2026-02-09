@@ -34,6 +34,85 @@ from luxera.geometry.core import Vector3, Surface, Polygon, Scene, Room
 
 
 # =============================================================================
+# BVH Acceleration (AABB)
+# =============================================================================
+
+@dataclass(frozen=True)
+class AABB:
+    min: Vector3
+    max: Vector3
+
+    def intersects_ray(self, origin: Vector3, direction: Vector3, t_max: float) -> bool:
+        # Slab intersection
+        tmin = -math.inf
+        tmax = t_max
+        for axis in ("x", "y", "z"):
+            o = getattr(origin, axis)
+            d = getattr(direction, axis)
+            mn = getattr(self.min, axis)
+            mx = getattr(self.max, axis)
+            if abs(d) < 1e-12:
+                if o < mn or o > mx:
+                    return False
+                continue
+            inv_d = 1.0 / d
+            t0 = (mn - o) * inv_d
+            t1 = (mx - o) * inv_d
+            if t0 > t1:
+                t0, t1 = t1, t0
+            tmin = max(tmin, t0)
+            tmax = min(tmax, t1)
+            if tmax < tmin:
+                return False
+        return True
+
+
+@dataclass
+class BVHNode:
+    aabb: AABB
+    left: Optional["BVHNode"] = None
+    right: Optional["BVHNode"] = None
+    surfaces: Optional[List[Surface]] = None
+
+
+def _surface_aabb(surface: Surface) -> AABB:
+    xs = [v.x for v in surface.polygon.vertices]
+    ys = [v.y for v in surface.polygon.vertices]
+    zs = [v.z for v in surface.polygon.vertices]
+    return AABB(min=Vector3(min(xs), min(ys), min(zs)), max=Vector3(max(xs), max(ys), max(zs)))
+
+
+def build_bvh(surfaces: List[Surface], max_leaf: int = 4) -> Optional[BVHNode]:
+    if not surfaces:
+        return None
+    if len(surfaces) <= max_leaf:
+        aabb = _merge_aabbs([_surface_aabb(s) for s in surfaces])
+        return BVHNode(aabb=aabb, surfaces=surfaces)
+
+    # Split by longest axis of centroids
+    centroids = [s.polygon.get_centroid() for s in surfaces]
+    xs = [c.x for c in centroids]
+    ys = [c.y for c in centroids]
+    zs = [c.z for c in centroids]
+    ranges = (max(xs) - min(xs), max(ys) - min(ys), max(zs) - min(zs))
+    axis = ranges.index(max(ranges))
+    key = (lambda s: s.polygon.get_centroid().x) if axis == 0 else (lambda s: s.polygon.get_centroid().y) if axis == 1 else (lambda s: s.polygon.get_centroid().z)
+    surfaces_sorted = sorted(surfaces, key=key)
+    mid = len(surfaces_sorted) // 2
+    left = build_bvh(surfaces_sorted[:mid], max_leaf=max_leaf)
+    right = build_bvh(surfaces_sorted[mid:], max_leaf=max_leaf)
+    aabb = _merge_aabbs([left.aabb, right.aabb])  # type: ignore[arg-type]
+    return BVHNode(aabb=aabb, left=left, right=right)
+
+
+def _merge_aabbs(aabbs: List[AABB]) -> AABB:
+    xs = [a.min.x for a in aabbs] + [a.max.x for a in aabbs]
+    ys = [a.min.y for a in aabbs] + [a.max.y for a in aabbs]
+    zs = [a.min.z for a in aabbs] + [a.max.z for a in aabbs]
+    return AABB(min=Vector3(min(xs), min(ys), min(zs)), max=Vector3(max(xs), max(ys), max(zs)))
+
+
+# =============================================================================
 # Form Factor Calculation
 # =============================================================================
 
@@ -41,7 +120,8 @@ def _visibility_ray(
     p1: Vector3, 
     p2: Vector3, 
     surfaces: List[Surface],
-    exclude_ids: Tuple[str, str]
+    exclude_ids: Tuple[str, str],
+    bvh: Optional[BVHNode] = None,
 ) -> bool:
     """
     Check if two points can see each other.
@@ -64,7 +144,11 @@ def _visibility_ray(
     
     direction = direction.normalize()
     
-    for surface in surfaces:
+    candidates = surfaces
+    if bvh is not None:
+        candidates = _bvh_query(bvh, p1, direction, dist)
+
+    for surface in candidates:
         if surface.id in exclude_ids:
             continue
         
@@ -89,6 +173,19 @@ def _visibility_ray(
             return False
     
     return True
+
+
+def _bvh_query(node: BVHNode, origin: Vector3, direction: Vector3, t_max: float) -> List[Surface]:
+    hits: List[Surface] = []
+    if not node.aabb.intersects_ray(origin, direction, t_max):
+        return hits
+    if node.surfaces is not None:
+        return node.surfaces
+    if node.left:
+        hits.extend(_bvh_query(node.left, origin, direction, t_max))
+    if node.right:
+        hits.extend(_bvh_query(node.right, origin, direction, t_max))
+    return hits
 
 
 def compute_form_factor_analytic(
@@ -134,6 +231,8 @@ def compute_form_factor_monte_carlo(
     patch_j: Surface,
     surfaces: List[Surface],
     num_samples: int = 16,
+    rng: Optional[np.random.Generator] = None,
+    bvh: Optional[BVHNode] = None,
 ) -> float:
     """
     Compute form factor using Monte Carlo sampling with visibility.
@@ -151,24 +250,27 @@ def compute_form_factor_monte_carlo(
     visible_samples = 0
     total_factor = 0.0
     
+    if rng is None:
+        rng = np.random.default_rng(0)
+
     for _ in range(num_samples):
         # Jitter sample points slightly
         offset_i = Vector3(
-            (np.random.random() - 0.5) * 0.1,
-            (np.random.random() - 0.5) * 0.1,
-            (np.random.random() - 0.5) * 0.1
+            (rng.random() - 0.5) * 0.1,
+            (rng.random() - 0.5) * 0.1,
+            (rng.random() - 0.5) * 0.1
         )
         offset_j = Vector3(
-            (np.random.random() - 0.5) * 0.1,
-            (np.random.random() - 0.5) * 0.1,
-            (np.random.random() - 0.5) * 0.1
+            (rng.random() - 0.5) * 0.1,
+            (rng.random() - 0.5) * 0.1,
+            (rng.random() - 0.5) * 0.1
         )
         
         p_i = centroid_i + offset_i
         p_j = centroid_j + offset_j
         
         # Check visibility
-        if _visibility_ray(p_i, p_j, surfaces, (patch_i.id, patch_j.id)):
+        if _visibility_ray(p_i, p_j, surfaces, (patch_i.id, patch_j.id), bvh=bvh):
             visible_samples += 1
             
             # Compute contribution
@@ -214,6 +316,8 @@ class RadiositySettings:
     method: RadiosityMethod = RadiosityMethod.GATHERING
     use_visibility: bool = True
     ambient_light: float = 0.0  # Ambient term (lux)
+    seed: int = 0
+    monte_carlo_samples: int = 16
 
 
 @dataclass
@@ -247,6 +351,8 @@ class RadiosityResult:
     converged: bool
     total_flux: float  # Total light in scene [lm]
     avg_illuminance: float  # Average floor illuminance [lux]
+    residuals: List[float]  # per-iteration max change
+    stop_reason: str  # "converged" or "max_iterations"
     
     def get_surface_illuminance(self, surface_id: str) -> float:
         """Get average illuminance on a surface."""
@@ -275,6 +381,8 @@ class RadiositySolver:
         self.settings = settings or RadiositySettings()
         self.patches: List[Patch] = []
         self.form_factors: Optional[np.ndarray] = None
+        self.rng = np.random.default_rng(self.settings.seed)
+        self.bvh: Optional[BVHNode] = None
     
     def _create_patches(self, surfaces: List[Surface]) -> List[Patch]:
         """Subdivide surfaces into patches."""
@@ -317,14 +425,19 @@ class RadiositySolver:
                 
                 if self.settings.use_visibility:
                     F[i, j] = compute_form_factor_monte_carlo(
-                        patch_i, patch_j, surfaces, num_samples=8
+                        patch_i,
+                        patch_j,
+                        surfaces,
+                        num_samples=self.settings.monte_carlo_samples,
+                        rng=self.rng,
+                        bvh=self.bvh,
                     )
                 else:
                     F[i, j] = compute_form_factor_analytic(patch_i, patch_j)
         
         return F
     
-    def _solve_gathering(self) -> int:
+    def _solve_gathering(self) -> tuple[int, List[float]]:
         """
         Solve using Gauss-Seidel iteration (gathering).
         
@@ -337,6 +450,7 @@ class RadiositySolver:
         for patch in self.patches:
             patch.radiosity = patch.emission
         
+        residuals: List[float] = []
         for iteration in range(self.settings.max_iterations):
             max_change = 0.0
             
@@ -360,12 +474,13 @@ class RadiositySolver:
                 patch.radiosity = new_radiosity
                 patch.irradiance = incoming
             
+            residuals.append(max_change)
             if max_change < self.settings.convergence_threshold:
-                return iteration + 1
+                return iteration + 1, residuals
         
-        return self.settings.max_iterations
+        return self.settings.max_iterations, residuals
     
-    def _solve_shooting(self) -> int:
+    def _solve_shooting(self) -> tuple[int, List[float]]:
         """
         Solve using progressive refinement (shooting).
         
@@ -380,6 +495,7 @@ class RadiositySolver:
             patch.radiosity = patch.emission
             patch.residual = patch.emission
         
+        residuals: List[float] = []
         for iteration in range(self.settings.max_iterations):
             # Find patch with most unshot energy
             max_energy = 0
@@ -391,8 +507,9 @@ class RadiositySolver:
                     max_energy = energy
                     shooter_idx = i
             
+            residuals.append(max_energy)
             if shooter_idx < 0 or max_energy < self.settings.convergence_threshold:
-                return iteration + 1
+                return iteration + 1, residuals
             
             shooter = self.patches[shooter_idx]
             
@@ -414,7 +531,7 @@ class RadiositySolver:
             # Clear shooter's residual
             shooter.residual = 0
         
-        return self.settings.max_iterations
+        return self.settings.max_iterations, residuals
     
     def solve(
         self, 
@@ -444,6 +561,8 @@ class RadiositySolver:
                 converged=True,
                 total_flux=0,
                 avg_illuminance=0,
+                residuals=[],
+                stop_reason="converged",
             )
         
         # Set emission from direct illuminance
@@ -455,18 +574,22 @@ class RadiositySolver:
                     E = direct_illuminance[surf_id]
                     patch.emission = E * patch.reflectance
         
+        # Build BVH for visibility acceleration
+        self.bvh = build_bvh(surfaces)
+
         # Compute form factors
         self.form_factors = self._compute_form_factors(self.patches, surfaces)
         
         # Solve
         if self.settings.method == RadiosityMethod.GATHERING:
-            iterations = self._solve_gathering()
+            iterations, residuals = self._solve_gathering()
         elif self.settings.method == RadiosityMethod.SHOOTING:
-            iterations = self._solve_shooting()
+            iterations, residuals = self._solve_shooting()
         else:
-            iterations = self._solve_gathering()
+            iterations, residuals = self._solve_gathering()
         
         converged = iterations < self.settings.max_iterations
+        stop_reason = "converged" if converged else "max_iterations"
         
         # Compute total flux
         total_flux = sum(p.radiosity * p.area for p in self.patches)
@@ -494,6 +617,8 @@ class RadiositySolver:
             converged=converged,
             total_flux=total_flux,
             avg_illuminance=avg_illuminance,
+            residuals=residuals,
+            stop_reason=stop_reason,
         )
 
 

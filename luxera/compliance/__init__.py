@@ -11,10 +11,12 @@ from luxera.compliance.standards import (
     ComplianceCheck,
     ComplianceReport,
     check_compliance,
+    check_compliance_from_grid,
     get_requirement,
     list_activity_types,
     EN_12464_1_REQUIREMENTS,
 )
+from luxera.compliance.en13032 import EN13032Compliance, evaluate_en13032
 
 __all__ = [
     "ActivityType",
@@ -23,7 +25,10 @@ __all__ = [
     "ComplianceCheck",
     "ComplianceReport",
     "check_compliance",
+    "check_compliance_from_grid",
     "get_requirement",
     "list_activity_types",
     "EN_12464_1_REQUIREMENTS",
+    "EN13032Compliance",
+    "evaluate_en13032",
 ]

@@ -28,38 +28,9 @@ from typing import List, Optional, Tuple, Callable
 import numpy as np
 
 from luxera.parser.ies_parser import ParsedIES
-
-
-@dataclass
-class Point3D:
-    """A point in 3D space (meters)."""
-    x: float
-    y: float
-    z: float
-    
-    def __add__(self, other: 'Point3D') -> 'Point3D':
-        return Point3D(self.x + other.x, self.y + other.y, self.z + other.z)
-    
-    def __sub__(self, other: 'Point3D') -> 'Point3D':
-        return Point3D(self.x - other.x, self.y - other.y, self.z - other.z)
-    
-    def __mul__(self, scalar: float) -> 'Point3D':
-        return Point3D(self.x * scalar, self.y * scalar, self.z * scalar)
-    
-    def dot(self, other: 'Point3D') -> float:
-        return self.x * other.x + self.y * other.y + self.z * other.z
-    
-    def length(self) -> float:
-        return math.sqrt(self.x**2 + self.y**2 + self.z**2)
-    
-    def normalize(self) -> 'Point3D':
-        L = self.length()
-        if L < 1e-10:
-            return Point3D(0, 0, 1)
-        return Point3D(self.x / L, self.y / L, self.z / L)
-    
-    def to_tuple(self) -> Tuple[float, float, float]:
-        return (self.x, self.y, self.z)
+from luxera.geometry.core import Vector3, Transform
+from luxera.photometry.model import Photometry
+from luxera.photometry.sample import sample_intensity_cd
 
 
 @dataclass
@@ -68,22 +39,14 @@ class Luminaire:
     A luminaire positioned in 3D space.
     
     Attributes:
-        position: Location in meters (x, y, z)
-        aim_direction: Unit vector pointing in the luminaire's aim direction
-                       (default: straight down for Type C)
-        rotation_deg: Rotation about the aim axis (C-plane rotation)
-        ies_data: Parsed IES photometric data
+        transform: World transform (position + rotation)
+        photometry: Parsed photometric data
         flux_multiplier: Scale factor for output (e.g., for dimming)
     """
-    position: Point3D
-    ies_data: ParsedIES
-    aim_direction: Point3D = field(default_factory=lambda: Point3D(0, 0, -1))
-    rotation_deg: float = 0.0
+    photometry: Photometry
+    transform: Transform = field(default_factory=Transform)
     flux_multiplier: float = 1.0
-    
-    def __post_init__(self):
-        # Normalize aim direction
-        self.aim_direction = self.aim_direction.normalize()
+    tilt_deg: float = 0.0
 
 
 @dataclass
@@ -100,18 +63,18 @@ class CalculationGrid:
         ny: Number of points in y-direction
         normal: Surface normal (default: facing up)
     """
-    origin: Point3D
+    origin: Vector3
     width: float
     height: float
     elevation: float
     nx: int
     ny: int
-    normal: Point3D = field(default_factory=lambda: Point3D(0, 0, 1))
+    normal: Vector3 = field(default_factory=Vector3.up)
     
     def __post_init__(self):
         self.normal = self.normal.normalize()
     
-    def get_points(self) -> List[Point3D]:
+    def get_points(self) -> List[Vector3]:
         """Generate all grid points."""
         points = []
         dx = self.width / max(self.nx - 1, 1)
@@ -122,17 +85,17 @@ class CalculationGrid:
                 x = self.origin.x + i * dx
                 y = self.origin.y + j * dy
                 z = self.elevation
-                points.append(Point3D(x, y, z))
+                points.append(Vector3(x, y, z))
         
         return points
     
-    def get_point(self, i: int, j: int) -> Point3D:
+    def get_point(self, i: int, j: int) -> Vector3:
         """Get a specific grid point."""
         dx = self.width / max(self.nx - 1, 1)
         dy = self.height / max(self.ny - 1, 1)
         x = self.origin.x + i * dx
         y = self.origin.y + j * dy
-        return Point3D(x, y, self.elevation)
+        return Vector3(x, y, self.elevation)
 
 
 @dataclass(frozen=True)
@@ -241,8 +204,8 @@ def interpolate_candela(
 
 
 def calculate_direct_illuminance(
-    point: Point3D,
-    surface_normal: Point3D,
+    point: Vector3,
+    surface_normal: Vector3,
     luminaire: Luminaire,
 ) -> float:
     """
@@ -259,7 +222,7 @@ def calculate_direct_illuminance(
         Direct illuminance in lux
     """
     # Vector from luminaire to point
-    to_point = point - luminaire.position
+    to_point = point - luminaire.transform.position
     distance = to_point.length()
     
     if distance < 0.001:  # Too close, avoid division issues
@@ -268,33 +231,17 @@ def calculate_direct_illuminance(
     # Direction from luminaire to point (normalized)
     direction = to_point.normalize()
     
-    # Calculate angles relative to luminaire orientation
-    # For Type C: gamma = angle from nadir (aim direction)
-    # aim_direction points in the direction the luminaire is aimed (typically down)
-    aim = luminaire.aim_direction
-    
-    # The angle gamma is the angle between the aim direction and the direction to the point
-    # When looking straight down and the point is directly below, gamma = 0
-    cos_gamma = direction.dot(aim)  # Both point in same direction when aligned
-    cos_gamma = max(-1.0, min(1.0, cos_gamma))  # Clamp for numerical stability
-    gamma_deg = math.degrees(math.acos(abs(cos_gamma)))
-    
-    # If point is behind the luminaire (opposite to aim), no light reaches it
-    if cos_gamma < 0:
+    # Convert world direction into luminaire local frame
+    # Local frame convention: +X right, +Y forward, +Z up; nadir is -Z.
+    R = luminaire.transform.get_rotation_matrix()
+    local_dir = Vector3.from_array(R.T @ direction.to_array())
+
+    # If point is behind luminaire (local +Z), no light reaches it
+    if local_dir.z >= 0:
         return 0.0
     
-    # Calculate C-plane angle (rotation around aim axis)
-    # Project direction onto plane perpendicular to aim
-    if abs(aim.z) > 0.99:  # Nearly vertical aim
-        # C=0 is toward +X, C=90 is toward +Y
-        c_deg = math.degrees(math.atan2(direction.y, direction.x))
-        c_deg = (c_deg + luminaire.rotation_deg) % 360
-    else:
-        # General case - more complex rotation handling
-        c_deg = 0
-    
     # Get intensity at calculated angles
-    intensity = interpolate_candela(luminaire.ies_data, gamma_deg, c_deg)
+    intensity = sample_intensity_cd(luminaire.photometry, local_dir, tilt_deg=luminaire.tilt_deg)
     intensity *= luminaire.flux_multiplier
     
     # Calculate incidence angle on surface
@@ -346,7 +293,7 @@ def create_room_luminaire_layout(
     room_length: float,
     mounting_height: float,
     work_plane_height: float,
-    ies_data: ParsedIES,
+    photometry: Photometry,
     rows: int = 2,
     cols: int = 2,
     margin_x: float = 1.0,
@@ -360,7 +307,7 @@ def create_room_luminaire_layout(
         room_length: Room length in Y direction (meters)
         mounting_height: Height of luminaires above floor (meters)
         work_plane_height: Height of calculation plane above floor (meters)
-        ies_data: Photometric data for luminaires
+        photometry: Photometric data for luminaires
         rows: Number of rows of luminaires
         cols: Number of columns of luminaires
         margin_x: Margin from walls in X direction (meters)
@@ -388,14 +335,14 @@ def create_room_luminaire_layout(
             z = mounting_height
             
             luminaire = Luminaire(
-                position=Point3D(x, y, z),
-                ies_data=ies_data,
+                transform=Transform(position=Vector3(x, y, z)),
+                photometry=photometry,
             )
             luminaires.append(luminaire)
     
     # Create calculation grid
     grid = CalculationGrid(
-        origin=Point3D(0.5, 0.5, work_plane_height),  # 0.5m from walls
+        origin=Vector3(0.5, 0.5, work_plane_height),  # 0.5m from walls
         width=room_width - 1.0,
         height=room_length - 1.0,
         elevation=work_plane_height,
@@ -407,7 +354,7 @@ def create_room_luminaire_layout(
 
 
 def quick_room_calculation(
-    ies_data: ParsedIES,
+    photometry: Photometry,
     room_width: float = 6.0,
     room_length: float = 8.0,
     mounting_height: float = 2.8,
@@ -421,7 +368,7 @@ def quick_room_calculation(
     This is a convenience function for rapid analysis.
     
     Args:
-        ies_data: Parsed IES photometric data
+        photometry: Parsed photometric data
         room_width: Room width (meters), default 6m
         room_length: Room length (meters), default 8m
         mounting_height: Luminaire height (meters), default 2.8m
@@ -437,7 +384,7 @@ def quick_room_calculation(
         room_length=room_length,
         mounting_height=mounting_height,
         work_plane_height=work_plane_height,
-        ies_data=ies_data,
+        photometry=photometry,
         rows=num_luminaires_y,
         cols=num_luminaires_x,
     )

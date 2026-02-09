@@ -567,6 +567,41 @@ def check_compliance(
     return report
 
 
+def check_compliance_from_grid(
+    room_name: str,
+    activity_type: ActivityType,
+    grid_values_lux: List[float],
+    maintenance_factor: float = 1.0,
+    ugr: Optional[float] = None,
+    cri: Optional[int] = None,
+    cct: Optional[int] = None,
+) -> ComplianceReport:
+    """
+    Check compliance using grid illuminance values.
+
+    Maintained illuminance is computed as mean(grid) * maintenance_factor.
+    Uniformity is Emin/Eavg from the grid.
+    """
+    if not grid_values_lux:
+        raise ValueError("Grid values are empty")
+
+    avg = sum(grid_values_lux) / len(grid_values_lux)
+    mn = min(grid_values_lux)
+
+    maintained = avg * maintenance_factor
+    uniformity = (mn / avg) if avg > 0 else 0.0
+
+    return check_compliance(
+        room_name=room_name,
+        activity_type=activity_type,
+        maintained_illuminance=maintained,
+        uniformity=uniformity,
+        ugr=ugr,
+        cri=cri,
+        cct=cct,
+    )
+
+
 def get_requirement(activity_type: ActivityType) -> LightingRequirement:
     """Get lighting requirement for an activity type."""
     if activity_type in EN_12464_1_REQUIREMENTS:
