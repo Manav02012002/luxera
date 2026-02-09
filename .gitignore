@@ -35,3 +35,4 @@ conda/
 # Luxera outputs
 out/
 data/ies_samples/*.ies
+luxera.egg-info/

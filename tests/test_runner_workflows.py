@@ -144,3 +144,35 @@ def test_run_daylight_annual_proxy_metrics(tmp_path: Path):
     assert ref.summary["da_mean_ratio"] == 0.5
     assert ref.summary["sda_ratio"] == 1.0
     assert ref.summary["udi_mean_ratio"] == 0.5
+
+
+def test_run_direct_with_indoor_compliance_profile(tmp_path: Path):
+    ies = _ies_fixture(tmp_path / "direct.ies")
+    p = Project(name="DirectProfile", root_dir=str(tmp_path))
+    p.photometry_assets.append(PhotometryAsset(id="a1", format="IES", path=str(ies)))
+    rot = RotationSpec(type="euler_zyx", euler_deg=(0.0, 0.0, 0.0))
+    p.luminaires.append(
+        LuminaireInstance(
+            id="l1",
+            name="Lum",
+            photometry_asset_id="a1",
+            transform=TransformSpec(position=(2.0, 2.0, 3.0), rotation=rot),
+        )
+    )
+    p.grids.append(CalcGrid(id="g1", name="g", origin=(0, 0, 0), width=4, height=4, elevation=0.8, nx=3, ny=3))
+    p.compliance_profiles.append(
+        ComplianceProfile(
+            id="office500",
+            name="Office 500",
+            domain="indoor",
+            standard_ref="EN 12464-1:2021",
+            thresholds={"avg_min_lux": 10.0, "uniformity_min": 0.1, "ugr_max": 19.0},
+        )
+    )
+    p.jobs.append(JobSpec(id="j1", type="direct", settings={"compliance_profile_id": "office500"}))
+    ref = run_job(p, "j1")
+    cp = ref.summary.get("compliance_profile")
+    assert isinstance(cp, dict)
+    assert cp["profile_id"] == "office500"
+    assert cp["standard"] == "EN 12464-1:2021"
+    assert cp["status"] in {"PASS", "FAIL"}

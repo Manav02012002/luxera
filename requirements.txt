@@ -1,3 +1,5 @@
+# Source of truth for dependencies is pyproject.toml.
+# This file is kept for local convenience/pinned installs.
 annotated-types==0.7.0
 contourpy==1.3.3
 cycler==0.12.1

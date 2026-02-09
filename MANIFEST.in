@@ -1,0 +1,9 @@
+global-exclude .DS_Store
+global-exclude __pycache__
+global-exclude __pycache__/*
+prune .pytest_cache
+prune out
+prune dist
+prune build
+prune .venv
+prune luxera.egg-info

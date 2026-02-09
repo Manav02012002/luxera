@@ -2,6 +2,17 @@ from pathlib import Path
 
 from luxera.cli import main
 from luxera.project.io import load_project_schema
+from luxera.project.schema import (
+    JobSpec,
+    LuminaireInstance,
+    PhotometryAsset,
+    Project,
+    RoadwayGridSpec,
+    RotationSpec,
+    TransformSpec,
+)
+from luxera.project.io import save_project_schema
+from luxera.runner import run_job
 
 
 def test_cli_add_roadway_grid_and_profile_and_job(tmp_path: Path):
@@ -102,3 +113,40 @@ def test_cli_add_daylight_annual_job_with_weather_file(tmp_path: Path):
     job = next(j for j in p.jobs if j.id == "j_day")
     assert job.settings["mode"] == "annual_proxy"
     assert job.settings["exterior_hourly_lux"] == [0.0, 10000.0, 20000.0, 30000.0]
+
+
+def test_cli_export_roadway_report(tmp_path: Path):
+    project_path = tmp_path / "road.json"
+    ies_path = tmp_path / "road.ies"
+    ies_path.write_text(
+        """IESNA:LM-63-2019
+TILT=NONE
+1 1000 1 3 1 1 2 0.5 0.5 0.2
+0 45 90
+0
+1000 700 300
+""",
+        encoding="utf-8",
+    )
+    p = Project(name="RoadCli", root_dir=str(tmp_path))
+    p.photometry_assets.append(PhotometryAsset(id="a1", format="IES", path=str(ies_path)))
+    rot = RotationSpec(type="euler_zyx", euler_deg=(0.0, 0.0, 0.0))
+    p.luminaires.append(
+        LuminaireInstance(
+            id="l1",
+            name="L1",
+            photometry_asset_id="a1",
+            transform=TransformSpec(position=(10.0, 2.0, 8.0), rotation=rot),
+        )
+    )
+    p.roadway_grids.append(RoadwayGridSpec(id="rg1", name="R1", lane_width=4.0, road_length=20.0, nx=10, ny=3))
+    p.jobs.append(JobSpec(id="j1", type="roadway", settings={"road_class": "M3"}))
+    save_project_schema(p, project_path)
+
+    loaded = load_project_schema(project_path)
+    run_job(loaded, "j1")
+    save_project_schema(loaded, project_path)
+
+    out_html = tmp_path / "roadway.html"
+    assert main(["export-roadway-report", str(project_path), "j1", "--out", str(out_html)]) == 0
+    assert out_html.exists()

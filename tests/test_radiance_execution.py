@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from luxera.backends import radiance as rad
 from luxera.project.schema import (
     Project,
@@ -10,6 +12,8 @@ from luxera.project.schema import (
     TransformSpec,
     RotationSpec,
 )
+
+pytestmark = pytest.mark.radiance
 
 
 def test_run_radiance_direct_mocked(monkeypatch, tmp_path: Path):
