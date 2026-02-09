@@ -1,7 +1,11 @@
+import pytest
+
 from luxera.engine.ugr_engine import compute_ugr_default
 from luxera.geometry.core import Room, Vector3, Material, Transform
 from luxera.calculation.illuminance import Luminaire
 from luxera.photometry.model import Photometry
+
+pytestmark = pytest.mark.slow
 
 
 def make_room(width=6.0, length=8.0, height=3.0, refl=(0.2, 0.5, 0.7)):

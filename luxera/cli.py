@@ -224,6 +224,11 @@ def _cmd_add_roadway_grid(args: argparse.Namespace) -> int:
         nx=args.nx,
         ny=args.ny,
         origin=(args.origin_x, args.origin_y, args.origin_z),
+        num_lanes=args.num_lanes,
+        pole_spacing_m=args.pole_spacing_m,
+        mounting_height_m=args.mounting_height_m,
+        setback_m=args.setback_m,
+        observer_height_m=args.observer_height_m,
     )
     project.roadway_grids.append(rg)
     save_project_schema(project, project_path)
@@ -441,6 +446,31 @@ def _cmd_export_backend_compare(args: argparse.Namespace) -> int:
     )
     save_project_schema(project, project_path)
     print(f"Backend comparison report written: {out}")
+    return 0
+
+
+def _cmd_export_roadway_report(args: argparse.Namespace) -> int:
+    from luxera.export.roadway_report import render_roadway_report_html
+    from luxera.agent.audit import append_audit_event
+
+    project_path = Path(args.project).expanduser().resolve()
+    project = load_project_schema(project_path)
+    job_id = args.job_id
+    ref = next((r for r in project.results if r.job_id == job_id), None)
+    if ref is None:
+        print(f"[ERROR] Job result not found: {job_id}")
+        return 2
+    out = render_roadway_report_html(Path(ref.result_dir), Path(args.out))
+    append_audit_event(
+        project,
+        action="export.roadway_report",
+        plan="Render roadway report from result artifacts.",
+        artifacts=[str(out)],
+        job_hashes=[ref.job_hash],
+        metadata={"job_id": job_id},
+    )
+    save_project_schema(project, project_path)
+    print(f"Roadway report written: {out}")
     return 0
 
 
@@ -664,6 +694,11 @@ def main(argv: list[str] | None = None) -> int:
     arg.add_argument("--origin-x", type=float, default=0.0)
     arg.add_argument("--origin-y", type=float, default=0.0)
     arg.add_argument("--origin-z", type=float, default=0.0)
+    arg.add_argument("--num-lanes", type=int, default=1)
+    arg.add_argument("--pole-spacing-m", type=float, default=None)
+    arg.add_argument("--mounting-height-m", type=float, default=None)
+    arg.add_argument("--setback-m", type=float, default=None)
+    arg.add_argument("--observer-height-m", type=float, default=1.5)
     arg.set_defaults(func=_cmd_add_roadway_grid)
 
     acp = sub.add_parser("add-compliance-profile", help="Add a compliance profile (indoor/roadway/emergency/custom).")
@@ -748,6 +783,12 @@ def main(argv: list[str] | None = None) -> int:
     bc.add_argument("job_id", help="Job id to export")
     bc.add_argument("--out", required=True, help="Output .html path")
     bc.set_defaults(func=_cmd_export_backend_compare)
+
+    rr = sub.add_parser("export-roadway-report", help="Export roadway report HTML for a roadway job result.")
+    rr.add_argument("project", help="Path to project JSON")
+    rr.add_argument("job_id", help="Job id to export")
+    rr.add_argument("--out", required=True, help="Output .html path")
+    rr.set_defaults(func=_cmd_export_roadway_report)
 
     cr = sub.add_parser("compare-results", help="Compare two job results and output deltas.")
     cr.add_argument("project", help="Path to project JSON")

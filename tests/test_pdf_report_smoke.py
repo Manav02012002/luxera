@@ -1,8 +1,12 @@
 from pathlib import Path
 
+import pytest
+
 from luxera.parser.pipeline import parse_and_analyse_ies
 from luxera.plotting.plots import save_default_plots
 from luxera.export.pdf_report import build_pdf_report
+
+pytestmark = pytest.mark.slow
 
 
 def test_pdf_report_smoke(tmp_path: Path):

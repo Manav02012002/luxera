@@ -127,6 +127,10 @@ def _validate_project_schema(project: Project) -> List[str]:
             errors.append(f"Roadway grid {rg.id} lane_width/road_length must be > 0")
         if rg.nx <= 0 or rg.ny <= 0:
             errors.append(f"Roadway grid {rg.id} nx/ny must be > 0")
+        if getattr(rg, "num_lanes", 1) <= 0:
+            errors.append(f"Roadway grid {rg.id} num_lanes must be > 0")
+        if getattr(rg, "observer_height_m", 1.5) <= 0:
+            errors.append(f"Roadway grid {rg.id} observer_height_m must be > 0")
 
     return errors
 

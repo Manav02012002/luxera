@@ -14,6 +14,8 @@ from luxera.project.schema import (
 )
 from luxera.runner import run_job, RunnerError
 
+pytestmark = pytest.mark.radiance
+
 
 def test_detect_radiance_tools_shape():
     tools = detect_radiance_tools()

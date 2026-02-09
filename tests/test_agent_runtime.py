@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from luxera.agent.runtime import AgentRuntime
-from luxera.project.io import save_project_schema
+from luxera.project.io import load_project_schema, save_project_schema
 from luxera.project.schema import Project, RoomSpec, PhotometryAsset, LuminaireInstance, TransformSpec, RotationSpec, JobSpec, CalcGrid
 
 
@@ -22,7 +22,7 @@ TILT=NONE
     p.photometry_assets.append(PhotometryAsset(id="a1", format="IES", path=str(ies)))
     rot = RotationSpec(type="euler_zyx", euler_deg=(0.0, 0.0, 0.0))
     p.luminaires.append(LuminaireInstance(id="l1", name="L1", photometry_asset_id="a1", transform=TransformSpec(position=(1, 1, 2.8), rotation=rot)))
-    p.grids.append(CalcGrid(id="g1", name="g", origin=(0, 0, 0), width=4, height=4, elevation=0.8, nx=3, ny=3))
+    p.grids.append(CalcGrid(id="g1", name="g", origin=(0, 0, 0), width=4, height=4, elevation=0.8, nx=3, ny=3, room_id="r1"))
     p.jobs.append(JobSpec(id="j1", type="direct"))
     path = tmp_path / "p.json"
     save_project_schema(p, path)
@@ -60,6 +60,73 @@ def test_runtime_grid_command_adds_grid(tmp_path: Path):
     project_path = _make_project(tmp_path)
     rt = AgentRuntime()
     rt.execute(str(project_path), "/grid 0.8 0.5")
-    from luxera.project.io import load_project_schema
+    p = load_project_schema(project_path)
+    assert len(p.grids) >= 2
+
+
+def test_runtime_diff_preview_has_keys(tmp_path: Path):
+    project_path = _make_project(tmp_path)
+    rt = AgentRuntime()
+    res = rt.execute(str(project_path), "/place panels target 500 lux")
+    assert res.diff_preview["count"] > 0
+    assert all("key" in op for op in res.diff_preview["ops"])
+    assert all("payload_fields" in op for op in res.diff_preview["ops"])
+    assert all("payload_summary" in op for op in res.diff_preview["ops"])
+
+
+def test_runtime_apply_selected_diff_ops_only(tmp_path: Path):
+    project_path = _make_project(tmp_path)
+    rt = AgentRuntime()
+    before = load_project_schema(project_path)
+    before_lum_ids = [x.id for x in before.luminaires]
+
+    # Approve apply, but with explicit empty selection.
+    rt.execute(
+        str(project_path),
+        "/place panels target 500 lux",
+        approvals={"apply_diff": True, "selected_diff_ops": []},
+    )
+    after = load_project_schema(project_path)
+    after_lum_ids = [x.id for x in after.luminaires]
+    assert after_lum_ids == before_lum_ids
+
+
+def test_runtime_workflow_hit_lux_uniformity_adds_layout_actions(tmp_path: Path):
+    project_path = _make_project(tmp_path)
+    rt = AgentRuntime()
+    res = rt.execute(str(project_path), "hit 500 lux uniformity")
+    kinds = [a.kind for a in res.actions]
+    assert "apply_diff" in kinds
+
+
+def test_runtime_workflow_generate_client_and_audit_reports(tmp_path: Path):
+    project_path = _make_project(tmp_path)
+    p = load_project_schema(project_path)
+    from luxera.runner import run_job
+
+    run_job(p, "j1")
+    save_project_schema(p, project_path)
+
+    rt = AgentRuntime()
+    res = rt.execute(str(project_path), "generate client report and audit bundle")
+    artifacts = set(res.produced_artifacts)
+    assert any(a.endswith("_client_bundle.zip") for a in artifacts)
+    assert any(a.endswith("_debug_bundle.zip") for a in artifacts)
+
+
+def test_runtime_workflow_import_detect_grid(tmp_path: Path):
+    project_path = _make_project(tmp_path)
+    obj = tmp_path / "box.obj"
+    obj.write_text(
+        """v 0 0 0
+v 1 0 0
+v 1 1 0
+v 0 1 0
+f 1 2 3 4
+""",
+        encoding="utf-8",
+    )
+    rt = AgentRuntime()
+    rt.execute(str(project_path), f"import {obj} detect rooms create grid")
     p = load_project_schema(project_path)
     assert len(p.grids) >= 2

@@ -13,6 +13,7 @@ from luxera.core.hashing import sha256_file
 from luxera.export.en12464_pdf import render_en12464_pdf
 from luxera.export.en12464_report import build_en12464_report_model
 from luxera.export.en13032_pdf import render_en13032_pdf
+from luxera.export.roadway_report import render_roadway_report_html
 from luxera.geometry.scene_prep import clean_scene_surfaces, detect_room_volumes_from_surfaces
 from luxera.io.geometry_import import import_geometry_file
 from luxera.project.schema import CalcGrid, JobSpec
@@ -198,6 +199,20 @@ class AgentTools:
             job_hashes=[ref.job_hash],
         )
         return ToolResult(ok=True, message="Backend comparison exported", data={"path": str(out)})
+
+    def export_roadway_report(self, project, job_id: str, out_html: str) -> ToolResult:
+        ref = next((r for r in project.results if r.job_id == job_id), None)
+        if ref is None:
+            return ToolResult(ok=False, message=f"Result not found for job: {job_id}")
+        out = render_roadway_report_html(Path(ref.result_dir), Path(out_html))
+        append_audit_event(
+            project,
+            action="agent.tools.export_roadway_report",
+            plan="Export roadway HTML report from result artifacts.",
+            artifacts=[str(out)],
+            job_hashes=[ref.job_hash],
+        )
+        return ToolResult(ok=True, message="Roadway report exported", data={"path": str(out)})
 
     def import_geometry(self, project, file_path: str, fmt: Optional[str] = None) -> ToolResult:
         try:

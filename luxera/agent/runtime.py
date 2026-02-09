@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from luxera.agent.audit import append_audit_event
 from luxera.agent.tools.api import AgentTools
+from luxera.project.diff import ProjectDiff, DiffOp
 
 
 @dataclass(frozen=True)
@@ -63,7 +64,7 @@ class AgentRuntime:
         self,
         project_path: str,
         intent: str,
-        approvals: Optional[Dict[str, bool]] = None,
+        approvals: Optional[Dict[str, Any]] = None,
     ) -> RuntimeResponse:
         approvals = approvals or {}
         project, ppath = self.tools.open_project(project_path)
@@ -79,8 +80,33 @@ class AgentRuntime:
         plan = "Interpret intent, propose diff if needed, require approvals for apply/run, and produce artifacts."
         run_manifest: Dict[str, Any] = {"runtime_id": runtime_id, "intent": intent, "project": project.name}
         diff_preview: Dict[str, Any] = {"ops": [], "count": 0}
+        selected_diff_ops = approvals.get("selected_diff_ops")
+        selected_diff_ops_set = set(selected_diff_ops) if isinstance(selected_diff_ops, list) else None
 
-        if "place" in lintent or "layout" in lintent or "target" in lintent:
+        if "import" in lintent and "detect" in lintent and "grid" in lintent:
+            file_path = self._extract_import_path(intent)
+            if file_path is None:
+                warnings.append("Import workflow requires a file path after 'import'.")
+            else:
+                ir = self.tools.import_geometry(project, file_path=file_path)
+                tool_calls.append({"tool": "import_geometry", "file_path": file_path, "workflow": "import_detect_grid"})
+                if not ir.ok:
+                    warnings.append(ir.message)
+                cg = self.tools.clean_geometry(project, detect_rooms=True)
+                tool_calls.append({"tool": "clean_geometry", "detect_rooms": True, "workflow": "import_detect_grid"})
+                if not cg.ok:
+                    warnings.append(cg.message)
+                room = project.geometry.rooms[0] if project.geometry.rooms else None
+                width = room.width if room else 6.0
+                height = room.length if room else 8.0
+                nx = max(2, int(round(width / 0.25)) + 1)
+                ny = max(2, int(round(height / 0.25)) + 1)
+                gr = self.tools.add_grid(project, name="Agent Grid", width=width, height=height, elevation=0.8, nx=nx, ny=ny)
+                tool_calls.append({"tool": "add_grid", "name": "Agent Grid", "elevation": 0.8, "spacing": 0.25, "workflow": "import_detect_grid"})
+                if not gr.ok:
+                    warnings.append(gr.message)
+
+        if "place" in lintent or "layout" in lintent or "target" in lintent or ("hit" in lintent and "lux" in lintent):
             target = memory.get("preferred_target_lux", 500.0)
             for tok in lintent.replace("/", " ").split():
                 try:
@@ -91,11 +117,12 @@ class AgentRuntime:
             pr = self.tools.propose_layout_diff(project, target, constraints={"max_rows": 6, "max_cols": 6})
             tool_calls.append({"tool": "propose_layout_diff", "target_lux": target})
             diff = pr.data["diff"]
-            diff_preview = pr.data["preview"]
+            diff_preview = self._diff_preview(diff)
             actions.append(RuntimeAction(kind="apply_diff", requires_approval=True, payload={"op_count": diff_preview.get("count", 0)}))
             if approvals.get("apply_diff", False):
-                r = self.tools.apply_diff(project, diff, approved=True)
-                tool_calls.append({"tool": "apply_diff", "approved": True})
+                diff_to_apply = self._filtered_diff(diff, selected_diff_ops_set)
+                r = self.tools.apply_diff(project, diff_to_apply, approved=True)
+                tool_calls.append({"tool": "apply_diff", "approved": True, "selected_ops": len(diff_to_apply.ops)})
                 if not r.ok:
                     warnings.append(r.message)
 
@@ -148,12 +175,13 @@ class AgentRuntime:
             pr = self.tools.propose_layout_diff(project, target_lux=float(target), constraints={"max_rows": 8, "max_cols": 8})
             tool_calls.append({"tool": "propose_layout_diff", "target_lux": float(target), "mode": "optimizer"})
             if pr.ok:
-                diff_preview = pr.data["preview"]
+                diff_preview = self._diff_preview(pr.data["diff"])
                 diff = pr.data["diff"]
                 actions.append(RuntimeAction(kind="apply_diff", requires_approval=True, payload={"op_count": diff_preview.get("count", 0), "mode": "optimizer"}))
                 if approvals.get("apply_diff", False):
-                    ar = self.tools.apply_diff(project, diff, approved=True)
-                    tool_calls.append({"tool": "apply_diff", "approved": True, "mode": "optimizer"})
+                    diff_to_apply = self._filtered_diff(diff, selected_diff_ops_set)
+                    ar = self.tools.apply_diff(project, diff_to_apply, approved=True)
+                    tool_calls.append({"tool": "apply_diff", "approved": True, "mode": "optimizer", "selected_ops": len(diff_to_apply.ops)})
                     if not ar.ok:
                         warnings.append(ar.message)
             else:
@@ -184,7 +212,18 @@ class AgentRuntime:
                 warnings.append("Cannot export report: no job results available.")
             else:
                 job_id = project.results[-1].job_id
-                if "client" in lintent:
+                wants_client = "client" in lintent
+                wants_audit = "audit" in lintent or "debug" in lintent
+                wants_roadway = "roadway" in lintent
+                if wants_roadway:
+                    out_html = str(ppath.parent / f"{project.name}_{job_id}_roadway_report.html")
+                    rc = self.tools.export_roadway_report(project, job_id, out_html)
+                    tool_calls.append({"tool": "export_roadway_report", "job_id": job_id, "out": out_html})
+                    if rc.ok:
+                        produced.append(rc.data["path"])
+                    else:
+                        warnings.append(rc.message)
+                if wants_client:
                     out_zip = str(ppath.parent / f"{project.name}_client_bundle.zip")
                     rc = self.tools.export_client_bundle(project, job_id, out_zip)
                     tool_calls.append({"tool": "export_client_bundle", "job_id": job_id, "out": out_zip})
@@ -192,7 +231,7 @@ class AgentRuntime:
                         produced.append(rc.data["path"])
                     else:
                         warnings.append(rc.message)
-                elif "debug" in lintent:
+                if wants_audit:
                     out_zip = str(ppath.parent / f"{project.name}_debug_bundle.zip")
                     rc = self.tools.export_debug_bundle(project, job_id, out_zip)
                     tool_calls.append({"tool": "export_debug_bundle", "job_id": job_id, "out": out_zip})
@@ -200,7 +239,7 @@ class AgentRuntime:
                         produced.append(rc.data["path"])
                     else:
                         warnings.append(rc.message)
-                else:
+                if not wants_client and not wants_audit and not wants_roadway:
                     out_pdf = str(ppath.parent / f"{project.name}_{job_id}_en12464.pdf")
                     rc = self.tools.build_pdf(project, job_id=job_id, report_type="en12464", out_path=out_pdf)
                     tool_calls.append({"tool": "build_pdf", "job_id": job_id, "report_type": "en12464", "out": out_pdf})
@@ -268,3 +307,53 @@ class AgentRuntime:
             warnings=warnings,
             compliance_claimed=compliance_claimed,
         )
+
+    @staticmethod
+    def _diff_op_key(index: int, op: DiffOp) -> str:
+        return f"{index}:{op.op}:{op.kind}:{op.id}"
+
+    def _diff_preview(self, diff: ProjectDiff) -> Dict[str, Any]:
+        def _payload_fields(payload: Any) -> List[str]:
+            if isinstance(payload, dict):
+                return sorted([str(k) for k in payload.keys()])
+            if hasattr(payload, "__dict__"):
+                return sorted([str(k) for k in vars(payload).keys()])
+            return []
+
+        def _payload_summary(payload: Any) -> str:
+            fields = _payload_fields(payload)
+            if not fields:
+                return ""
+            shown = fields[:5]
+            text = ", ".join(shown)
+            if len(fields) > len(shown):
+                text += ", ..."
+            return text
+
+        ops = [
+            {
+                "key": self._diff_op_key(i, op),
+                "index": i,
+                "op": op.op,
+                "kind": op.kind,
+                "id": op.id,
+                "payload_fields": _payload_fields(op.payload),
+                "payload_summary": _payload_summary(op.payload),
+            }
+            for i, op in enumerate(diff.ops)
+        ]
+        return {"ops": ops, "count": len(ops)}
+
+    def _filtered_diff(self, diff: ProjectDiff, selected_op_keys: Optional[set[str]]) -> ProjectDiff:
+        if selected_op_keys is None:
+            return diff
+        ops = [op for i, op in enumerate(diff.ops) if self._diff_op_key(i, op) in selected_op_keys]
+        return ProjectDiff(ops=ops)
+
+    @staticmethod
+    def _extract_import_path(intent: str) -> Optional[str]:
+        tokens = intent.strip().split()
+        for i, t in enumerate(tokens):
+            if t.lower() == "import" and i + 1 < len(tokens):
+                return tokens[i + 1]
+        return None

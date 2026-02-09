@@ -8,9 +8,34 @@ version = "0.1.0"
 description = "Luxera View — photometric inspection and validation tools"
 authors = [{ name = "Luxera" }]
 requires-python = ">=3.11"
+dependencies = [
+    "matplotlib>=3.10,<4",
+    "numpy>=2.4,<3",
+    "pillow>=12,<13",
+    "pydantic>=2.12,<3",
+    "reportlab>=4.0,<5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9,<10",
+]
+gui = [
+    "PySide6>=6.7,<7",
+]
+radiance = []
 
 [tool.setuptools]
-packages = ["luxera"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["luxera*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m \"not slow and not radiance and not gui\""
+markers = [
+    "slow: slower integration/regression tests",
+    "radiance: tests that require Radiance tooling or backend flows",
+    "gui: tests that require GUI/Qt dependencies",
+]

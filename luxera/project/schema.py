@@ -246,6 +246,11 @@ class RoadwayGridSpec:
     nx: int
     ny: int
     origin: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    num_lanes: int = 1
+    pole_spacing_m: Optional[float] = None
+    mounting_height_m: Optional[float] = None
+    setback_m: Optional[float] = None
+    observer_height_m: float = 1.5
 
 
 @dataclass

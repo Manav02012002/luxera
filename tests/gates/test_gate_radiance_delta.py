@@ -1,6 +1,8 @@
 from pathlib import Path
 import json
 
+import pytest
+
 from luxera.backends import radiance as rad
 from luxera.project.schema import (
     Project,
@@ -11,6 +13,8 @@ from luxera.project.schema import (
     TransformSpec,
     RotationSpec,
 )
+
+pytestmark = pytest.mark.radiance
 
 
 def test_gate_radiance_delta_thresholds(monkeypatch, tmp_path: Path):

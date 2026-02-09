@@ -194,6 +194,22 @@ Run tests:
 
 pytest -q
 
+Fast default test set excludes optional markers:
+
+pytest -m "not slow and not radiance and not gui"
+
+Run full suite:
+
+pytest -m ""
+
+Repository cleanup:
+
+python scripts/clean.py
+
+Release zip (artifact excludes caches/build junk):
+
+python scripts/build_release.py --out dist/luxera-release.zip
+
 Installation (Development)
 conda create -n luxera python=3.11
 conda activate luxera

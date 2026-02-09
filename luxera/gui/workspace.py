@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -38,6 +38,7 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
         self.project_path: Optional[Path] = None
         self.project: Optional[Project] = None
         self.agent_runtime = AgentRuntime()
+        self._copilot_preview_ops: Dict[str, Dict[str, Any]] = {}
 
         self._build_ui()
         self._wire_actions()
@@ -122,13 +123,42 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
         self.copilot_input = QtWidgets.QLineEdit()
         self.copilot_input.setPlaceholderText("Ask Luxera Copilot: /place panels target 500 lux")
         self.copilot_run = QtWidgets.QPushButton("Plan / Preview")
+        self.copilot_apply_only = QtWidgets.QPushButton("Apply Diff (Approve)")
+        self.copilot_run_only = QtWidgets.QPushButton("Run Job (Approve)")
         self.copilot_apply_run = QtWidgets.QPushButton("Apply + Run (Approve)")
+        self.copilot_plan_view = QtWidgets.QPlainTextEdit()
+        self.copilot_plan_view.setReadOnly(True)
+        self.copilot_plan_view.setPlaceholderText("Plan will appear here.")
+        self.copilot_diff = QtWidgets.QListWidget()
+        self.copilot_diff.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
+        self.copilot_diff_details = QtWidgets.QPlainTextEdit()
+        self.copilot_diff_details.setReadOnly(True)
+        self.copilot_diff_details.setPlaceholderText("Selected diff operation details.")
+        self.copilot_select_all = QtWidgets.QPushButton("Select All")
+        self.copilot_select_none = QtWidgets.QPushButton("Select None")
         self.copilot_output = QtWidgets.QPlainTextEdit()
         self.copilot_output.setReadOnly(True)
+        self.copilot_audit = QtWidgets.QPlainTextEdit()
+        self.copilot_audit.setReadOnly(True)
+        self.copilot_audit.setPlaceholderText("Latest audit events will appear here.")
         cv.addWidget(self.copilot_input)
         cv.addWidget(self.copilot_run)
+        cv.addWidget(self.copilot_apply_only)
+        cv.addWidget(self.copilot_run_only)
         cv.addWidget(self.copilot_apply_run)
+        cv.addWidget(QtWidgets.QLabel("Plan"))
+        cv.addWidget(self.copilot_plan_view)
+        cv.addWidget(QtWidgets.QLabel("Diff Preview (check approved changes)"))
+        cv.addWidget(self.copilot_diff)
+        cv.addWidget(self.copilot_diff_details)
+        row = QtWidgets.QHBoxLayout()
+        row.addWidget(self.copilot_select_all)
+        row.addWidget(self.copilot_select_none)
+        cv.addLayout(row)
+        cv.addWidget(QtWidgets.QLabel("Run / Artifact Output"))
         cv.addWidget(self.copilot_output)
+        cv.addWidget(QtWidgets.QLabel("Audit Log"))
+        cv.addWidget(self.copilot_audit)
         self.copilot.setWidget(cwrap)
 
     def _wire_actions(self) -> None:
@@ -152,7 +182,12 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
 
         self.tree.itemSelectionChanged.connect(self.on_selection_changed)
         self.copilot_run.clicked.connect(self.copilot_plan_preview)
+        self.copilot_apply_only.clicked.connect(self.copilot_apply_only_action)
+        self.copilot_run_only.clicked.connect(self.copilot_run_only_action)
         self.copilot_apply_run.clicked.connect(self.copilot_apply_run_action)
+        self.copilot_select_all.clicked.connect(lambda: self._set_all_diff_checks(True))
+        self.copilot_select_none.clicked.connect(lambda: self._set_all_diff_checks(False))
+        self.copilot_diff.currentItemChanged.connect(self._on_diff_item_changed)
 
     # ----- Project IO -----
     def new_project(self) -> None:
@@ -519,18 +554,24 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
                     add_row(k, v)
 
     # ----- Copilot -----
-    def _copilot_execute(self, approved: bool) -> None:
+    def _copilot_execute(self, approve_apply: bool, approve_run: bool) -> None:
         if not self.project_path:
             self.status.showMessage("Open a project first", 3000)
             return
         intent = self.copilot_input.text().strip()
         if not intent:
             return
-        approvals = {"apply_diff": approved, "run_job": approved}
+        if approve_run and "run" not in intent.lower():
+            intent = f"{intent} run"
+        approvals: Dict[str, Any] = {"apply_diff": approve_apply, "run_job": approve_run}
+        if approve_apply:
+            approvals["selected_diff_ops"] = self._selected_diff_keys()
         res = self.agent_runtime.execute(str(self.project_path), intent, approvals=approvals)
+        self.copilot_plan_view.setPlainText(res.plan)
+        self._populate_diff_preview(res.diff_preview.get("ops", []))
         lines = [
-            f"Plan: {res.plan}",
             f"Diff ops: {res.diff_preview.get('count', 0)}",
+            f"Selected diff ops: {len(self._selected_diff_keys())}",
             f"Actions: {[a.kind + ('*' if a.requires_approval else '') for a in res.actions]}",
             f"Run manifest: {res.run_manifest}",
             f"Artifacts: {res.produced_artifacts}",
@@ -544,9 +585,22 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
         # Reload project after runtime mutations.
         self.project = load_project_schema(self.project_path)
         self.refresh_tree()
+        self._refresh_audit_view()
 
     def copilot_plan_preview(self) -> None:
-        self._copilot_execute(approved=False)
+        self._copilot_execute(approve_apply=False, approve_run=False)
+
+    def copilot_apply_only_action(self) -> None:
+        msg = QtWidgets.QMessageBox.question(
+            self,
+            "Approve Diff Apply",
+            "Approve applying selected diff ops?",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            QtWidgets.QMessageBox.No,
+        )
+        if msg != QtWidgets.QMessageBox.Yes:
+            return
+        self._copilot_execute(approve_apply=True, approve_run=False)
 
     def copilot_apply_run_action(self) -> None:
         msg = QtWidgets.QMessageBox.question(
@@ -558,7 +612,19 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
         )
         if msg != QtWidgets.QMessageBox.Yes:
             return
-        self._copilot_execute(approved=True)
+        self._copilot_execute(approve_apply=True, approve_run=True)
+
+    def copilot_run_only_action(self) -> None:
+        msg = QtWidgets.QMessageBox.question(
+            self,
+            "Approve Job Run",
+            "Approve running job?",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            QtWidgets.QMessageBox.No,
+        )
+        if msg != QtWidgets.QMessageBox.Yes:
+            return
+        self._copilot_execute(approve_apply=False, approve_run=True)
 
     def command_palette(self) -> None:
         commands = [
@@ -566,6 +632,9 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
             "/grid 0.8 0.25",
             "/run illuminance",
             "/report client",
+            "import ./model.ifc detect rooms create grid",
+            "hit 500 lux uniformity",
+            "generate client report and audit bundle",
             "check compliance",
             "render heatmap",
         ]
@@ -598,6 +667,66 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
         if has_radiosity and not self.project.glare_views:
             out.append("UGR risk: define glare views for observer-specific glare tables.")
         return out[:5]
+
+    def _populate_diff_preview(self, ops: List[Dict[str, Any]]) -> None:
+        previous = set(self._selected_diff_keys())
+        self.copilot_diff.clear()
+        self._copilot_preview_ops = {}
+        for op in ops:
+            key = str(op.get("key", ""))
+            if not key:
+                continue
+            self._copilot_preview_ops[key] = op
+            payload = op.get("payload_summary", "")
+            suffix = f" [{payload}]" if payload else ""
+            label = f"{op.get('op', '?')} {op.get('kind', '?')} {op.get('id', '?')}{suffix}"
+            item = QtWidgets.QListWidgetItem(label)
+            item.setData(QtCore.Qt.UserRole, key)
+            item.setFlags(item.flags() | QtCore.Qt.ItemIsUserCheckable)
+            item.setCheckState(QtCore.Qt.Checked if (not previous or key in previous) else QtCore.Qt.Unchecked)
+            self.copilot_diff.addItem(item)
+        if self.copilot_diff.count() > 0:
+            self.copilot_diff.setCurrentRow(0)
+        else:
+            self.copilot_diff_details.setPlainText("")
+
+    def _selected_diff_keys(self) -> List[str]:
+        out: List[str] = []
+        for i in range(self.copilot_diff.count()):
+            item = self.copilot_diff.item(i)
+            if item.checkState() == QtCore.Qt.Checked:
+                key = item.data(QtCore.Qt.UserRole)
+                if key:
+                    out.append(str(key))
+        return out
+
+    def _set_all_diff_checks(self, checked: bool) -> None:
+        state = QtCore.Qt.Checked if checked else QtCore.Qt.Unchecked
+        for i in range(self.copilot_diff.count()):
+            self.copilot_diff.item(i).setCheckState(state)
+
+    def _on_diff_item_changed(self, current: Optional[QtWidgets.QListWidgetItem], previous: Optional[QtWidgets.QListWidgetItem]) -> None:  # noqa: ARG002
+        if current is None:
+            self.copilot_diff_details.setPlainText("")
+            return
+        key = current.data(QtCore.Qt.UserRole)
+        op = self._copilot_preview_ops.get(str(key), {})
+        self.copilot_diff_details.setPlainText(json.dumps(op, indent=2, sort_keys=True))
+
+    def _refresh_audit_view(self) -> None:
+        if not self.project:
+            self.copilot_audit.setPlainText("")
+            return
+        events = self.project.agent_history[-5:]
+        lines: List[str] = []
+        for e in events:
+            action = e.get("action", e.get("kind", "event"))
+            ts = int(e.get("created_at", 0))
+            warns = e.get("warnings", [])
+            lines.append(f"{ts} {action}")
+            if warns:
+                lines.append(f"  warnings={warns}")
+        self.copilot_audit.setPlainText("\n".join(lines))
 
 
 def run() -> int:
