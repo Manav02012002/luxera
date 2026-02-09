@@ -10,10 +10,12 @@ from luxera.calculation.illuminance import (
     CalculationGrid,
     calculate_direct_illuminance,
     calculate_grid_illuminance,
+    DirectCalcSettings,
     interpolate_candela,
     quick_room_calculation,
 )
 from luxera.geometry.core import Transform
+from luxera.geometry.core import Material, Polygon, Surface
 from luxera.photometry.model import photometry_from_parsed_ies
 
 
@@ -175,6 +177,43 @@ def test_grid_illuminance_calculation():
     assert 0 <= result.uniformity_ratio <= 1
 
 
+def test_direct_illuminance_occlusion_blocks_light():
+    doc = parse_ies_text(TEST_IES)
+    phot = photometry_from_parsed_ies(doc)
+    luminaire = Luminaire(
+        transform=Transform(position=Vector3(0, 0, 3)),
+        photometry=phot,
+    )
+
+    point = Vector3(0, 0, 0)
+    normal = Vector3(0, 0, 1)
+    open_E = calculate_direct_illuminance(point, normal, luminaire)
+
+    # Vertical blocking panel between luminaire and point.
+    blocker = Surface(
+        id="blk",
+        polygon=Polygon(
+            [
+                Vector3(-0.5, -0.5, 1.5),
+                Vector3(0.5, -0.5, 1.5),
+                Vector3(0.5, 0.5, 1.5),
+                Vector3(-0.5, 0.5, 1.5),
+            ]
+        ),
+        material=Material(name="blk", reflectance=0.2),
+    )
+    blocked_E = calculate_direct_illuminance(
+        point,
+        normal,
+        luminaire,
+        occluders=[blocker],
+        settings=DirectCalcSettings(use_occlusion=True),
+    )
+
+    assert open_E > 0.0
+    assert blocked_E == pytest.approx(0.0, abs=1e-9)
+
+
 def test_quick_room_calculation():
     """Test the convenience function."""
     doc = parse_ies_text(TEST_IES)
@@ -192,6 +231,42 @@ def test_quick_room_calculation():
     
     assert result.max_lux > 0
     assert result.mean_lux > 0
+
+
+def test_grid_occlusion_bvh_matches_non_bvh():
+    doc = parse_ies_text(TEST_IES)
+    phot = photometry_from_parsed_ies(doc)
+    luminaire = Luminaire(
+        transform=Transform(position=Vector3(0, 0, 3)),
+        photometry=phot,
+    )
+
+    blocker = Surface(
+        id="blk",
+        polygon=Polygon(
+            [
+                Vector3(-0.5, -0.5, 1.5),
+                Vector3(0.5, -0.5, 1.5),
+                Vector3(0.5, 0.5, 1.5),
+                Vector3(-0.5, 0.5, 1.5),
+            ]
+        ),
+        material=Material(name="blk", reflectance=0.2),
+    )
+
+    grid = CalculationGrid(
+        origin=Vector3(0, 0, 0),
+        width=0.01,
+        height=0.01,
+        elevation=0,
+        nx=1,
+        ny=1,
+    )
+
+    cfg = DirectCalcSettings(use_occlusion=True)
+    result = calculate_grid_illuminance(grid, [luminaire], occluders=[blocker], settings=cfg)
+    # single point is blocked
+    assert result.values[0, 0] == pytest.approx(0.0, abs=1e-9)
 
 
 def test_ldt_parser_import():

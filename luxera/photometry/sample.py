@@ -5,6 +5,7 @@ from typing import Tuple
 
 import numpy as np
 
+from luxera.core.types import Transform
 from luxera.geometry.core import Vector3
 from luxera.photometry.model import Photometry, TiltData
 
@@ -119,6 +120,31 @@ def _angles_from_direction_type_ab(
     return h_deg, v_deg
 
 
+def world_to_luminaire_local_direction(transform: Transform, world_dir: Vector3) -> Vector3:
+    """
+    Convert a world-space direction to luminaire-local direction.
+    """
+    R = transform.get_rotation_matrix()
+    return Vector3.from_array(R.T @ world_dir.normalize().to_array())
+
+
+def direction_to_photometric_angles(
+    direction_luminaire_frame: Vector3,
+    system: str,
+    vertical_angles: np.ndarray | None = None,
+) -> Tuple[float, float]:
+    """
+    Convert luminaire-local direction to photometric angles for the given system.
+    Returns (C_or_H_deg, gamma_or_V_deg).
+    """
+    if system == "C":
+        return _angles_from_direction_type_c(direction_luminaire_frame)
+    if system in ("A", "B"):
+        va = vertical_angles if vertical_angles is not None else np.array([0.0, 90.0, 180.0], dtype=float)
+        return _angles_from_direction_type_ab(direction_luminaire_frame, system, va)
+    raise NotImplementedError(f"Photometric system {system} not yet supported")
+
+
 def _tilt_factor(tilt: TiltData, tilt_deg: float) -> float:
     if tilt.angles_deg is None or tilt.factors is None:
         return 1.0
@@ -138,16 +164,11 @@ def sample_intensity_cd(
     direction_luminaire_frame: Vector3,
     tilt_deg: float | None = None,
 ) -> float:
-    if phot.system == "C":
-        c_deg, gamma_deg = _angles_from_direction_type_c(direction_luminaire_frame)
-    elif phot.system in ("A", "B"):
-        c_deg, gamma_deg = _angles_from_direction_type_ab(
-            direction_luminaire_frame,
-            phot.system,
-            phot.gamma_angles_deg,
-        )
-    else:
-        raise NotImplementedError(f"Photometric system {phot.system} not yet supported")
+    c_deg, gamma_deg = direction_to_photometric_angles(
+        direction_luminaire_frame,
+        phot.system,
+        phot.gamma_angles_deg,
+    )
     c_deg = _apply_symmetry(c_deg, phot)
 
     c_angles = phot.c_angles_deg
@@ -174,3 +195,17 @@ def sample_intensity_cd(
     if phot.tilt is not None and phot.tilt.type == "INCLUDE" and tilt_deg is not None:
         value *= _tilt_factor(phot.tilt, tilt_deg)
     return value
+
+
+def sample_intensity_cd_world(
+    phot: Photometry,
+    transform: Transform,
+    direction_world: Vector3,
+    tilt_deg: float | None = None,
+) -> float:
+    """
+    Authoritative world-space sampling API.
+    Pipeline: world direction -> luminaire local frame -> photometric angles -> symmetry/wrap/interpolation.
+    """
+    local_dir = world_to_luminaire_local_direction(transform, direction_world)
+    return sample_intensity_cd(phot, local_dir, tilt_deg=tilt_deg)

@@ -5,6 +5,8 @@ from luxera.export.en12464_report import build_en12464_report_model, EN12464Repo
 from luxera.export.en12464_pdf import render_en12464_pdf
 from luxera.export.en12464_html import render_en12464_html
 from luxera.export.debug_bundle import export_debug_bundle
+from luxera.export.client_bundle import export_client_bundle
+from luxera.export.backend_comparison import load_backend_comparison, render_backend_comparison_html
 
 __all__ = [
     "PDFPaths",
@@ -17,4 +19,7 @@ __all__ = [
     "render_en12464_pdf",
     "render_en12464_html",
     "export_debug_bundle",
+    "export_client_bundle",
+    "load_backend_comparison",
+    "render_backend_comparison_html",
 ]

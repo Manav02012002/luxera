@@ -7,10 +7,13 @@ from luxera.calculation.ugr import (
     UGRAnalysis,
     LuminaireForUGR,
     analyze_room_ugr,
+    calculate_background_luminance,
+    calculate_ugr_at_position,
 )
 from luxera.geometry.core import Room, Vector3
 from luxera.calculation.illuminance import Luminaire
 from luxera.photometry.sample import sample_intensity_cd
+from luxera.project.schema import GlareViewSpec
 
 
 def _to_ugr_luminaires(luminaires: List[Luminaire]) -> List[LuminaireForUGR]:
@@ -73,3 +76,52 @@ def compute_ugr_default(
     # Combine results: choose worst-case UGR
     worst = max(analyses, key=lambda a: a.worst_case_ugr)
     return worst
+
+
+def compute_ugr_for_views(
+    room: Room,
+    luminaires: List[Luminaire],
+    views: List[GlareViewSpec],
+    total_flux_override: Optional[float] = None,
+) -> Optional[UGRAnalysis]:
+    """
+    Compute UGR for explicit glare view objects.
+
+    Variant supported:
+    - CIE 117 style UGR with user-defined observer position and view direction.
+    - Background luminance estimated using room-average approximation in analyze_room_ugr.
+    """
+    if not luminaires or not views:
+        return None
+    ugr_lums = _to_ugr_luminaires(luminaires)
+    total_flux = 0.0
+    if total_flux_override is not None:
+        total_flux = float(total_flux_override)
+    else:
+        for lum, ugr_lum in zip(luminaires, ugr_lums):
+            if lum.photometry.luminous_flux_lm is not None:
+                total_flux += lum.photometry.luminous_flux_lm * lum.flux_multiplier
+            else:
+                total_flux += ugr_lum.luminance * ugr_lum.luminous_area * 3.14159
+
+    background = calculate_background_luminance(room, total_flux)
+    results = []
+    for v in views:
+        observer = UGRObserverPosition(
+            eye_position=Vector3(*v.observer),
+            view_direction=Vector3(*v.view_dir),
+            name=v.name,
+        )
+        try:
+            results.append(calculate_ugr_at_position(observer, ugr_lums, background_luminance=background))
+        except Exception:
+            continue
+    if not results:
+        return None
+    return UGRAnalysis(
+        room_name=room.name,
+        results=results,
+        max_ugr=max(r.ugr_value for r in results),
+        min_ugr=min(r.ugr_value for r in results),
+        positions_analyzed=len(results),
+    )

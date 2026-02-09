@@ -13,6 +13,7 @@ from luxera.io.dxf_import import (
     extract_rooms_from_dxf,
     lines_to_polylines,
 )
+from luxera.io.geometry_import import GeometryImportResult, import_geometry_file
 
 __all__ = [
     "DXFDocument",
@@ -22,4 +23,6 @@ __all__ = [
     "load_dxf",
     "extract_rooms_from_dxf",
     "lines_to_polylines",
+    "GeometryImportResult",
+    "import_geometry_file",
 ]

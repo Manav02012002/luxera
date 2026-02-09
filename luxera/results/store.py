@@ -25,6 +25,12 @@ def write_result_json(out_dir: Path, result: Dict[str, Any]) -> Path:
     return out_path
 
 
+def write_named_json(out_dir: Path, name: str, payload: Dict[str, Any]) -> Path:
+    out_path = out_dir / name
+    out_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return out_path
+
+
 def write_grid_csv(out_dir: Path, points: np.ndarray, values: np.ndarray) -> Path:
     out_path = out_dir / "grid.csv"
     data = np.column_stack([points, values.reshape(-1, 1)])

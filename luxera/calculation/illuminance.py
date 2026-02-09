@@ -28,7 +28,7 @@ from typing import List, Optional, Tuple, Callable
 import numpy as np
 
 from luxera.parser.ies_parser import ParsedIES
-from luxera.geometry.core import Vector3, Transform
+from luxera.geometry.core import Vector3, Transform, Surface
 from luxera.photometry.model import Photometry
 from luxera.photometry.sample import sample_intensity_cd
 
@@ -133,6 +133,161 @@ class IlluminanceResult:
         return self.min_lux / max_val
 
 
+@dataclass(frozen=True)
+class DirectCalcSettings:
+    use_occlusion: bool = False
+    occlusion_epsilon: float = 1e-6
+
+
+@dataclass(frozen=True)
+class _OcclusionAABB:
+    min: Vector3
+    max: Vector3
+
+    def intersects_ray(self, origin: Vector3, direction: Vector3, t_max: float) -> bool:
+        tmin = -math.inf
+        tmax = t_max
+        for axis in ("x", "y", "z"):
+            o = getattr(origin, axis)
+            d = getattr(direction, axis)
+            mn = getattr(self.min, axis)
+            mx = getattr(self.max, axis)
+            if abs(d) < 1e-12:
+                if o < mn or o > mx:
+                    return False
+                continue
+            inv_d = 1.0 / d
+            t0 = (mn - o) * inv_d
+            t1 = (mx - o) * inv_d
+            if t0 > t1:
+                t0, t1 = t1, t0
+            tmin = max(tmin, t0)
+            tmax = min(tmax, t1)
+            if tmax < tmin:
+                return False
+        return True
+
+
+@dataclass
+class _OcclusionBVHNode:
+    aabb: _OcclusionAABB
+    left: Optional["_OcclusionBVHNode"] = None
+    right: Optional["_OcclusionBVHNode"] = None
+    surfaces: Optional[List[Surface]] = None
+
+
+def _surface_aabb(surface: Surface) -> _OcclusionAABB:
+    bb_min, bb_max = surface.polygon.get_bounding_box()
+    return _OcclusionAABB(min=bb_min, max=bb_max)
+
+
+def _merge_aabbs(aabbs: List[_OcclusionAABB]) -> _OcclusionAABB:
+    xs = [a.min.x for a in aabbs] + [a.max.x for a in aabbs]
+    ys = [a.min.y for a in aabbs] + [a.max.y for a in aabbs]
+    zs = [a.min.z for a in aabbs] + [a.max.z for a in aabbs]
+    return _OcclusionAABB(min=Vector3(min(xs), min(ys), min(zs)), max=Vector3(max(xs), max(ys), max(zs)))
+
+
+def _build_occlusion_bvh(surfaces: List[Surface], max_leaf: int = 8) -> Optional[_OcclusionBVHNode]:
+    if not surfaces:
+        return None
+    if len(surfaces) <= max_leaf:
+        return _OcclusionBVHNode(aabb=_merge_aabbs([_surface_aabb(s) for s in surfaces]), surfaces=surfaces)
+
+    centroids = [s.centroid for s in surfaces]
+    xs = [c.x for c in centroids]
+    ys = [c.y for c in centroids]
+    zs = [c.z for c in centroids]
+    ranges = (max(xs) - min(xs), max(ys) - min(ys), max(zs) - min(zs))
+    axis = ranges.index(max(ranges))
+    key = (lambda s: s.centroid.x) if axis == 0 else (lambda s: s.centroid.y) if axis == 1 else (lambda s: s.centroid.z)
+    sorted_surfaces = sorted(surfaces, key=key)
+    mid = len(sorted_surfaces) // 2
+    left = _build_occlusion_bvh(sorted_surfaces[:mid], max_leaf=max_leaf)
+    right = _build_occlusion_bvh(sorted_surfaces[mid:], max_leaf=max_leaf)
+    children = [n.aabb for n in (left, right) if n is not None]
+    if not children:
+        return None
+    return _OcclusionBVHNode(aabb=_merge_aabbs(children), left=left, right=right)
+
+
+def _query_bvh(node: Optional[_OcclusionBVHNode], origin: Vector3, direction: Vector3, t_max: float) -> List[Surface]:
+    if node is None:
+        return []
+    if not node.aabb.intersects_ray(origin, direction, t_max):
+        return []
+    if node.surfaces is not None:
+        return node.surfaces
+    out: List[Surface] = []
+    out.extend(_query_bvh(node.left, origin, direction, t_max))
+    out.extend(_query_bvh(node.right, origin, direction, t_max))
+    return out
+
+
+def _project_to_2d(point: Vector3, normal: Vector3) -> Tuple[float, float]:
+    ax = abs(normal.x)
+    ay = abs(normal.y)
+    az = abs(normal.z)
+    # Drop dominant axis for stable projection.
+    if ax >= ay and ax >= az:
+        return (point.y, point.z)
+    if ay >= ax and ay >= az:
+        return (point.x, point.z)
+    return (point.x, point.y)
+
+
+def _point_in_polygon_3d(point: Vector3, surface: Surface) -> bool:
+    """
+    Point-in-polygon in a best-fit 2D projection based on polygon normal.
+    """
+    verts = surface.polygon.vertices
+    if len(verts) < 3:
+        return False
+    n = surface.normal
+    px, py = _project_to_2d(point, n)
+    poly2 = [_project_to_2d(v, n) for v in verts]
+    inside = False
+    j = len(poly2) - 1
+    for i in range(len(poly2)):
+        xi, yi = poly2[i]
+        xj, yj = poly2[j]
+        denom = (yj - yi)
+        cross = ((xj - xi) * (py - yi) / denom + xi) if abs(denom) > 1e-12 else xi
+        if ((yi > py) != (yj > py)) and (px < cross):
+            inside = not inside
+        j = i
+    return inside
+
+
+def _is_occluded(
+    point: Vector3,
+    luminaire_pos: Vector3,
+    occluders: List[Surface],
+    eps: float,
+    bvh: Optional[_OcclusionBVHNode] = None,
+) -> bool:
+    direction = point - luminaire_pos
+    dist = direction.length()
+    if dist <= eps:
+        return False
+    ray_dir = direction / dist
+
+    candidates = _query_bvh(bvh, luminaire_pos, ray_dir, dist) if bvh is not None else occluders
+    for surface in candidates:
+        n = surface.normal
+        denom = ray_dir.dot(n)
+        if abs(denom) < 1e-10:
+            continue
+        # ray-plane intersection
+        t = (surface.centroid - luminaire_pos).dot(n) / denom
+        if t <= eps or t >= dist - eps:
+            continue
+        hit = luminaire_pos + ray_dir * t
+        if _point_in_polygon_3d(hit, surface):
+            return True
+    return False
+
+
 def interpolate_candela(
     ies: ParsedIES,
     gamma_deg: float,
@@ -207,6 +362,9 @@ def calculate_direct_illuminance(
     point: Vector3,
     surface_normal: Vector3,
     luminaire: Luminaire,
+    occluders: Optional[List[Surface]] = None,
+    settings: Optional[DirectCalcSettings] = None,
+    occluder_bvh: Optional[_OcclusionBVHNode] = None,
 ) -> float:
     """
     Calculate direct illuminance at a point from a single luminaire.
@@ -230,6 +388,17 @@ def calculate_direct_illuminance(
     
     # Direction from luminaire to point (normalized)
     direction = to_point.normalize()
+
+    cfg = settings or DirectCalcSettings()
+    if cfg.use_occlusion and occluders:
+        if _is_occluded(
+            point,
+            luminaire.transform.position,
+            occluders,
+            cfg.occlusion_epsilon,
+            bvh=occluder_bvh,
+        ):
+            return 0.0
     
     # Convert world direction into luminaire local frame
     # Local frame convention: +X right, +Y forward, +Z up; nadir is -Z.
@@ -260,6 +429,8 @@ def calculate_direct_illuminance(
 def calculate_grid_illuminance(
     grid: CalculationGrid,
     luminaires: List[Luminaire],
+    occluders: Optional[List[Surface]] = None,
+    settings: Optional[DirectCalcSettings] = None,
 ) -> IlluminanceResult:
     """
     Calculate illuminance on a grid from multiple luminaires.
@@ -272,6 +443,8 @@ def calculate_grid_illuminance(
         IlluminanceResult with values at each grid point
     """
     values = np.zeros((grid.ny, grid.nx))
+    cfg = settings or DirectCalcSettings()
+    occluder_bvh = _build_occlusion_bvh(occluders or []) if (cfg.use_occlusion and occluders) else None
     
     for j in range(grid.ny):
         for i in range(grid.nx):
@@ -280,7 +453,12 @@ def calculate_grid_illuminance(
             
             for luminaire in luminaires:
                 total_illuminance += calculate_direct_illuminance(
-                    point, grid.normal, luminaire
+                    point,
+                    grid.normal,
+                    luminaire,
+                    occluders=occluders,
+                    settings=cfg,
+                    occluder_bvh=occluder_bvh,
                 )
             
             values[j, i] = total_illuminance

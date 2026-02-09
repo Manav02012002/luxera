@@ -14,8 +14,10 @@ def test_migrate_v2_to_v3_adds_fields():
         "results": [],
     }
     migrated = migrate_project(data)
-    assert migrated["schema_version"] == 4
+    assert migrated["schema_version"] == 5
     assert "material_library" in migrated
     assert "luminaire_families" in migrated
     assert "asset_bundle_path" in migrated
     assert "agent_history" in migrated
+    assert "workplanes" in migrated
+    assert "compliance_profiles" in migrated

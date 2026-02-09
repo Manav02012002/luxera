@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import zipfile
 
 from luxera.export.debug_bundle import export_debug_bundle
@@ -18,3 +19,7 @@ def test_export_debug_bundle(tmp_path: Path):
     with zipfile.ZipFile(out, "r") as zf:
         names = zf.namelist()
         assert "result.json" in names
+        assert "project.snapshot.json" in names
+        assert "bundle_manifest.json" in names
+        manifest = json.loads(zf.read("bundle_manifest.json").decode("utf-8"))
+        assert manifest["job_id"] == "job1"

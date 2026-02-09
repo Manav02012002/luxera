@@ -27,6 +27,10 @@ def build_en12464_report_model(project: Project, job_ref: JobResultRef) -> EN124
         solver=meta.get("solver", {}),
         settings=meta.get("job", {}),
         asset_hashes=meta.get("assets", {}),
+        coordinate_convention=meta.get("coordinate_convention"),
+        units=meta.get("units", {}),
+        assumptions=meta.get("assumptions", []),
+        unsupported_features=meta.get("unsupported_features", []),
     )
 
     summary = meta.get("summary", {})
