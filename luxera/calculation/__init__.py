@@ -7,7 +7,7 @@ and result visualization.
 """
 
 from luxera.calculation.illuminance import (
-    Point3D,
+    Vector3,
     Luminaire,
     CalculationGrid,
     IlluminanceResult,
@@ -38,7 +38,7 @@ from luxera.calculation.plots import (
 
 __all__ = [
     # Illuminance
-    "Point3D",
+    "Vector3",
     "Luminaire",
     "CalculationGrid",
     "IlluminanceResult",

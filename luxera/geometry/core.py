@@ -111,14 +111,18 @@ class Transform:
     """
     3D transformation: position, rotation, and scale.
     
-    Rotation is stored as Euler angles (degrees) in XYZ order.
+    Rotation is stored as Euler angles (degrees) in ZYX order (yaw, pitch, roll),
+    or as an explicit rotation matrix when provided.
     """
     position: Vector3 = field(default_factory=Vector3.zero)
     rotation: Vector3 = field(default_factory=Vector3.zero)  # Euler angles in degrees
     scale: Vector3 = field(default_factory=lambda: Vector3(1, 1, 1))
+    rotation_matrix: Optional[np.ndarray] = None
     
     def get_rotation_matrix(self) -> np.ndarray:
         """Get 3x3 rotation matrix from Euler angles."""
+        if self.rotation_matrix is not None:
+            return self.rotation_matrix
         rx = math.radians(self.rotation.x)
         ry = math.radians(self.rotation.y)
         rz = math.radians(self.rotation.z)
@@ -141,6 +145,64 @@ class Transform:
         ])
         
         return Rz @ Ry @ Rx
+
+    @classmethod
+    def from_euler_zyx(
+        cls,
+        position: Vector3,
+        yaw_deg: float,
+        pitch_deg: float,
+        roll_deg: float,
+        scale: Optional[Vector3] = None,
+    ) -> "Transform":
+        """
+        Build transform from Euler ZYX (yaw, pitch, roll) in degrees.
+        """
+        rot = Vector3(roll_deg, pitch_deg, yaw_deg)
+        return cls(position=position, rotation=rot, scale=scale or Vector3(1, 1, 1))
+
+    @classmethod
+    def from_rotation_matrix(
+        cls,
+        position: Vector3,
+        rotation_matrix: np.ndarray,
+        scale: Optional[Vector3] = None,
+    ) -> "Transform":
+        """
+        Build transform from an explicit 3x3 rotation matrix.
+        """
+        return cls(position=position, rotation=Vector3.zero(), scale=scale or Vector3(1, 1, 1), rotation_matrix=rotation_matrix)
+
+    @classmethod
+    def from_aim_up(
+        cls,
+        position: Vector3,
+        aim: Vector3,
+        up: Vector3,
+        scale: Optional[Vector3] = None,
+    ) -> "Transform":
+        """
+        Build transform from aim and up vectors.
+
+        Convention: local -Z points along aim direction (nadir).
+        """
+        z_axis = (-aim).normalize()
+        up_n = up.normalize()
+        if abs(z_axis.dot(up_n)) > 0.999:
+            up_n = Vector3(0, 1, 0)
+            if abs(z_axis.dot(up_n)) > 0.999:
+                up_n = Vector3(1, 0, 0)
+        x_axis = up_n.cross(z_axis).normalize()
+        y_axis = z_axis.cross(x_axis).normalize()
+        R = np.array(
+            [
+                [x_axis.x, y_axis.x, z_axis.x],
+                [x_axis.y, y_axis.y, z_axis.y],
+                [x_axis.z, y_axis.z, z_axis.z],
+            ],
+            dtype=float,
+        )
+        return cls.from_rotation_matrix(position=position, rotation_matrix=R, scale=scale)
     
     def transform_point(self, p: Vector3) -> Vector3:
         """Apply transformation to a point."""
@@ -158,6 +220,18 @@ class Transform:
         """Apply rotation to a direction (no translation)."""
         R = self.get_rotation_matrix()
         return Vector3.from_array(R @ d.to_array())
+
+    def inverse(self) -> "Transform":
+        """
+        Invert transform. Scale inversion is supported only when scale is uniform (1,1,1).
+        """
+        if abs(self.scale.x - 1.0) > 1e-9 or abs(self.scale.y - 1.0) > 1e-9 or abs(self.scale.z - 1.0) > 1e-9:
+            raise ValueError("Transform.inverse does not support non-unit scale.")
+        R = self.get_rotation_matrix()
+        R_inv = R.T
+        t = self.position.to_array()
+        t_inv = Vector3.from_array(R_inv @ (-t))
+        return Transform.from_rotation_matrix(position=t_inv, rotation_matrix=R_inv)
 
 
 # =============================================================================

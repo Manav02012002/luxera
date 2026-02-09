@@ -28,6 +28,25 @@ TILT=NONE
         parse_ies_text(text)
 
 
+def test_parse_tilt_include():
+    text = """IESNA:LM-63-2019
+TILT=INCLUDE
+3
+0 15 30
+1.0 0.9 0.8
+1 1000 1 3 1 1 2 0.45 0.45 0.10
+0 45 90
+0
+100 80 60
+"""
+    doc = parse_ies_text(text)
+    assert doc.tilt_line == "TILT=INCLUDE"
+    assert doc.tilt_data is not None
+    angles, factors = doc.tilt_data
+    assert angles == [0.0, 15.0, 30.0]
+    assert factors == [1.0, 0.9, 0.8]
+
+
 def test_parse_angles_after_photometry():
     text = """IESNA:LM-63-2002
 TILT=NONE

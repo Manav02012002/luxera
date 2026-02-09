@@ -5,7 +5,7 @@ import math
 
 from luxera.parser.ies_parser import parse_ies_text
 from luxera.calculation.illuminance import (
-    Point3D,
+    Vector3,
     Luminaire,
     CalculationGrid,
     calculate_direct_illuminance,
@@ -13,6 +13,8 @@ from luxera.calculation.illuminance import (
     interpolate_candela,
     quick_room_calculation,
 )
+from luxera.geometry.core import Transform
+from luxera.photometry.model import photometry_from_parsed_ies
 
 
 # Simple test IES data with known candela values
@@ -26,9 +28,9 @@ TILT=NONE
 """
 
 
-def test_point3d_operations():
-    p1 = Point3D(1, 2, 3)
-    p2 = Point3D(4, 5, 6)
+def test_vector3_operations():
+    p1 = Vector3(1, 2, 3)
+    p2 = Vector3(4, 5, 6)
     
     # Addition
     p3 = p1 + p2
@@ -39,11 +41,11 @@ def test_point3d_operations():
     assert p4.x == 3 and p4.y == 3 and p4.z == 3
     
     # Length
-    p5 = Point3D(3, 4, 0)
+    p5 = Vector3(3, 4, 0)
     assert abs(p5.length() - 5.0) < 1e-10
     
     # Normalize
-    p6 = Point3D(0, 0, 2).normalize()
+    p6 = Vector3(0, 0, 2).normalize()
     assert abs(p6.z - 1.0) < 1e-10
 
 
@@ -67,14 +69,15 @@ def test_direct_illuminance_under_luminaire():
     doc = parse_ies_text(TEST_IES)
     
     # Luminaire at height 3m
+    phot = photometry_from_parsed_ies(doc)
     luminaire = Luminaire(
-        position=Point3D(0, 0, 3),
-        ies_data=doc,
+        transform=Transform(position=Vector3(0, 0, 3)),
+        photometry=phot,
     )
     
     # Point directly under luminaire at floor
-    point = Point3D(0, 0, 0)
-    normal = Point3D(0, 0, 1)  # Facing up
+    point = Vector3(0, 0, 0)
+    normal = Vector3(0, 0, 1)  # Facing up
     
     E = calculate_direct_illuminance(point, normal, luminaire)
     
@@ -88,15 +91,16 @@ def test_illuminance_decreases_with_distance():
     """Verify inverse square law."""
     doc = parse_ies_text(TEST_IES)
     
+    phot = photometry_from_parsed_ies(doc)
     luminaire = Luminaire(
-        position=Point3D(0, 0, 3),
-        ies_data=doc,
+        transform=Transform(position=Vector3(0, 0, 3)),
+        photometry=phot,
     )
     
-    normal = Point3D(0, 0, 1)
+    normal = Vector3(0, 0, 1)
     
-    E_close = calculate_direct_illuminance(Point3D(0, 0, 1), normal, luminaire)
-    E_far = calculate_direct_illuminance(Point3D(0, 0, 0), normal, luminaire)
+    E_close = calculate_direct_illuminance(Vector3(0, 0, 1), normal, luminaire)
+    E_far = calculate_direct_illuminance(Vector3(0, 0, 0), normal, luminaire)
     
     # Closer point should have higher illuminance
     assert E_close > E_far
@@ -106,24 +110,25 @@ def test_illuminance_at_angle():
     """Test illuminance at off-nadir angles."""
     doc = parse_ies_text(TEST_IES)
     
+    phot = photometry_from_parsed_ies(doc)
     luminaire = Luminaire(
-        position=Point3D(0, 0, 3),
-        ies_data=doc,
+        transform=Transform(position=Vector3(0, 0, 3)),
+        photometry=phot,
     )
     
-    normal = Point3D(0, 0, 1)
+    normal = Vector3(0, 0, 1)
     
     # At 60° off nadir, intensity should be lower
     # At distance 3m, horizontal offset gives angle
-    E_center = calculate_direct_illuminance(Point3D(0, 0, 0), normal, luminaire)
-    E_offset = calculate_direct_illuminance(Point3D(3, 0, 0), normal, luminaire)
+    E_center = calculate_direct_illuminance(Vector3(0, 0, 0), normal, luminaire)
+    E_offset = calculate_direct_illuminance(Vector3(3, 0, 0), normal, luminaire)
     
     assert E_offset < E_center
 
 
 def test_calculation_grid():
     grid = CalculationGrid(
-        origin=Point3D(0, 0, 0),
+        origin=Vector3(0, 0, 0),
         width=10,
         height=8,
         elevation=0.8,
@@ -146,13 +151,14 @@ def test_grid_illuminance_calculation():
     """Test full grid calculation."""
     doc = parse_ies_text(TEST_IES)
     
+    phot = photometry_from_parsed_ies(doc)
     luminaire = Luminaire(
-        position=Point3D(2, 2, 3),
-        ies_data=doc,
+        transform=Transform(position=Vector3(2, 2, 3)),
+        photometry=phot,
     )
     
     grid = CalculationGrid(
-        origin=Point3D(0, 0, 0),
+        origin=Vector3(0, 0, 0),
         width=4,
         height=4,
         elevation=0,
@@ -173,8 +179,9 @@ def test_quick_room_calculation():
     """Test the convenience function."""
     doc = parse_ies_text(TEST_IES)
     
+    phot = photometry_from_parsed_ies(doc)
     result = quick_room_calculation(
-        ies_data=doc,
+        photometry=phot,
         room_width=4,
         room_length=4,
         mounting_height=2.5,

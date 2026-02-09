@@ -33,6 +33,7 @@ class ParsedIES:
     standard_line: Optional[str]
     keywords: Dict[str, List[str]]
     tilt_line: Optional[str]
+    tilt_data: Optional[Tuple[List[float], List[float]]]  # (angles_deg, factors)
     photometry: Optional[PhotometryHeader]
     angles: Optional[AngleGrid]
     candela: Optional[CandelaGrid]
@@ -260,6 +261,8 @@ def parse_ies_text(text: str) -> ParsedIES:
 
     keywords: Dict[str, List[str]] = {}
     tilt_line: Optional[str] = None
+    tilt_data: Optional[Tuple[List[float], List[float]]] = None
+    tilt_end_idx0: Optional[int] = None
 
     for ln_idx0, ln in enumerate(lines):
         s = ln.strip()
@@ -276,13 +279,28 @@ def parse_ies_text(text: str) -> ParsedIES:
 
         if s.upper().startswith("TILT="):
             tilt_line = s
+            tilt_type = s.split("=", 1)[1].strip().upper()
+            if tilt_type == "INCLUDE":
+                # Parse tilt data immediately after this line.
+                # Format: N tilt angles, then N multiplying factors.
+                # Treat as a numeric stream for robustness.
+                # N is the first numeric value after TILT=INCLUDE.
+                vals, _, _, next_idx0 = _tokenise_numeric_block(lines, ln_idx0 + 1, 1)
+                n = int(round(vals[0]))
+                if n <= 0:
+                    raise ParseError("Invalid TILT=INCLUDE count", line_no=ln_idx0 + 1)
+                angles, _, _, next_idx0 = _tokenise_numeric_block(lines, next_idx0, n)
+                factors, _, _, next_idx0 = _tokenise_numeric_block(lines, next_idx0, n)
+                tilt_data = (angles, factors)
+                tilt_end_idx0 = next_idx0
             continue
 
     photometry: Optional[PhotometryHeader] = None
     angles: Optional[AngleGrid] = None
     candela: Optional[CandelaGrid] = None
 
-    found = _find_photometry_header_line(lines, start_idx0=0)
+    start_idx0 = tilt_end_idx0 or 0
+    found = _find_photometry_header_line(lines, start_idx0=start_idx0)
     if found is not None:
         photometry_idx0, toks = found
         photometry = _parse_photometry_header_from_tokens(toks, line_no=photometry_idx0 + 1)
@@ -294,6 +312,7 @@ def parse_ies_text(text: str) -> ParsedIES:
         standard_line=standard_line,
         keywords=keywords,
         tilt_line=tilt_line,
+        tilt_data=tilt_data,
         photometry=photometry,
         angles=angles,
         candela=candela,
