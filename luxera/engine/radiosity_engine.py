@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List
 
-from luxera.calculation.radiosity import RadiositySettings, RadiositySolver
+from luxera.calculation.radiosity import RadiosityMethod, RadiositySettings, RadiositySolver
 from luxera.geometry.core import Room
 from luxera.calculation.illuminance import Luminaire, calculate_direct_illuminance
 
@@ -55,3 +55,11 @@ def run_radiosity(
         surface_illuminance=surface_ill,
         floor_values=floor_values,
     )
+
+
+__all__ = [
+    "RadiosityEngineResult",
+    "RadiosityMethod",
+    "RadiositySettings",
+    "run_radiosity",
+]

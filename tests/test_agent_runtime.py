@@ -102,7 +102,7 @@ def test_runtime_workflow_hit_lux_uniformity_adds_layout_actions(tmp_path: Path)
 def test_runtime_workflow_generate_client_and_audit_reports(tmp_path: Path):
     project_path = _make_project(tmp_path)
     p = load_project_schema(project_path)
-    from luxera.runner import run_job
+    from luxera.runner import run_job_in_memory as run_job
 
     run_job(p, "j1")
     save_project_schema(p, project_path)

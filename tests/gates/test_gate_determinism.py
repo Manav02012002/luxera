@@ -2,7 +2,7 @@ from pathlib import Path
 
 from luxera.project.schema import Project, PhotometryAsset, LuminaireInstance, CalcGrid, JobSpec, TransformSpec, RotationSpec
 from luxera.project.io import save_project_schema, load_project_schema
-from luxera.runner import run_job
+from luxera.runner import run_job_in_memory as run_job
 
 
 def test_gate_determinism(tmp_path: Path):

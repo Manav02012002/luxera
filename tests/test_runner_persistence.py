@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from luxera.project.io import load_project_schema, save_project_schema
 from luxera.project.schema import (
     Project,
@@ -10,7 +12,7 @@ from luxera.project.schema import (
     TransformSpec,
     RotationSpec,
 )
-from luxera.runner import run_job
+from luxera.runner import run_job, run_job_in_memory
 
 
 def _seed_project(tmp_path: Path) -> Path:
@@ -49,15 +51,29 @@ def test_cached_artifact_run_still_updates_project_results(tmp_path: Path):
     project_path = _seed_project(tmp_path)
 
     p1 = load_project_schema(project_path)
-    r1 = run_job(p1, "j1")
+    r1 = run_job_in_memory(p1, "j1")
     save_project_schema(p1, project_path)
     assert len(p1.results) == 1
 
     # Simulate a caller with no in-memory results but same project/job state.
     p2 = load_project_schema(project_path)
     p2.results = []
-    r2 = run_job(p2, "j1")
+    r2 = run_job_in_memory(p2, "j1")
 
     assert r2.job_hash == r1.job_hash
     assert len(p2.results) == 1
     assert p2.results[0].job_hash == r1.job_hash
+
+
+def test_path_runner_persists_results(tmp_path: Path):
+    project_path = _seed_project(tmp_path)
+    ref = run_job(project_path, "j1")
+    loaded = load_project_schema(project_path)
+    assert any(r.job_id == "j1" and r.job_hash == ref.job_hash for r in loaded.results)
+
+
+def test_run_job_in_memory_emits_deprecation_warning(tmp_path: Path):
+    project_path = _seed_project(tmp_path)
+    project = load_project_schema(project_path)
+    with pytest.warns(DeprecationWarning):
+        run_job_in_memory(project, "j1")

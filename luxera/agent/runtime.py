@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 from luxera.agent.audit import append_audit_event
 from luxera.agent.tools.api import AgentTools
 from luxera.project.diff import ProjectDiff, DiffOp
+from luxera.project.io import load_project_schema
 
 
 @dataclass(frozen=True)
@@ -204,6 +205,8 @@ class AgentRuntime:
                     run_manifest["run_result"] = rr.data
                     if rr.ok:
                         produced.append(rr.data.get("result_dir", ""))
+                        # Canonical run path persists to disk; reload for subsequent steps in this turn.
+                        project = load_project_schema(ppath)
                     else:
                         warnings.append(rr.message)
 

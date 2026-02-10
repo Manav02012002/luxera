@@ -365,10 +365,7 @@ def _cmd_run_job(args: argparse.Namespace) -> int:
     from luxera.runner import run_job
 
     project_path = Path(args.project).expanduser().resolve()
-    project = load_project_schema(project_path)
-
-    ref = run_job(project, args.job_id)
-    save_project_schema(project, project_path)
+    ref = run_job(project_path, args.job_id)
     print(f"Job completed: {ref.job_id}")
     print(f"  Result dir: {ref.result_dir}")
     return 0

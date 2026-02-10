@@ -3,7 +3,7 @@ import json
 
 from luxera.project.schema import Project, PhotometryAsset, LuminaireInstance, CalcGrid, JobSpec, TransformSpec, RotationSpec
 from luxera.project.io import save_project_schema, load_project_schema
-from luxera.runner import run_job
+from luxera.runner import run_job_in_memory as run_job
 
 
 def test_manifest_written(tmp_path: Path):
@@ -43,15 +43,20 @@ TILT=NONE
     manifest = Path(ref.result_dir) / "manifest.json"
     assert manifest.exists()
     data = json.loads(manifest.read_text(encoding="utf-8"))
-    assert "result.json" in data
-    assert "photometry_verify.json" in data
-    assert "grid_heatmap.png" in data
-    assert "grid_isolux.png" in data
+    entries = data.get("entries", {})
+    assert "result.json" in entries
+    assert "photometry_verify.json" in entries
+    assert "grid_heatmap.png" in entries
+    assert "grid_isolux.png" in entries
+    meta = data.get("metadata", {})
+    assert meta.get("job_hash") == ref.job_hash
+    assert meta.get("seed") == 123
+    assert meta.get("coordinate_convention")
 
     result_json = Path(ref.result_dir) / "result.json"
-    meta = json.loads(result_json.read_text(encoding="utf-8"))
-    assert meta["project"]["schema_version"] == 5
-    assert meta["seed"] == 123
-    assert meta["units"]["illuminance"] == "lux"
-    assert meta["contract_version"] == "solver_result_v1"
-    assert "photometry_verification" in meta
+    result_meta = json.loads(result_json.read_text(encoding="utf-8"))
+    assert result_meta["project"]["schema_version"] == 5
+    assert result_meta["seed"] == 123
+    assert result_meta["units"]["illuminance"] == "lux"
+    assert result_meta["contract_version"] == "solver_result_v1"
+    assert "photometry_verification" in result_meta

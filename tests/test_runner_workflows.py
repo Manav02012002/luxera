@@ -11,7 +11,7 @@ from luxera.project.schema import (
     RotationSpec,
     TransformSpec,
 )
-from luxera.runner import run_job
+from luxera.runner import run_job_in_memory as run_job
 
 
 def _ies_fixture(path: Path) -> Path:
@@ -48,7 +48,14 @@ def test_run_roadway_job(tmp_path: Path):
             name="Road M",
             domain="roadway",
             standard_ref="EN 13201",
-            thresholds={"avg_min_lux": 0.1, "uo_min": 0.01, "ul_min": 0.01, "luminance_min_cd_m2": 0.01},
+            thresholds={
+                "avg_min_lux": 0.1,
+                "uo_min": 0.01,
+                "ul_min": 0.01,
+                "luminance_min_cd_m2": 0.01,
+                "ti_max_percent": 200.0,
+                "surround_ratio_min": 0.0,
+            },
         )
     )
     p.jobs.append(JobSpec(id="j1", type="roadway", settings={"road_class": "M3", "compliance_profile_id": "cp1"}))
@@ -57,9 +64,14 @@ def test_run_roadway_job(tmp_path: Path):
     assert "ul_longitudinal" in ref.summary
     assert "road_luminance_mean_cd_m2" in ref.summary
     assert "observer_luminance_views" in ref.summary
+    assert "observer_luminance_max_cd_m2" in ref.summary
+    assert "threshold_increment_ti_proxy_percent" in ref.summary
+    assert "surround_ratio_proxy" in ref.summary
     assert len(ref.summary["observer_luminance_views"]) >= 1
     assert "compliance" in ref.summary
     assert "luminance_ok" in ref.summary["compliance"]
+    assert "ti_ok" in ref.summary["compliance"]
+    assert "surround_ratio_ok" in ref.summary["compliance"]
 
 
 def test_run_emergency_job(tmp_path: Path):

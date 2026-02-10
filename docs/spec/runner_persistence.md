@@ -1,16 +1,16 @@
 # Runner Persistence Contract
 
 ## Chosen Model
-Option B: `run_job(project, job_id)` is pure with respect to file I/O for project schema.
+Option A: `run_job(project_path, job_id)` is the public contract.
 
+- Runner loads project from path.
 - Runner writes immutable result artifacts under `.luxera/results/<job_hash>/`.
-- Runner mutates in-memory `project.results` with a `JobResultRef`.
-- Caller is responsible for persisting project schema (`save_project_schema`) after successful runs.
+- Runner updates `project.results` with a `JobResultRef`.
+- Runner persists project schema back to disk before returning.
 
 ## Enforcement
-- CLI run path saves project immediately after `run_job`.
-- GUI run path saves project immediately after `run_job`.
-- Agent runtime saves project after tool execution.
+- CLI and GUI call the path-based runner API directly.
+- Legacy/in-memory runner path is explicit (`run_job_in_memory`) and used only where project object workflows are required.
 
 ## Artifact Metadata Requirements
 Each `result.json` includes:

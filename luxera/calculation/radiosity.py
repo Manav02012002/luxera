@@ -251,7 +251,7 @@ def compute_form_factor_monte_carlo(
     total_factor = 0.0
     
     if rng is None:
-        rng = np.random.default_rng(0)
+        raise ValueError("Deterministic RNG required: pass a numpy Generator from solver settings/seed.")
 
     for _ in range(num_samples):
         # Jitter sample points slightly

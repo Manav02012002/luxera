@@ -46,6 +46,21 @@ def hash_job_spec(project: Any, job_spec: Any) -> str:
         project_dict.pop("jobs", None)
         project_dict.pop("root_dir", None)
         project_dict.pop("agent_history", None)
+        # Keep job-hash payload stable/compact even with embedded photometry blobs.
+        assets = project_dict.get("photometry_assets")
+        if isinstance(assets, list):
+            compact_assets = []
+            for a in assets:
+                if not isinstance(a, dict):
+                    compact_assets.append(a)
+                    continue
+                item = dict(a)
+                embedded = item.pop("embedded_b64", None)
+                if embedded is not None:
+                    item["embedded_hash"] = sha256_bytes(str(embedded).encode("utf-8"))
+                    item["embedded_size_bytes"] = len(str(embedded).encode("utf-8"))
+                compact_assets.append(item)
+            project_dict["photometry_assets"] = compact_assets
     payload = {
         "schema_version": getattr(project, "schema_version", None),
         "project": project_dict,

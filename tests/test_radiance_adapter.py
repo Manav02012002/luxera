@@ -12,7 +12,7 @@ from luxera.project.schema import (
     TransformSpec,
     RotationSpec,
 )
-from luxera.runner import run_job, RunnerError
+from luxera.runner import run_job_in_memory as run_job, RunnerError
 
 pytestmark = pytest.mark.radiance
 
