@@ -62,7 +62,7 @@ def write_surface_grid_csv(out_dir: Path, surface_id: str, points: np.ndarray, v
     return out_path
 
 
-def write_manifest(out_dir: Path) -> Path:
+def write_manifest(out_dir: Path, metadata: Dict[str, Any] | None = None) -> Path:
     from luxera.core.hashing import sha256_file
 
     entries = {}
@@ -72,6 +72,12 @@ def write_manifest(out_dir: Path) -> Path:
         if path.is_file():
             entries[path.name] = sha256_file(str(path))
 
+    payload: Dict[str, Any]
+    if metadata:
+        payload = {"metadata": metadata, "entries": entries}
+    else:
+        payload = {"entries": entries}
+
     manifest_path = out_dir / "manifest.json"
-    manifest_path.write_text(json.dumps(entries, indent=2, sort_keys=True), encoding="utf-8")
+    manifest_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return manifest_path

@@ -12,7 +12,7 @@ from luxera.project.schema import (
     TransformSpec,
 )
 from luxera.project.io import save_project_schema
-from luxera.runner import run_job
+from luxera.runner import run_job_in_memory as run_job
 
 
 def test_cli_add_roadway_grid_and_profile_and_job(tmp_path: Path):

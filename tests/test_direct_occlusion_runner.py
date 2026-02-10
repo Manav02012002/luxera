@@ -10,7 +10,7 @@ from luxera.project.schema import (
     RotationSpec,
     SurfaceSpec,
 )
-from luxera.runner import run_job
+from luxera.runner import run_job_in_memory as run_job
 
 
 def test_runner_direct_occlusion_changes_result(tmp_path: Path):

@@ -10,7 +10,7 @@ from luxera.project.schema import (
     TransformSpec,
     RotationSpec,
 )
-from luxera.runner import run_job
+from luxera.runner import run_job_in_memory as run_job
 from luxera.export.client_bundle import export_client_bundle
 
 

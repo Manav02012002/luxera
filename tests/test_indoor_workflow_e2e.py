@@ -17,7 +17,7 @@ from luxera.project.schema import (
     RotationSpec,
     TransformSpec,
 )
-from luxera.runner import run_job
+from luxera.runner import run_job_in_memory as run_job
 
 pytestmark = pytest.mark.slow
 

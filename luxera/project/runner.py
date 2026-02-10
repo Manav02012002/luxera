@@ -10,17 +10,9 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-from luxera.calculation.illuminance import (
-    CalculationGrid,
-    Luminaire,
-    DirectCalcSettings,
-    calculate_grid_illuminance,
-)
 from luxera.core.hashing import hash_job_spec, sha256_bytes, sha256_file
-from luxera.parser.ies_parser import parse_ies_text
-from luxera.parser.ldt_parser import parse_ldt_text
-from luxera.photometry.model import photometry_from_parsed_ies, photometry_from_parsed_ldt
-from luxera.project.schema import Project, JobSpec, JobResultRef, PhotometryAsset, RoomSpec
+from luxera.project.schema import Project, JobSpec, JobResultRef, PhotometryAsset, CalcGrid
+from luxera.project.io import load_project_schema, save_project_schema
 from luxera.project.validator import validate_project_for_job, ProjectValidationError
 from luxera.results.store import (
     ensure_result_dir,
@@ -35,12 +27,16 @@ from luxera.results.store import (
 from luxera.results.heatmaps import write_surface_heatmaps
 from luxera.results.grid_viz import write_grid_heatmap_and_isolux
 from luxera.results.surface_grids import compute_surface_grids
-from luxera.geometry.core import Vector3, Surface, Polygon
 import luxera
-from luxera.engine.radiosity_engine import run_radiosity
+from luxera.engine.radiosity_engine import RadiosityMethod, RadiositySettings, run_radiosity
 from luxera.engine.ugr_engine import compute_ugr_default, compute_ugr_for_views
-from luxera.calculation.radiosity import RadiositySettings, RadiosityMethod
-from luxera.geometry.core import Room, Material
+from luxera.engine.direct_illuminance import (
+    build_direct_occluders,
+    build_grid_from_spec,
+    build_room_from_spec,
+    load_luminaires,
+    run_direct_grid,
+)
 from luxera.compliance import ActivityType, check_compliance_from_grid
 from luxera.photometry.verify import verify_photometry_file
 from luxera.agent.audit import append_audit_event
@@ -49,6 +45,18 @@ from luxera.backends.radiance import build_radiance_run_manifest, get_radiance_v
 
 class RunnerError(Exception):
     pass
+
+
+def run_job(project_path: str | Path, job_id: str) -> JobResultRef:
+    """
+    Path-based runner contract:
+    load project -> execute -> persist updated project -> return result ref.
+    """
+    ppath = Path(project_path).expanduser().resolve()
+    project = load_project_schema(ppath)
+    ref = run_job_in_memory(project, job_id)
+    save_project_schema(project, ppath)
+    return ref
 
 
 def _upsert_result_ref(project: Project, ref: JobResultRef) -> None:
@@ -63,14 +71,6 @@ def _resolve_project_root(project: Project) -> Path:
     if project.root_dir:
         return Path(project.root_dir).expanduser().resolve()
     return Path.cwd()
-
-
-def _load_photometry_asset(asset: PhotometryAsset) -> str:
-    if asset.embedded_b64:
-        return base64.b64decode(asset.embedded_b64.encode("utf-8")).decode("utf-8", errors="replace")
-    if asset.path:
-        return Path(asset.path).expanduser().read_text(encoding="utf-8", errors="replace")
-    raise RunnerError(f"Photometry asset {asset.id} has no data")
 
 
 def _hash_photometry_asset(asset: PhotometryAsset) -> str:
@@ -176,7 +176,7 @@ def _effective_job_settings(job: JobSpec) -> Dict[str, object]:
     return merged
 
 
-def run_job(project: Project, job_id: str) -> JobResultRef:
+def run_job_in_memory(project: Project, job_id: str) -> JobResultRef:
     job = _get_job(project, job_id)
     try:
         validate_project_for_job(project, job)
@@ -284,7 +284,20 @@ def run_job(project: Project, job_id: str) -> JobResultRef:
         grids = compute_surface_grids(result["room"].get_surfaces(), result["luminaires"], resolution=10)
         for sid, grid in grids.items():
             write_surface_grid_csv(out_dir, sid, grid.points, grid.values)
-    write_manifest(out_dir)
+    write_manifest(
+        out_dir,
+        metadata={
+            "job_id": job.id,
+            "job_hash": job_hash,
+            "seed": job.seed,
+            "solver": result_meta.get("solver", {}),
+            "backend": result_meta.get("backend", {}),
+            "assets": result_meta.get("assets", {}),
+            "settings": result_meta.get("settings_dump", {}),
+            "coordinate_convention": result_meta.get("coordinate_convention"),
+            "units": result_meta.get("units", {}),
+        },
+    )
     append_audit_event(
         project,
         action="runner.run_job",
@@ -333,53 +346,21 @@ def _run_direct(project: Project, job: JobSpec) -> Dict[str, object]:
         raise RunnerError("Project has no luminaires")
 
     grid_spec = project.grids[0]
-    grid = CalculationGrid(
-        origin=Vector3(*grid_spec.origin),
-        width=grid_spec.width,
-        height=grid_spec.height,
-        elevation=grid_spec.elevation,
-        nx=grid_spec.nx,
-        ny=grid_spec.ny,
-        normal=Vector3(*grid_spec.normal),
-    )
-
-    assets_by_id = {a.id: a for a in project.photometry_assets}
-    luminaires: List[Luminaire] = []
-    asset_hashes: Dict[str, str] = {}
-
-    for inst in project.luminaires:
-        asset = assets_by_id.get(inst.photometry_asset_id)
-        if asset is None:
-            raise RunnerError(f"Missing photometry asset: {inst.photometry_asset_id}")
-        text = _load_photometry_asset(asset)
-        if asset.format == "IES":
-            parsed = parse_ies_text(text)
-            phot = photometry_from_parsed_ies(parsed)
-        elif asset.format == "LDT":
-            parsed = parse_ldt_text(text)
-            phot = photometry_from_parsed_ldt(parsed)
-        else:
-            raise RunnerError(f"Unsupported photometry format: {asset.format}")
-
-        t = inst.transform.to_transform()
-        lum = Luminaire(
-            photometry=phot,
-            transform=t,
-            flux_multiplier=inst.flux_multiplier,
-            tilt_deg=inst.tilt_deg,
-        )
-        luminaires.append(lum)
-        asset_hashes[asset.id] = asset.content_hash or _hash_photometry_asset(asset)
+    try:
+        luminaires, asset_hashes = load_luminaires(project, _hash_photometry_asset)
+    except ValueError as e:
+        raise RunnerError(str(e)) from e
 
     effective = _effective_job_settings(job)
-    occluders = _build_direct_occluders(project, include_room_shell=bool(effective.get("occlusion_include_room_shell", False)))
-    direct_settings = DirectCalcSettings(
+    occluders = build_direct_occluders(project, include_room_shell=bool(effective.get("occlusion_include_room_shell", False)))
+    grid_res = run_direct_grid(
+        grid_spec,
+        luminaires,
+        occluders=occluders,
         use_occlusion=bool(effective.get("use_occlusion", False)),
         occlusion_epsilon=float(effective.get("occlusion_epsilon", 1e-6)),
     )
-
-    result = calculate_grid_illuminance(grid, luminaires, occluders=occluders, settings=direct_settings)
-    points = np.array([p.to_tuple() for p in grid.get_points()], dtype=float)
+    result = grid_res.result
 
     compliance = None
     if project.geometry.rooms:
@@ -402,7 +383,7 @@ def _run_direct(project: Project, job: JobSpec) -> Dict[str, object]:
         "mean_lux": result.mean_lux,
         "uniformity_ratio": result.uniformity_ratio,
         "uniformity_diversity": result.uniformity_diversity,
-        "occlusion_enabled": direct_settings.use_occlusion,
+        "occlusion_enabled": bool(effective.get("use_occlusion", False)),
         "occluder_count": len(occluders),
         "compliance": compliance.summary() if hasattr(compliance, "summary") else compliance,
     }
@@ -412,53 +393,12 @@ def _run_direct(project: Project, job: JobSpec) -> Dict[str, object]:
 
     return {
         "summary": summary,
-        "grid_points": points,
-        "grid_values": result.values.reshape(-1),
-        "grid_nx": grid.nx,
-        "grid_ny": grid.ny,
+        "grid_points": grid_res.points,
+        "grid_values": grid_res.values,
+        "grid_nx": grid_res.nx,
+        "grid_ny": grid_res.ny,
         "assets": asset_hashes,
     }
-
-
-def _build_direct_occluders(project: Project, include_room_shell: bool = False) -> List[Surface]:
-    surfaces: List[Surface] = []
-    material_by_id = {m.id: m for m in project.materials}
-
-    for s in project.geometry.surfaces:
-        if len(s.vertices) < 3:
-            continue
-        verts = [Vector3(*v) for v in s.vertices]
-        polygon = Polygon(verts)
-        m_spec = material_by_id.get(s.material_id) if s.material_id else None
-        material = Material(
-            name=f"occluder:{s.id}",
-            reflectance=(m_spec.reflectance if m_spec is not None else 0.5),
-            specularity=(m_spec.specularity if m_spec is not None else 0.0),
-        )
-        surfaces.append(Surface(id=s.id, polygon=polygon, material=material))
-
-    if include_room_shell and project.geometry.rooms:
-        room = _build_room_from_spec(project.geometry.rooms[0])
-        surfaces.extend(room.get_surfaces())
-
-    return surfaces
-
-
-def _build_room_from_spec(spec: RoomSpec) -> Room:
-    floor_mat = Material(name="floor", reflectance=spec.floor_reflectance)
-    wall_mat = Material(name="wall", reflectance=spec.wall_reflectance)
-    ceiling_mat = Material(name="ceiling", reflectance=spec.ceiling_reflectance)
-    origin = Vector3(*spec.origin)
-    return Room.rectangular(
-        name=spec.name,
-        width=spec.width,
-        length=spec.length,
-        height=spec.height,
-        origin=origin,
-        floor_material=floor_mat,
-        wall_material=wall_mat,
-        ceiling_material=ceiling_mat,
-    )
 
 
 def _run_radiosity(project: Project, job: JobSpec) -> Dict[str, object]:
@@ -468,33 +408,11 @@ def _run_radiosity(project: Project, job: JobSpec) -> Dict[str, object]:
         raise RunnerError("Project has no luminaires")
 
     room_spec = project.geometry.rooms[0]
-    room = _build_room_from_spec(room_spec)
-
-    assets_by_id = {a.id: a for a in project.photometry_assets}
-    luminaires: List[Luminaire] = []
-    asset_hashes: Dict[str, str] = {}
-
-    for inst in project.luminaires:
-        asset = assets_by_id.get(inst.photometry_asset_id)
-        if asset is None:
-            raise RunnerError(f"Missing photometry asset: {inst.photometry_asset_id}")
-        text = _load_photometry_asset(asset)
-        if asset.format == "IES":
-            phot = photometry_from_parsed_ies(parse_ies_text(text))
-        elif asset.format == "LDT":
-            phot = photometry_from_parsed_ldt(parse_ldt_text(text))
-        else:
-            raise RunnerError(f"Unsupported photometry format: {asset.format}")
-
-        t = inst.transform.to_transform()
-        lum = Luminaire(
-            photometry=phot,
-            transform=t,
-            flux_multiplier=inst.flux_multiplier,
-            tilt_deg=inst.tilt_deg,
-        )
-        luminaires.append(lum)
-        asset_hashes[asset.id] = asset.content_hash or _hash_photometry_asset(asset)
+    room = build_room_from_spec(room_spec)
+    try:
+        luminaires, asset_hashes = load_luminaires(project, _hash_photometry_asset)
+    except ValueError as e:
+        raise RunnerError(str(e)) from e
 
     effective = _effective_job_settings(job)
     settings = RadiositySettings(
@@ -659,31 +577,11 @@ def _resolve_compliance_profile(project: Project, domain: str, profile_id: Optio
     return p.__dict__ if p is not None else None
 
 
-def _load_luminaires_and_hashes(project: Project) -> tuple[List[Luminaire], Dict[str, str]]:
-    assets_by_id = {a.id: a for a in project.photometry_assets}
-    luminaires: List[Luminaire] = []
-    asset_hashes: Dict[str, str] = {}
-    for inst in project.luminaires:
-        asset = assets_by_id.get(inst.photometry_asset_id)
-        if asset is None:
-            raise RunnerError(f"Missing photometry asset: {inst.photometry_asset_id}")
-        text = _load_photometry_asset(asset)
-        if asset.format == "IES":
-            phot = photometry_from_parsed_ies(parse_ies_text(text))
-        elif asset.format == "LDT":
-            phot = photometry_from_parsed_ldt(parse_ldt_text(text))
-        else:
-            raise RunnerError(f"Unsupported photometry format: {asset.format}")
-        luminaires.append(
-            Luminaire(
-                photometry=phot,
-                transform=inst.transform.to_transform(),
-                flux_multiplier=inst.flux_multiplier,
-                tilt_deg=inst.tilt_deg,
-            )
-        )
-        asset_hashes[asset.id] = asset.content_hash or _hash_photometry_asset(asset)
-    return luminaires, asset_hashes
+def _load_luminaires_and_hashes(project: Project):
+    try:
+        return load_luminaires(project, _hash_photometry_asset)
+    except ValueError as e:
+        raise RunnerError(str(e)) from e
 
 
 def _roadway_observer_luminance(
@@ -727,29 +625,48 @@ def _run_roadway(project: Project, job: JobSpec) -> Dict[str, object]:
         raise RunnerError("Project has no luminaires")
 
     rg = project.roadway_grids[0]
-    grid = CalculationGrid(
-        origin=Vector3(*rg.origin),
-        width=rg.road_length,
-        height=rg.lane_width,
-        elevation=rg.origin[2],
-        nx=rg.nx,
-        ny=rg.ny,
-        normal=Vector3(0.0, 0.0, 1.0),
-    )
 
     settings = _effective_job_settings(job)
     if settings.get("observer_height_m") is None:
         settings["observer_height_m"] = float(getattr(rg, "observer_height_m", 1.5))
     luminaires, asset_hashes = _load_luminaires_and_hashes(project)
 
-    result = calculate_grid_illuminance(grid, luminaires)
-    vals = np.array(result.values, dtype=float).reshape(rg.ny, rg.nx)
-    points = np.array([p.to_tuple() for p in grid.get_points()], dtype=float)
+    road_grid_spec = CalcGrid(
+        id=rg.id,
+        name=rg.name,
+        origin=rg.origin,
+        width=rg.road_length,
+        height=rg.lane_width,
+        elevation=rg.origin[2],
+        nx=rg.nx,
+        ny=rg.ny,
+        normal=(0.0, 0.0, 1.0),
+    )
+    road = run_direct_grid(
+        road_grid_spec,
+        luminaires,
+        occluders=None,
+        use_occlusion=False,
+        occlusion_epsilon=1e-6,
+    )
+    vals = np.array(road.result.values, dtype=float).reshape(rg.ny, rg.nx)
+    points = road.points
     centerline = vals[rg.ny // 2, :]
     ul = float(np.min(centerline) / np.max(centerline)) if centerline.size and float(np.max(centerline)) > 1e-9 else 0.0
     rho = float(settings.get("road_surface_reflectance", 0.07))
-    luminance = np.array(result.values, dtype=float).reshape(-1) * rho / math.pi
+    luminance = np.array(road.result.values, dtype=float).reshape(-1) * rho / math.pi
     views = _roadway_observer_luminance(points, luminance, rg.origin, rg.lane_width, settings)
+    mean_lum = float(np.mean(luminance)) if luminance.size else 0.0
+    max_view_lum = max((float(v.get("luminance_cd_m2", 0.0)) for v in views), default=0.0)
+    # Deterministic glare proxy for roadway v1.5 reporting.
+    ti_proxy = 65.0 * max_view_lum / max(mean_lum + 1.0, 1.0)
+    # Surround ratio proxy from edge-vs-center lane strips (road-surface proxy only).
+    if rg.ny >= 3:
+        edge = np.concatenate([vals[0, :], vals[-1, :]])
+        center = vals[rg.ny // 2, :]
+        surround_ratio_proxy = float(np.mean(edge) / np.mean(center)) if center.size and float(np.mean(center)) > 1e-9 else 0.0
+    else:
+        surround_ratio_proxy = 0.0
 
     summary = dict(_compute_grid_stats(vals))
     summary.update(
@@ -763,8 +680,11 @@ def _run_roadway(project: Project, job: JobSpec) -> Dict[str, object]:
             "mounting_height_m": rg.mounting_height_m,
             "setback_m": rg.setback_m,
             "road_surface_reflectance": rho,
-            "road_luminance_mean_cd_m2": float(np.mean(luminance)) if luminance.size else 0.0,
+            "road_luminance_mean_cd_m2": mean_lum,
             "observer_luminance_views": views,
+            "observer_luminance_max_cd_m2": max_view_lum,
+            "threshold_increment_ti_proxy_percent": float(ti_proxy),
+            "surround_ratio_proxy": surround_ratio_proxy,
         }
     )
 
@@ -775,6 +695,8 @@ def _run_roadway(project: Project, job: JobSpec) -> Dict[str, object]:
         uo_min = float(th.get("uo_min", 0.0))
         ul_min = float(th.get("ul_min", 0.0))
         lmin = float(th.get("luminance_min_cd_m2", 0.0))
+        ti_max = float(th.get("ti_max_percent", 999.0))
+        sr_min = float(th.get("surround_ratio_min", 0.0))
         summary["compliance"] = {
             "profile_id": profile.get("id"),
             "standard": profile.get("standard_ref"),
@@ -782,13 +704,22 @@ def _run_roadway(project: Project, job: JobSpec) -> Dict[str, object]:
             "uo_ok": summary["uniformity_ratio"] >= uo_min,
             "ul_ok": summary["ul_longitudinal"] >= ul_min,
             "luminance_ok": summary["road_luminance_mean_cd_m2"] >= lmin,
-            "thresholds": {"avg_min_lux": avg_min, "uo_min": uo_min, "ul_min": ul_min, "luminance_min_cd_m2": lmin},
+            "ti_ok": summary["threshold_increment_ti_proxy_percent"] <= ti_max,
+            "surround_ratio_ok": summary["surround_ratio_proxy"] >= sr_min,
+            "thresholds": {
+                "avg_min_lux": avg_min,
+                "uo_min": uo_min,
+                "ul_min": ul_min,
+                "luminance_min_cd_m2": lmin,
+                "ti_max_percent": ti_max,
+                "surround_ratio_min": sr_min,
+            },
         }
 
     return {
         "summary": summary,
         "grid_points": points,
-        "grid_values": result.values.reshape(-1),
+        "grid_values": road.values,
         "grid_nx": rg.nx,
         "grid_ny": rg.ny,
         "assets": asset_hashes,
@@ -866,15 +797,7 @@ def _run_daylight(project: Project, job: JobSpec) -> Dict[str, object]:
     if not project.grids:
         raise RunnerError("Project has no grids")
     grid_spec = project.grids[0]
-    grid = CalculationGrid(
-        origin=Vector3(*grid_spec.origin),
-        width=grid_spec.width,
-        height=grid_spec.height,
-        elevation=grid_spec.elevation,
-        nx=grid_spec.nx,
-        ny=grid_spec.ny,
-        normal=Vector3(*grid_spec.normal),
-    )
+    grid = build_grid_from_spec(grid_spec)
     pts = np.array([p.to_tuple() for p in grid.get_points()], dtype=float)
     settings = _effective_job_settings(job)
     mode = str(settings["mode"])

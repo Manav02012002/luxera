@@ -362,8 +362,8 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
             self.status.showMessage("Select a job to run", 3000)
             return
         job_id = item.data(0, QtCore.Qt.UserRole + 1)
-        ref = run_job(self.project, job_id)
-        self.save_project()
+        ref = run_job(self.project_path, job_id)
+        self.project = load_project_schema(self.project_path)
         self.refresh_tree()
         self.status.showMessage(f"Job completed: {ref.job_id}", 5000)
 

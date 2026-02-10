@@ -40,9 +40,13 @@ class AgentTools:
     Strict tool surface for agent operations.
     """
 
+    def __init__(self):
+        self._current_project_path: Optional[Path] = None
+
     def open_project(self, project_path: str):
         p = Path(project_path).expanduser().resolve()
         project = load_project_schema(p)
+        self._current_project_path = p
         return project, p
 
     def save_project(self, project, project_path: Path) -> ToolResult:
@@ -152,8 +156,12 @@ class AgentTools:
     def run_job(self, project, job_id: str, approved: bool = False) -> ToolResult:
         if not approved:
             return ToolResult(ok=False, requires_approval=True, message="Run job requires explicit approval")
+        if self._current_project_path is None:
+            return ToolResult(ok=False, message="Run job requires an opened project path context")
         try:
-            ref = run_job(project, job_id)
+            ref = run_job(self._current_project_path, job_id)
+            loaded = load_project_schema(self._current_project_path)
+            project.results = loaded.results
         except RunnerError as e:
             return ToolResult(ok=False, message=str(e))
         return ToolResult(ok=True, message="Job completed", data={"job_id": ref.job_id, "job_hash": ref.job_hash, "result_dir": ref.result_dir})

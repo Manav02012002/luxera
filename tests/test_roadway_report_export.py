@@ -10,7 +10,7 @@ from luxera.project.schema import (
     RotationSpec,
     TransformSpec,
 )
-from luxera.runner import run_job
+from luxera.runner import run_job_in_memory as run_job
 
 
 def _ies(path: Path) -> Path:
@@ -49,4 +49,7 @@ def test_render_roadway_report_html(tmp_path: Path):
     text = out.read_text(encoding="utf-8")
     assert "Roadway Lighting Report" in text
     assert "observer_luminance_views" not in text  # rendered as table, not raw dict key
+    assert "observer_luminance_max_cd_m2" in text
+    assert "threshold_increment_ti_proxy_percent" in text
+    assert "surround_ratio_proxy" in text
     assert "Roadway heatmap" in text or "Roadway isolux" in text
