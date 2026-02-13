@@ -21,6 +21,7 @@ from typing import List, Optional, Tuple, Dict, Iterator
 from pathlib import Path
 import re
 
+from luxera.geometry.curves.arc import Arc
 from luxera.geometry.core import Vector3, Polygon, Room, MATERIALS
 
 
@@ -42,6 +43,7 @@ class DXFLine(DXFEntity):
 class DXFPolyline(DXFEntity):
     """A polyline entity."""
     vertices: List[Vector3] = field(default_factory=list)
+    bulges: List[float] = field(default_factory=list)
     is_closed: bool = False
 
 
@@ -486,3 +488,20 @@ def lines_to_polylines(lines: List[DXFLine], tolerance: float = 0.01) -> List[DX
         polylines.append(poly)
     
     return polylines
+
+
+def bulge_segment_to_dxf_arc(start: Vector3, end: Vector3, bulge: float, layer: str = "0") -> DXFArc:
+    """
+    Convert a DXF bulge segment to an analytic arc using the shared curve engine.
+    """
+    arc = Arc.from_bulge((float(start.x), float(start.y)), (float(end.x), float(end.y)), float(bulge))
+    start_deg = math.degrees(arc.start_rad)
+    sweep_deg = math.degrees(arc.sweep())
+    end_deg = start_deg + (sweep_deg if arc.ccw else -sweep_deg)
+    return DXFArc(
+        layer=layer,
+        center=Vector3(float(arc.center[0]), float(arc.center[1]), float(start.z)),
+        radius=float(arc.radius),
+        start_angle=float(start_deg),
+        end_angle=float(end_deg),
+    )

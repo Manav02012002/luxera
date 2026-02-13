@@ -1,0 +1,81 @@
+{
+  "schema_version": 5,
+  "name": "validation_l_shape",
+  "geometry": {
+    "rooms": [
+      {
+        "id": "r1",
+        "name": "LMain",
+        "origin": [0.0, 0.0, 0.0],
+        "width": 10.0,
+        "length": 4.0,
+        "height": 3.0
+      },
+      {
+        "id": "r2",
+        "name": "LBranch",
+        "origin": [0.0, 4.0, 0.0],
+        "width": 4.0,
+        "length": 6.0,
+        "height": 3.0
+      }
+    ]
+  },
+  "photometry_assets": [
+    {
+      "id": "a1",
+      "format": "IES",
+      "path": "fixture.ies"
+    }
+  ],
+  "luminaires": [
+    {
+      "id": "l1",
+      "name": "L1",
+      "photometry_asset_id": "a1",
+      "transform": {
+        "position": [3.0, 2.0, 2.8],
+        "rotation": {
+          "type": "euler_zyx",
+          "euler_deg": [0.0, 0.0, 0.0]
+        }
+      }
+    },
+    {
+      "id": "l2",
+      "name": "L2",
+      "photometry_asset_id": "a1",
+      "transform": {
+        "position": [2.0, 7.0, 2.8],
+        "rotation": {
+          "type": "euler_zyx",
+          "euler_deg": [0.0, 0.0, 0.0]
+        }
+      }
+    }
+  ],
+  "grids": [
+    {
+      "id": "g1",
+      "name": "LGrid",
+      "origin": [0.0, 0.0, 0.0],
+      "width": 10.0,
+      "height": 10.0,
+      "elevation": 0.8,
+      "nx": 9,
+      "ny": 9,
+      "room_id": "r1"
+    }
+  ],
+  "jobs": [
+    {
+      "id": "j_direct",
+      "type": "direct",
+      "backend": "cpu",
+      "settings": {
+        "use_occlusion": false
+      },
+      "seed": 0
+    }
+  ]
+}

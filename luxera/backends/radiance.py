@@ -82,9 +82,10 @@ def _load_luminaires(project: Project) -> Tuple[List[Luminaire], Dict[str, str]]
             raise RuntimeError(f"Missing photometry asset: {inst.photometry_asset_id}")
         if not asset.path:
             raise RuntimeError(f"Radiance backend requires file-backed asset path for {asset.id}")
-        text = Path(asset.path).read_text(encoding="utf-8", errors="replace")
+        asset_path = Path(asset.path).expanduser().resolve()
+        text = asset_path.read_text(encoding="utf-8", errors="replace")
         if asset.format == "IES":
-            phot = photometry_from_parsed_ies(parse_ies_text(text))
+            phot = photometry_from_parsed_ies(parse_ies_text(text, source_path=asset_path))
         elif asset.format == "LDT":
             phot = photometry_from_parsed_ldt(parse_ldt_text(text))
         else:

@@ -1,0 +1,36 @@
+{
+  "calc_object_count": 1,
+  "calc_objects": [
+    {
+      "id": "g1",
+      "name": "ObsGrid",
+      "summary": {
+        "max_lux": 238.82039589895265,
+        "mean_lux": 78.70973699723864,
+        "min_lux": 21.292322735204515,
+        "p50_lux": 63.19393345183642,
+        "p90_lux": 152.65793596577944,
+        "uniformity_diversity": 0.0891562157204258,
+        "uniformity_ratio": 0.27051701031540115
+      },
+      "type": "grid"
+    }
+  ],
+  "compliance": null,
+  "global_highest_ugr": 0.0,
+  "global_worst_min_lux": 21.292322735204515,
+  "global_worst_uniformity_ratio": 0.27051701031540115,
+  "highest_ugr": 0.0,
+  "max_lux": 238.82039589895265,
+  "mean_lux": 78.70973699723864,
+  "mean_of_means_lux": 78.70973699723864,
+  "min_lux": 21.292322735204515,
+  "occluder_count": 0,
+  "occlusion_enabled": true,
+  "p50_lux": 63.19393345183642,
+  "p90_lux": 152.65793596577944,
+  "uniformity_diversity": 0.0891562157204258,
+  "uniformity_ratio": 0.27051701031540115,
+  "worst_min_lux": 21.292322735204515,
+  "worst_uniformity_ratio": 0.27051701031540115
+}

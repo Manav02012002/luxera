@@ -1,0 +1,373 @@
+{
+  "active_variant_id": null,
+  "agent_history": [
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/corridor_dense/.luxera/results/635e5fc9c77f57f46f5b3a9ae76d8492d4e2b737c59e3288baa9bbd6ff7860f4"
+      ],
+      "created_at": 1770749104.351101,
+      "diffs": [],
+      "id": "e7899a31-7c92-4ecb-8eb0-b289aec78a89",
+      "job_hashes": [
+        "635e5fc9c77f57f46f5b3a9ae76d8492d4e2b737c59e3288baa9bbd6ff7860f4"
+      ],
+      "metadata": {
+        "job_id": "j_direct_dense",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/corridor_dense/.luxera/results/a9b4c9504af8fee75fc717bc9434f9da6c023827b4a860699d39a1b478911d74"
+      ],
+      "created_at": 1770753651.732673,
+      "diffs": [],
+      "id": "281dc20c-807c-4c0f-acf0-4681946a46d5",
+      "job_hashes": [
+        "a9b4c9504af8fee75fc717bc9434f9da6c023827b4a860699d39a1b478911d74"
+      ],
+      "metadata": {
+        "job_id": "j_direct_dense",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/corridor_dense/.luxera/results/33a590de58f8592e2151ab5dc7435a2582859e5ede3415cde3d58092d031c41b"
+      ],
+      "created_at": 1770756252.129031,
+      "diffs": [],
+      "id": "4add52e6-0a2b-4b0a-abfc-2ffb890a154b",
+      "job_hashes": [
+        "33a590de58f8592e2151ab5dc7435a2582859e5ede3415cde3d58092d031c41b"
+      ],
+      "metadata": {
+        "job_id": "j_direct_dense",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/corridor_dense/.luxera/results/d75d4dffe23ecbb92bbb5780213713462593b0344e8f65e0c714861350f10312"
+      ],
+      "created_at": 1770758033.495029,
+      "diffs": [],
+      "id": "27d49795-d2b4-40e2-900f-87e80e6b3bc6",
+      "job_hashes": [
+        "d75d4dffe23ecbb92bbb5780213713462593b0344e8f65e0c714861350f10312"
+      ],
+      "metadata": {
+        "job_id": "j_direct_dense",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/corridor_dense/.luxera/results/3a31804e97005e66330939e329800ffee0f7c18f6cedde60e166f7ac60899c5c"
+      ],
+      "created_at": 1771016964.750645,
+      "diffs": [],
+      "id": "a0fb94f3-7606-442d-a8d3-7cb699ef35e9",
+      "job_hashes": [
+        "3a31804e97005e66330939e329800ffee0f7c18f6cedde60e166f7ac60899c5c"
+      ],
+      "metadata": {
+        "job_id": "j_direct_dense",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    }
+  ],
+  "arbitrary_planes": [],
+  "asset_bundle_path": null,
+  "assistant_redo_stack": [],
+  "assistant_undo_stack": [],
+  "compliance_profiles": [],
+  "escape_routes": [],
+  "geometry": {
+    "axis_transform_applied": null,
+    "coordinate_systems": [],
+    "length_unit": "m",
+    "levels": [],
+    "no_go_zones": [],
+    "obstructions": [],
+    "openings": [],
+    "rooms": [
+      {
+        "activity_type": null,
+        "ceiling_reflectance": 0.7,
+        "coordinate_system_id": null,
+        "floor_reflectance": 0.2,
+        "footprint": null,
+        "height": 3.0,
+        "id": "r1",
+        "length": 4.0,
+        "level_id": null,
+        "name": "Corridor",
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "wall_reflectance": 0.5,
+        "width": 20.0
+      }
+    ],
+    "scale_to_meters": 1.0,
+    "source_length_unit": null,
+    "surfaces": [],
+    "zones": []
+  },
+  "glare_views": [],
+  "grids": [
+    {
+      "elevation": 0.8,
+      "evaluation_height_offset": 0.0,
+      "height": 4.0,
+      "id": "g_dense",
+      "metric_set": [
+        "E_avg",
+        "E_min",
+        "E_max",
+        "U0",
+        "U1"
+      ],
+      "name": "CorridorGrid",
+      "normal": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "nx": 21,
+      "ny": 5,
+      "origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "room_id": "r1",
+      "sample_mask": [],
+      "sample_points": [],
+      "width": 20.0,
+      "zone_id": null
+    }
+  ],
+  "jobs": [
+    {
+      "backend": "cpu",
+      "daylight": null,
+      "emergency": null,
+      "id": "j_direct_dense",
+      "mode": null,
+      "open_area_targets": [],
+      "routes": [],
+      "seed": 0,
+      "settings": {
+        "use_occlusion": false
+      },
+      "targets": [],
+      "type": "direct"
+    }
+  ],
+  "layers": [
+    {
+      "id": "room",
+      "name": "Rooms",
+      "order": 10,
+      "visible": true
+    },
+    {
+      "id": "wall",
+      "name": "Walls",
+      "order": 20,
+      "visible": true
+    },
+    {
+      "id": "ceiling_grid",
+      "name": "Ceiling Grid",
+      "order": 30,
+      "visible": true
+    },
+    {
+      "id": "opening",
+      "name": "Openings",
+      "order": 40,
+      "visible": true
+    },
+    {
+      "id": "luminaire",
+      "name": "Luminaires",
+      "order": 50,
+      "visible": true
+    },
+    {
+      "id": "grid",
+      "name": "Calc Grids",
+      "order": 60,
+      "visible": true
+    }
+  ],
+  "line_grids": [],
+  "luminaire_families": [],
+  "luminaires": [
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "l1",
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L1",
+      "photometry_asset_id": "a1",
+      "tags": [],
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          5.0,
+          2.0,
+          2.8
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    },
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "l2",
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L2",
+      "photometry_asset_id": "a1",
+      "tags": [],
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          15.0,
+          2.0,
+          2.8
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    }
+  ],
+  "material_library": [],
+  "materials": [],
+  "name": "golden_corridor_dense",
+  "param": {
+    "footprints": [],
+    "openings": [],
+    "rooms": [],
+    "shared_walls": [],
+    "slabs": [],
+    "walls": [],
+    "zones": []
+  },
+  "photometry_assets": [
+    {
+      "content_hash": null,
+      "embedded_b64": null,
+      "format": "IES",
+      "id": "a1",
+      "metadata": {},
+      "path": "fixture.ies"
+    }
+  ],
+  "point_sets": [],
+  "results": [
+    {
+      "job_hash": "3a31804e97005e66330939e329800ffee0f7c18f6cedde60e166f7ac60899c5c",
+      "job_id": "j_direct_dense",
+      "result_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/corridor_dense/.luxera/results/3a31804e97005e66330939e329800ffee0f7c18f6cedde60e166f7ac60899c5c",
+      "summary": {
+        "calc_object_count": 1,
+        "calc_objects": [
+          {
+            "id": "g_dense",
+            "name": "CorridorGrid",
+            "summary": {
+              "E_avg": 46.73309429713036,
+              "E_max": 226.03765493369767,
+              "E_min": 6.530418645014003,
+              "P50": 28.197281917236356,
+              "P90": 102.5388331507582,
+              "U0": 0.13973863154648852,
+              "U1": 0.028890844080511867,
+              "max_lux": 226.03765493369767,
+              "mean_lux": 46.73309429713036,
+              "min_lux": 6.530418645014003,
+              "p50_lux": 28.197281917236356,
+              "p90_lux": 102.5388331507582,
+              "uniformity_diversity": 0.028890844080511867,
+              "uniformity_ratio": 0.13973863154648852
+            },
+            "type": "grid"
+          }
+        ],
+        "compliance": null,
+        "global_highest_ugr": 0.0,
+        "global_worst_min_lux": 6.530418645014003,
+        "global_worst_uniformity_ratio": 0.13973863154648852,
+        "highest_ugr": 0.0,
+        "max_lux": 226.03765493369767,
+        "mean_lux": 46.73309429713036,
+        "mean_of_means_lux": 46.73309429713036,
+        "min_lux": 6.530418645014003,
+        "occluder_count": 0,
+        "occlusion_enabled": false,
+        "p50_lux": 28.197281917236356,
+        "p90_lux": 102.5388331507582,
+        "uniformity_diversity": 0.028890844080511867,
+        "uniformity_ratio": 0.13973863154648852,
+        "worst_min_lux": 6.530418645014003,
+        "worst_uniformity_ratio": 0.13973863154648852
+      }
+    }
+  ],
+  "roadway_grids": [],
+  "roadways": [],
+  "root_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/corridor_dense",
+  "schema_version": 5,
+  "variants": [],
+  "vertical_planes": [],
+  "workplanes": []
+}

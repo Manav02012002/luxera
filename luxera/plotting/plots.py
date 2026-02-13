@@ -42,7 +42,54 @@ def _choose_plane_indices(horizontal_deg: Sequence[float], max_planes: int = 4) 
     return sorted(set(int(i) for i in idxs))
 
 
-def plot_intensity_curves(doc: ParsedIES, outpath: Path, plane_indices: Optional[Iterable[int]] = None) -> Path:
+def _nearest_plane_index(horizontal_deg: Sequence[float], target_deg: float) -> int:
+    if not horizontal_deg:
+        raise ValueError("No horizontal angles available")
+    target = float(target_deg) % 360.0
+    best_i = 0
+    best_d = float("inf")
+    for i, h in enumerate(horizontal_deg):
+        hv = float(h) % 360.0
+        d = abs(hv - target)
+        d = min(d, 360.0 - d)
+        if d < best_d:
+            best_d = d
+            best_i = i
+    return best_i
+
+
+def _nearest_angle_value(horizontal_deg: Sequence[float], target_deg: float) -> float:
+    return float(horizontal_deg[_nearest_plane_index(horizontal_deg, target_deg)])
+
+
+def _resolve_polar_plane_pairs(
+    horizontal_deg: Sequence[float],
+    horizontal_plane_deg: Optional[float] = None,
+) -> List[Tuple[float, float]]:
+    if not horizontal_deg:
+        raise ValueError("No horizontal angles available")
+    if horizontal_plane_deg is not None:
+        primary = _nearest_angle_value(horizontal_deg, float(horizontal_plane_deg))
+        opposite = _nearest_angle_value(horizontal_deg, (primary + 180.0) % 360.0)
+        return [(primary, opposite)]
+    planes: List[Tuple[float, float]] = []
+    hvals = [float(v) for v in horizontal_deg]
+    if any(abs(v - 0.0) < 0.5 for v in hvals):
+        planes.append((0.0, _nearest_angle_value(horizontal_deg, 180.0)))
+    if any(abs(v - 90.0) < 0.5 for v in hvals):
+        planes.append((90.0, _nearest_angle_value(horizontal_deg, 270.0)))
+    if not planes:
+        v0 = float(horizontal_deg[0])
+        planes = [(v0, _nearest_angle_value(horizontal_deg, (v0 + 180.0) % 360.0))]
+    return planes
+
+
+def plot_intensity_curves(
+    doc: ParsedIES,
+    outpath: Path,
+    plane_indices: Optional[Iterable[int]] = None,
+    horizontal_plane_deg: Optional[float] = None,
+) -> Path:
     """
     Save a line plot: candela (scaled) vs vertical angle, for selected horizontal planes.
     """
@@ -53,7 +100,9 @@ def plot_intensity_curves(doc: ParsedIES, outpath: Path, plane_indices: Optional
     h = doc.angles.horizontal_deg
     H = len(h)
 
-    if plane_indices is None:
+    if horizontal_plane_deg is not None:
+        plane_indices = [_nearest_plane_index(h, float(horizontal_plane_deg))]
+    elif plane_indices is None:
         plane_indices = _choose_plane_indices(h, max_planes=4)
 
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -83,7 +132,8 @@ def plot_intensity_curves(doc: ParsedIES, outpath: Path, plane_indices: Optional
 def plot_polar_photometric(
     doc: ParsedIES, 
     outpath: Path, 
-    planes: Optional[List[Tuple[float, float]]] = None
+    planes: Optional[List[Tuple[float, float]]] = None,
+    horizontal_plane_deg: Optional[float] = None,
 ) -> Path:
     """
     Save a proper photometric polar plot.
@@ -115,16 +165,9 @@ def plot_polar_photometric(
                 return i
         return None
     
-    # Default planes: C0-C180 and C90-C270
+    # Default planes: C0-C180 and C90-C270, or nearest selected horizontal plane pair.
     if planes is None:
-        planes = []
-        if find_plane_index(0) is not None:
-            planes.append((0, 180))
-        if find_plane_index(90) is not None:
-            planes.append((90, 270))
-        if not planes:
-            # Fall back to first available plane
-            planes = [(h_deg[0], h_deg[0])]
+        planes = _resolve_polar_plane_pairs(h_deg, horizontal_plane_deg=horizontal_plane_deg)
     
     fig = plt.figure(figsize=(8, 8))
     ax = fig.add_subplot(111, projection='polar')
@@ -247,7 +290,12 @@ def plot_polar(doc: ParsedIES, outpath: Path, plane_indices: Optional[Iterable[i
     return plot_polar_photometric(doc, outpath)
 
 
-def save_default_plots(doc: ParsedIES, outdir: Path, stem: str = "luxera_view") -> PlotPaths:
+def save_default_plots(
+    doc: ParsedIES,
+    outdir: Path,
+    stem: str = "luxera_view",
+    horizontal_plane_deg: Optional[float] = None,
+) -> PlotPaths:
     """
     Convenience: save all default plots into outdir.
     """
@@ -256,8 +304,8 @@ def save_default_plots(doc: ParsedIES, outdir: Path, stem: str = "luxera_view") 
     polar_png = outdir / f"{stem}_polar.png"
     heatmap_png = outdir / f"{stem}_heatmap.png"
 
-    plot_intensity_curves(doc, intensity_png)
-    plot_polar_photometric(doc, polar_png)
+    plot_intensity_curves(doc, intensity_png, horizontal_plane_deg=horizontal_plane_deg)
+    plot_polar_photometric(doc, polar_png, horizontal_plane_deg=horizontal_plane_deg)
     plot_candela_heatmap(doc, heatmap_png)
 
     return PlotPaths(

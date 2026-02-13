@@ -1,0 +1,5 @@
+{
+  "translation_invariance": true,
+  "rotation_invariance_z": true,
+  "scale_invariance_units": true
+}

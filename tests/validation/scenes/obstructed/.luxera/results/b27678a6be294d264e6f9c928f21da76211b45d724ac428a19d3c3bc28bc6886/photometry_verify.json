@@ -1,0 +1,46 @@
+{
+  "assets": {
+    "a1": {
+      "angle_ranges_deg": {
+        "c_max": 0.0,
+        "c_min": 0.0,
+        "gamma_max": 90.0,
+        "gamma_min": 0.0
+      },
+      "candela_stats": {
+        "max_cd": 900.0,
+        "mean_cd": 700.0,
+        "min_cd": 500.0
+      },
+      "coordinate_convention": "Local luminaire frame: +Z up, nadir is -Z; C=0 toward +X, C=90 toward +Y",
+      "counts": {
+        "num_c": 1,
+        "num_gamma": 3
+      },
+      "expected_hash": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834",
+      "file": "/Users/manavmadanrawal/Dev/luxera/tests/validation/scenes/obstructed/fixture.ies",
+      "file_hash_sha256": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834",
+      "format": "IES",
+      "hash_match": true,
+      "luminous": {
+        "flux_lm": 1000.0,
+        "length_m": 0.5,
+        "width_m": 0.5
+      },
+      "photometric_system": "C",
+      "sanity": {
+        "angles_nonempty": true,
+        "candela_all_zero": false,
+        "candela_has_nan_or_inf": false,
+        "candela_has_negative": false,
+        "candela_nonempty": true
+      },
+      "symmetry": "FULL",
+      "tilt_file": null,
+      "tilt_source": "NONE",
+      "tilt_status": "ok",
+      "warnings": []
+    }
+  },
+  "warnings": []
+}

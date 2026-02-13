@@ -1,0 +1,2 @@
+id,name,type,spacing,area,point_count,min_lux,mean_lux,max_lux,uniformity_min_avg
+g1,EdgeGrid,grid,0.5,,153,21.292322735204515,83.11303249456095,238.82039589895265,0.2561851264011804

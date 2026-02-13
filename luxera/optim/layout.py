@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 from luxera.calculation.illuminance import CalculationGrid, Luminaire, calculate_grid_illuminance
@@ -22,9 +23,10 @@ class LayoutCandidate:
 def _load_photometry(asset: PhotometryAsset) -> Photometry:
     if asset.path is None:
         raise ValueError("Photometry asset path required for optimization")
-    text = open(asset.path, "r", encoding="utf-8", errors="replace").read()
+    apath = Path(asset.path).expanduser().resolve()
+    text = apath.read_text(encoding="utf-8", errors="replace")
     if asset.format == "IES":
-        return photometry_from_parsed_ies(parse_ies_text(text))
+        return photometry_from_parsed_ies(parse_ies_text(text, source_path=apath))
     if asset.format == "LDT":
         return photometry_from_parsed_ldt(parse_ldt_text(text))
     raise ValueError(f"Unsupported photometry format: {asset.format}")

@@ -1,0 +1,43 @@
+{
+  "calc_object_count": 1,
+  "calc_objects": [
+    {
+      "id": "g1",
+      "name": "Workplane",
+      "summary": {
+        "E_avg": 46.197224544453775,
+        "E_max": 225.00000000000006,
+        "E_min": 11.865106722651323,
+        "P50": 27.723644151398467,
+        "P90": 94.22512489480879,
+        "U0": 0.25683592119769005,
+        "U1": 0.052733807656228086,
+        "max_lux": 225.00000000000006,
+        "mean_lux": 46.197224544453775,
+        "min_lux": 11.865106722651323,
+        "p50_lux": 27.723644151398467,
+        "p90_lux": 94.22512489480879,
+        "uniformity_diversity": 0.052733807656228086,
+        "uniformity_ratio": 0.25683592119769005
+      },
+      "type": "grid"
+    }
+  ],
+  "compliance": null,
+  "global_highest_ugr": 0.0,
+  "global_worst_min_lux": 11.865106722651323,
+  "global_worst_uniformity_ratio": 0.25683592119769005,
+  "highest_ugr": 0.0,
+  "max_lux": 225.00000000000006,
+  "mean_lux": 46.197224544453775,
+  "mean_of_means_lux": 46.197224544453775,
+  "min_lux": 11.865106722651323,
+  "occluder_count": 0,
+  "occlusion_enabled": false,
+  "p50_lux": 27.723644151398467,
+  "p90_lux": 94.22512489480879,
+  "uniformity_diversity": 0.052733807656228086,
+  "uniformity_ratio": 0.25683592119769005,
+  "worst_min_lux": 11.865106722651323,
+  "worst_uniformity_ratio": 0.25683592119769005
+}

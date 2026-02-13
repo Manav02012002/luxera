@@ -1,0 +1,2 @@
+id,name,type,spacing,area,point_count,min_lux,mean_lux,max_lux,uniformity_min_avg
+g1,Workplane,grid,1.5,,25,1.9381883305055494,6.40677173663738,25.000000000000007,0.30252183317566034

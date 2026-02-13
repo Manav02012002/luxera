@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import uuid
 from pathlib import Path
 from typing import List
@@ -10,6 +11,7 @@ from luxera.parser.pipeline import parse_and_analyse_ies
 from luxera.plotting.plots import save_default_plots
 from luxera.export.pdf_report import build_pdf_report
 from luxera.project.io import load_project_schema, save_project_schema
+from luxera.project.validator import validate_project_for_job, ProjectValidationError
 from luxera.project.schema import (
     Project,
     PhotometryAsset,
@@ -19,13 +21,19 @@ from luxera.project.schema import (
     TransformSpec,
     RotationSpec,
     RoomSpec,
+    RoadwaySpec,
     RoadwayGridSpec,
     ComplianceProfile,
+    DaylightAnnualSpec,
+    DaylightSpec,
+    EmergencyModeSpec,
+    EmergencySpec,
+    EscapeRouteSpec,
 )
 from luxera.project.presets import en12464_direct_job, en13032_radiosity_job, default_compliance_profiles
 from luxera.core.hashing import sha256_file
 from luxera.photometry.verify import verify_photometry_file
-from luxera.io.geometry_import import import_geometry_file
+from luxera.io.import_pipeline import run_import_pipeline
 from luxera.geometry.scene_prep import clean_scene_surfaces, detect_room_volumes_from_surfaces
 
 
@@ -54,6 +62,7 @@ def _cmd_view(args: argparse.Namespace) -> int:
     outdir = Path(args.out).expanduser().resolve()
     stem = args.stem
     make_pdf = bool(args.pdf)
+    horizontal_plane_deg = float(args.horizontal_plane) if args.horizontal_plane is not None else None
 
     if not ies_path.exists():
         print(f"[ERROR] File not found: {ies_path}")
@@ -70,7 +79,7 @@ def _cmd_view(args: argparse.Namespace) -> int:
         print("[ERROR] Failed to parse photometry/angles/candela; cannot plot/report.")
         return 3
 
-    paths = save_default_plots(res.doc, outdir, stem=stem)
+    paths = save_default_plots(res.doc, outdir, stem=stem, horizontal_plane_deg=horizontal_plane_deg)
 
     pdf_path = None
     if make_pdf:
@@ -81,6 +90,8 @@ def _cmd_view(args: argparse.Namespace) -> int:
     print(f"  File: {ies_path}")
     print(f"  Saved: {paths.intensity_png}")
     print(f"  Saved: {paths.polar_png}")
+    if horizontal_plane_deg is not None:
+        print(f"  Horizontal plane: C={horizontal_plane_deg:g}° (nearest available plane used)")
     if pdf_path is not None:
         print(f"  Saved: {pdf_path}")
 
@@ -224,7 +235,10 @@ def _cmd_add_roadway_grid(args: argparse.Namespace) -> int:
         nx=args.nx,
         ny=args.ny,
         origin=(args.origin_x, args.origin_y, args.origin_z),
+        roadway_id=args.roadway_id,
         num_lanes=args.num_lanes,
+        longitudinal_points=args.longitudinal_points,
+        transverse_points_per_lane=args.transverse_points_per_lane,
         pole_spacing_m=args.pole_spacing_m,
         mounting_height_m=args.mounting_height_m,
         setback_m=args.setback_m,
@@ -233,6 +247,65 @@ def _cmd_add_roadway_grid(args: argparse.Namespace) -> int:
     project.roadway_grids.append(rg)
     save_project_schema(project, project_path)
     print(f"Added roadway grid: {rg_id}")
+    return 0
+
+
+def _cmd_add_roadway(args: argparse.Namespace) -> int:
+    project_path = Path(args.project).expanduser().resolve()
+    project = load_project_schema(project_path)
+    rw_id = args.id or str(uuid.uuid4())
+    roadway = RoadwaySpec(
+        id=rw_id,
+        name=args.name or f"Roadway {rw_id[:8]}",
+        start=(args.start_x, args.start_y, args.start_z),
+        end=(args.end_x, args.end_y, args.end_z),
+        num_lanes=args.num_lanes,
+        lane_width=args.lane_width,
+        mounting_height_m=args.mounting_height_m,
+        setback_m=args.setback_m,
+        pole_spacing_m=args.pole_spacing_m,
+        tilt_deg=args.tilt_deg,
+        aim_deg=args.aim_deg,
+    )
+    project.roadways.append(roadway)
+    save_project_schema(project, project_path)
+    print(f"Added roadway: {rw_id}")
+    return 0
+
+
+def _cmd_add_escape_route(args: argparse.Namespace) -> int:
+    project_path = Path(args.project).expanduser().resolve()
+    project = load_project_schema(project_path)
+    rid = args.id or str(uuid.uuid4())
+    points: List[tuple[float, float, float]] = []
+    raw = str(args.polyline).strip()
+    for token in raw.split(";"):
+        token = token.strip()
+        if not token:
+            continue
+        parts = [x.strip() for x in token.split(",") if x.strip()]
+        if len(parts) not in {2, 3}:
+            print(f"[ERROR] Invalid polyline point: {token}")
+            return 2
+        x = float(parts[0])
+        y = float(parts[1])
+        z = float(parts[2]) if len(parts) == 3 else float(args.height_m)
+        points.append((x, y, z))
+    if len(points) < 2:
+        print("[ERROR] Escape route requires at least two polyline points")
+        return 2
+    route = EscapeRouteSpec(
+        id=rid,
+        name=args.name or rid,
+        polyline=points,
+        width_m=float(args.width_m),
+        height_m=float(args.height_m),
+        spacing_m=float(args.spacing_m),
+        end_margin_m=float(args.end_margin_m),
+    )
+    project.escape_routes.append(route)
+    save_project_schema(project, project_path)
+    print(f"Added escape route: {rid}")
     return 0
 
 
@@ -285,6 +358,11 @@ def _cmd_add_job(args: argparse.Namespace) -> int:
         job = en13032_radiosity_job(job_id)
     else:
         settings = {}
+        daylight_spec = None
+        emergency_spec = None
+        mode_spec = None
+        route_ids: List[str] = []
+        open_targets: List[str] = []
         if args.type == "radiosity":
             use_visibility = args.use_visibility and not args.no_visibility
             eye_heights = [float(x) for x in args.ugr_eye_heights.split(",") if x.strip()] if args.ugr_eye_heights else [1.2, 1.7]
@@ -318,6 +396,25 @@ def _cmd_add_job(args: argparse.Namespace) -> int:
                         "battery_steps": args.battery_steps,
                     }
                 )
+                emergency_spec = EmergencySpec(
+                    standard=args.emergency_standard,  # type: ignore[arg-type]
+                    route_min_lux=args.route_min_lux,
+                    route_u0_min=args.route_u0_min,
+                    open_area_min_lux=args.open_area_min_lux,
+                    open_area_u0_min=args.open_area_u0_min,
+                )
+                mode_spec = EmergencyModeSpec(
+                    emergency_factor=args.emergency_factor,
+                    include_luminaires=[x for x in args.include_luminaires.split(",") if x.strip()] if args.include_luminaires else [],
+                    exclude_luminaires=[x for x in args.exclude_luminaires.split(",") if x.strip()] if args.exclude_luminaires else [],
+                )
+                route_ids = [x for x in args.routes.split(",") if x.strip()] if args.routes else []
+                open_targets = [x for x in args.open_area_targets.split(",") if x.strip()] if args.open_area_targets else []
+            else:
+                emergency_spec = None
+                mode_spec = None
+                route_ids = []
+                open_targets = []
         elif args.type == "roadway":
             settings = {
                 "road_class": args.road_class,
@@ -335,8 +432,33 @@ def _cmd_add_job(args: argparse.Namespace) -> int:
                 raw = Path(args.weather_hourly_lux_file).expanduser().read_text(encoding="utf-8", errors="replace")
                 toks = raw.replace("\n", ",").split(",")
                 exterior_hourly_lux = [float(t.strip()) for t in toks if t.strip()]
+            mode_norm = str(args.daylight_mode)
+            annual_spec = None
+            if mode_norm in {"df", "radiance"}:
+                daylight_mode = mode_norm
+                settings_mode = "daylight_factor"
+            elif mode_norm == "annual":
+                daylight_mode = "annual"
+                settings_mode = "annual"
+                annual_spec = DaylightAnnualSpec(
+                    weather_file=args.daylight_weather_file,
+                    occupancy_schedule=args.daylight_occupancy_schedule or "office_8_to_18",
+                    grid_targets=[g.id for g in project.grids],
+                    sda_target_lux=args.daylight_target_lux,
+                    sda_target_percent=50.0,
+                    ase_threshold_lux=1000.0,
+                    ase_hours_limit=250.0,
+                    udi_low=args.udi_low_lux,
+                    udi_high=args.udi_high_lux,
+                )
+            elif mode_norm == "annual_proxy":
+                daylight_mode = "df"
+                settings_mode = "annual_proxy"
+            else:
+                daylight_mode = "df"
+                settings_mode = "daylight_factor"
             settings = {
-                "mode": args.daylight_mode,
+                "mode": settings_mode,
                 "exterior_horizontal_illuminance_lux": args.exterior_horizontal_illuminance_lux,
                 "daylight_factor_percent": args.daylight_factor_percent,
                 "target_lux": args.daylight_target_lux,
@@ -347,13 +469,27 @@ def _cmd_add_job(args: argparse.Namespace) -> int:
                 "udi_low_lux": args.udi_low_lux,
                 "udi_high_lux": args.udi_high_lux,
             }
-
+            daylight_spec = DaylightSpec(
+                mode=daylight_mode,  # type: ignore[arg-type]
+                sky="CIE_overcast",
+                external_horizontal_illuminance_lux=args.exterior_horizontal_illuminance_lux,
+                glass_visible_transmittance_default=0.70,
+                radiance_quality="normal",
+                random_seed=args.seed,
+                annual=annual_spec,
+            )
         job = JobSpec(
             id=job_id,
             type=args.type,  # type: ignore[arg-type]
             backend=args.backend,  # type: ignore[arg-type]
             settings=settings,
             seed=args.seed,
+            daylight=daylight_spec if args.type == "daylight" else None,
+            targets=[g.id for g in project.grids] if args.type == "daylight" else [],
+            emergency=emergency_spec if args.type == "emergency" else None,
+            mode=mode_spec if args.type == "emergency" else None,
+            routes=route_ids if args.type == "emergency" else [],
+            open_area_targets=open_targets if args.type == "emergency" else [],
         )
     project.jobs.append(job)
     save_project_schema(project, project_path)
@@ -362,12 +498,90 @@ def _cmd_add_job(args: argparse.Namespace) -> int:
 
 
 def _cmd_run_job(args: argparse.Namespace) -> int:
-    from luxera.runner import run_job
+    from luxera.runner import run_job, RunnerError
 
     project_path = Path(args.project).expanduser().resolve()
-    ref = run_job(project_path, args.job_id)
+    try:
+        ref = run_job(project_path, args.job_id)
+    except RunnerError as e:
+        print(f"[ERROR] Run failed: {e}")
+        return 2
     print(f"Job completed: {ref.job_id}")
     print(f"  Result dir: {ref.result_dir}")
+    return 0
+
+
+def _cmd_daylight(args: argparse.Namespace) -> int:
+    from luxera.runner import run_job, RunnerError
+
+    project_path = Path(args.project).expanduser().resolve()
+    try:
+        ref = run_job(project_path, args.job_id)
+    except RunnerError as e:
+        print(f"[ERROR] Daylight run failed: {e}")
+        return 2
+    print(f"Daylight job completed: {ref.job_id}")
+    print(f"  Result dir: {ref.result_dir}")
+    return 0
+
+
+def _cmd_run_all(args: argparse.Namespace) -> int:
+    from luxera.runner import run_job, RunnerError
+    from luxera.export.debug_bundle import export_debug_bundle
+    from luxera.export.pdf_report import build_project_pdf_report
+    from luxera.export.en12464_report import build_en12464_report_model
+    from luxera.export.en12464_pdf import render_en12464_pdf
+
+    project_path = Path(args.project).expanduser().resolve()
+    project = load_project_schema(project_path)
+    job = next((j for j in project.jobs if j.id == args.job_id), None)
+    if job is None:
+        print(f"[ERROR] Job not found: {args.job_id}")
+        return 2
+
+    try:
+        validate_project_for_job(project, job)
+    except ProjectValidationError as e:
+        print(f"[ERROR] Validation failed:\n{e}")
+        return 2
+
+    try:
+        ref = run_job(project_path, args.job_id)
+    except RunnerError as e:
+        print(f"[ERROR] Run failed: {e}")
+        return 2
+    project = load_project_schema(project_path)
+    result_dir = Path(ref.result_dir)
+
+    # Required lightweight summary artifact.
+    (result_dir / "summary.json").write_text(json.dumps(ref.summary, indent=2, sort_keys=True), encoding="utf-8")
+
+    # Normalize heatmap naming contract while preserving canonical originals.
+    heatmap_src = result_dir / "grid_heatmap.png"
+    isolux_src = result_dir / "grid_isolux.png"
+    if heatmap_src.exists():
+        shutil.copyfile(heatmap_src, result_dir / "heatmap.png")
+    if isolux_src.exists():
+        shutil.copyfile(isolux_src, result_dir / "isolux.png")
+
+    if args.report:
+        out_pdf = result_dir / "report.pdf"
+        if job.type in {"roadway", "daylight", "emergency"}:
+            build_project_pdf_report(project, ref, out_pdf)
+        else:
+            model = build_en12464_report_model(project, ref)
+            render_en12464_pdf(model, out_pdf)
+
+    if args.bundle:
+        out_bundle = result_dir / "audit_bundle.zip"
+        export_debug_bundle(project, ref, out_bundle)
+
+    print(f"Run-all completed: {ref.job_id}")
+    print(f"  Result dir: {result_dir}")
+    if args.report:
+        print(f"  Report: {result_dir / 'report.pdf'}")
+    if args.bundle:
+        print(f"  Audit bundle: {result_dir / 'audit_bundle.zip'}")
     return 0
 
 
@@ -491,6 +705,109 @@ def _cmd_compare_results(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_compare_variants(args: argparse.Namespace) -> int:
+    from luxera.project.variants import run_job_for_variants
+
+    project_path = Path(args.project).expanduser().resolve()
+    variant_ids = [x.strip() for x in str(args.variants).split(",") if x.strip()]
+    if not variant_ids:
+        print("[ERROR] Provide at least one variant id in --variants")
+        return 2
+    baseline = str(args.baseline).strip() if getattr(args, "baseline", None) else None
+    try:
+        out = run_job_for_variants(project_path, args.job_id, variant_ids, baseline_variant_id=baseline)
+    except Exception as e:
+        print(f"[ERROR] Variant compare failed: {e}")
+        return 2
+    print(f"Variant compare JSON: {out.compare_json}")
+    print(f"Variant compare CSV: {out.compare_csv}")
+    return 0
+
+
+def _cmd_golden_run(args: argparse.Namespace) -> int:
+    from luxera.testing.golden import discover_golden_cases, load_golden_case, run_golden_case
+
+    root = Path(args.root).expanduser().resolve() if args.root else None
+    if args.case_id == "all":
+        cases = discover_golden_cases(root=root)
+    else:
+        cases = [load_golden_case(args.case_id, root=root)]
+    if not cases:
+        print("[ERROR] No golden cases found.")
+        return 2
+    run_root = Path(args.out).expanduser().resolve() if args.out else None
+    for case in cases:
+        out = run_golden_case(case, run_root=run_root)
+        print(f"Golden run: {case.case_id} -> {out}")
+    return 0
+
+
+def _cmd_golden_compare(args: argparse.Namespace) -> int:
+    from luxera.testing.compare import compare_golden_case
+    from luxera.testing.golden import discover_golden_cases, load_golden_case, run_golden_case
+
+    root = Path(args.root).expanduser().resolve() if args.root else None
+    if args.case_id == "all":
+        cases = discover_golden_cases(root=root)
+    else:
+        cases = [load_golden_case(args.case_id, root=root)]
+    if not cases:
+        print("[ERROR] No golden cases found.")
+        return 2
+    run_root = Path(args.out).expanduser().resolve() if args.out else None
+    any_fail = False
+    for case in cases:
+        produced = run_golden_case(case, run_root=run_root)
+        cmp = compare_golden_case(case, produced)
+        status = "PASS" if cmp.passed else "FAIL"
+        print(f"Golden compare: {case.case_id} [{status}] report={cmp.report_path}")
+        if not cmp.passed:
+            any_fail = True
+    return 1 if any_fail else 0
+
+
+def _cmd_golden_update(args: argparse.Namespace) -> int:
+    from luxera.testing.golden import discover_golden_cases, load_golden_case, run_golden_case
+    import luxera
+
+    if not args.yes:
+        print("[ERROR] Refusing to update golden expected outputs without --yes")
+        return 2
+    root = Path(args.root).expanduser().resolve() if args.root else None
+    if args.case_id == "all":
+        cases = discover_golden_cases(root=root)
+    else:
+        cases = [load_golden_case(args.case_id, root=root)]
+    if not cases:
+        print("[ERROR] No golden cases found.")
+        return 2
+
+    run_root = Path(args.out).expanduser().resolve() if args.out else None
+    for case in cases:
+        produced = run_golden_case(case, run_root=run_root)
+        metadata_payload = {
+            "case_id": case.case_id,
+            "run_settings": dict(case.run_settings),
+            "tolerances": dict(case.tolerances),
+            "tolerance_policy": str(case.metadata.get("tolerance_policy", "strict")) if isinstance(case.metadata, dict) else "strict",
+            "engine_version": getattr(luxera, "__version__", "unknown"),
+        }
+        if "job_id" not in metadata_payload["run_settings"]:
+            metadata_payload["run_settings"]["job_id"] = case.job_id
+        if case.expected_dir.exists():
+            shutil.rmtree(case.expected_dir)
+        case.expected_dir.mkdir(parents=True, exist_ok=True)
+        for src in produced.glob("*"):
+            if src.is_file():
+                shutil.copyfile(src, case.expected_dir / src.name)
+        (case.expected_dir / "metadata.json").write_text(
+            json.dumps(metadata_payload, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        print(f"Golden expected updated: {case.case_id} -> {case.expected_dir}")
+    return 0
+
+
 def _cmd_photometry_verify(args: argparse.Namespace) -> int:
     try:
         result = verify_photometry_file(args.file, fmt=args.format)
@@ -530,14 +847,42 @@ def _cmd_photometry_verify(args: argparse.Namespace) -> int:
 def _cmd_geometry_import(args: argparse.Namespace) -> int:
     project_path = Path(args.project).expanduser().resolve()
     project = load_project_schema(project_path)
+    ifc_options = {
+        "default_window_transmittance": float(args.ifc_window_vt),
+        "fallback_room_size": (float(args.ifc_room_width), float(args.ifc_room_length), float(args.ifc_room_height)),
+        "source_up_axis": str(args.ifc_source_up_axis),
+        "source_handedness": str(args.ifc_source_handedness),
+    }
+    layer_overrides = {}
+    for tok in list(args.layer_map or []):
+        if "=" not in tok:
+            print(f"[ERROR] Invalid --layer-map entry: {tok} (expected LAYER=role)")
+            return 2
+        k, v = tok.split("=", 1)
+        layer_overrides[k.strip().upper()] = v.strip().lower()
     try:
-        res = import_geometry_file(args.file, fmt=args.format, dxf_scale=args.dxf_scale)
+        pipeline = run_import_pipeline(
+            args.file,
+            fmt=args.format,
+            dxf_scale=args.dxf_scale,
+            length_unit=args.length_unit,
+            scale_to_meters=args.scale_to_meters,
+            ifc_options=ifc_options,
+            layer_overrides=layer_overrides or None,
+        )
+        if pipeline.geometry is None:
+            print(f"[ERROR] Geometry import failed: {json.dumps(pipeline.report.to_dict(), indent=2, sort_keys=True)}")
+            return 2
+        res = pipeline.geometry
     except Exception as e:
         print(f"[ERROR] Geometry import failed: {e}")
         return 2
 
     existing_room_ids = {r.id for r in project.geometry.rooms}
     existing_surface_ids = {s.id for s in project.geometry.surfaces}
+    existing_opening_ids = {o.id for o in project.geometry.openings}
+    existing_level_ids = {l.id for l in project.geometry.levels}
+    existing_obstruction_ids = {o.id for o in project.geometry.obstructions}
 
     rooms_added = 0
     for room in res.rooms:
@@ -559,14 +904,58 @@ def _cmd_geometry_import(args: argparse.Namespace) -> int:
         existing_surface_ids.add(sid)
         surfaces_added += 1
 
+    openings_added = 0
+    for op in res.openings:
+        oid = op.id
+        if oid in existing_opening_ids:
+            oid = f"{oid}_{uuid.uuid4().hex[:8]}"
+        op.id = oid
+        project.geometry.openings.append(op)
+        existing_opening_ids.add(oid)
+        openings_added += 1
+
+    levels_added = 0
+    for lvl in res.levels:
+        lid = lvl.id
+        if lid in existing_level_ids:
+            lid = f"{lid}_{uuid.uuid4().hex[:8]}"
+        lvl.id = lid
+        project.geometry.levels.append(lvl)
+        existing_level_ids.add(lid)
+        levels_added += 1
+
+    obstructions_added = 0
+    for ob in res.obstructions:
+        oid = ob.id
+        if oid in existing_obstruction_ids:
+            oid = f"{oid}_{uuid.uuid4().hex[:8]}"
+        ob.id = oid
+        project.geometry.obstructions.append(ob)
+        existing_obstruction_ids.add(oid)
+        obstructions_added += 1
+
+    # Imported geometry coordinates are normalized to meters.
+    project.geometry.length_unit = "m"
+    project.geometry.scale_to_meters = 1.0
+
     save_project_schema(project, project_path)
     print("Geometry Import")
     print(f"  File: {args.file}")
     print(f"  Format: {res.format}")
+    print(f"  Import length unit: {res.length_unit}")
+    print(f"  Import scale_to_meters: {res.scale_to_meters}")
     print(f"  Added rooms: {rooms_added}")
     print(f"  Added surfaces: {surfaces_added}")
+    print(f"  Added openings: {openings_added}")
+    print(f"  Added levels: {levels_added}")
+    print(f"  Added obstructions: {obstructions_added}")
     for w in res.warnings:
         print(f"  Warning: {w}")
+    if pipeline.report.layer_map:
+        print(f"  Layer map entries: {len(pipeline.report.layer_map)}")
+    if pipeline.report.scene_health:
+        counts = pipeline.report.scene_health.get("counts", {})
+        print(f"  Scene health checks: {len(counts)}")
     return 0
 
 
@@ -615,6 +1004,7 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--out", default="out", help="Output directory (default: out)")
     v.add_argument("--stem", default="luxera_view", help="Filename stem for outputs")
     v.add_argument("--pdf", action="store_true", help="Also generate a PDF report")
+    v.add_argument("--horizontal-plane", type=float, default=None, help="Optional C-plane angle (degrees) for plot selection")
     v.set_defaults(func=_cmd_view)
 
     g = sub.add_parser("gui", help="Launch Luxera View interactive GUI.")
@@ -691,12 +1081,45 @@ def main(argv: list[str] | None = None) -> int:
     arg.add_argument("--origin-x", type=float, default=0.0)
     arg.add_argument("--origin-y", type=float, default=0.0)
     arg.add_argument("--origin-z", type=float, default=0.0)
+    arg.add_argument("--roadway-id", default=None, help="Optional roadway object id")
     arg.add_argument("--num-lanes", type=int, default=1)
+    arg.add_argument("--longitudinal-points", type=int, default=None)
+    arg.add_argument("--transverse-points-per-lane", type=int, default=None)
     arg.add_argument("--pole-spacing-m", type=float, default=None)
     arg.add_argument("--mounting-height-m", type=float, default=None)
     arg.add_argument("--setback-m", type=float, default=None)
     arg.add_argument("--observer-height-m", type=float, default=1.5)
     arg.set_defaults(func=_cmd_add_roadway_grid)
+
+    arw = sub.add_parser("add-roadway", help="Add a roadway layout object.")
+    arw.add_argument("project", help="Path to project JSON")
+    arw.add_argument("--id", default=None, help="Optional roadway id")
+    arw.add_argument("--name", default=None, help="Roadway name")
+    arw.add_argument("--start-x", type=float, required=True)
+    arw.add_argument("--start-y", type=float, required=True)
+    arw.add_argument("--start-z", type=float, default=0.0)
+    arw.add_argument("--end-x", type=float, required=True)
+    arw.add_argument("--end-y", type=float, required=True)
+    arw.add_argument("--end-z", type=float, default=0.0)
+    arw.add_argument("--num-lanes", type=int, default=1)
+    arw.add_argument("--lane-width", type=float, default=3.5)
+    arw.add_argument("--mounting-height-m", type=float, default=None)
+    arw.add_argument("--setback-m", type=float, default=None)
+    arw.add_argument("--pole-spacing-m", type=float, default=None)
+    arw.add_argument("--tilt-deg", type=float, default=None)
+    arw.add_argument("--aim-deg", type=float, default=None)
+    arw.set_defaults(func=_cmd_add_roadway)
+
+    aer = sub.add_parser("add-escape-route", help="Add an emergency escape route polyline.")
+    aer.add_argument("project", help="Path to project JSON")
+    aer.add_argument("--id", default=None, help="Optional route id")
+    aer.add_argument("--name", default=None, help="Optional route name")
+    aer.add_argument("--polyline", required=True, help='Semicolon separated points "x,y[,z];x,y[,z]"')
+    aer.add_argument("--width-m", type=float, default=1.0)
+    aer.add_argument("--height-m", type=float, default=0.0)
+    aer.add_argument("--spacing-m", type=float, default=0.5)
+    aer.add_argument("--end-margin-m", type=float, default=0.0)
+    aer.set_defaults(func=_cmd_add_escape_route)
 
     acp = sub.add_parser("add-compliance-profile", help="Add a compliance profile (indoor/roadway/emergency/custom).")
     acp.add_argument("project", help="Path to project JSON")
@@ -716,7 +1139,7 @@ def main(argv: list[str] | None = None) -> int:
     aj.add_argument("project", help="Path to project JSON")
     aj.add_argument("--id", default=None, help="Optional job id")
     aj.add_argument("--type", choices=["direct", "radiosity", "roadway", "emergency", "daylight"], default="direct")
-    aj.add_argument("--backend", choices=["cpu", "radiance"], default="cpu")
+    aj.add_argument("--backend", choices=["cpu", "df", "radiance"], default="cpu")
     aj.add_argument("--seed", type=int, default=0)
     aj.add_argument("--preset", choices=["en12464_direct", "en13032_radiosity"], default=None)
     aj.add_argument("--max-iterations", type=int, default=100)
@@ -746,11 +1169,23 @@ def main(argv: list[str] | None = None) -> int:
     aj.add_argument("--battery-end-factor", type=float, default=0.5)
     aj.add_argument("--battery-curve", choices=["linear", "exponential"], default="linear")
     aj.add_argument("--battery-steps", type=int, default=7)
-    aj.add_argument("--daylight-mode", choices=["daylight_factor", "annual_proxy"], default="daylight_factor")
+    aj.add_argument("--emergency-standard", choices=["EN1838", "BS5266"], default="EN1838")
+    aj.add_argument("--emergency-factor", type=float, default=1.0)
+    aj.add_argument("--route-min-lux", type=float, default=1.0)
+    aj.add_argument("--route-u0-min", type=float, default=0.1)
+    aj.add_argument("--open-area-min-lux", type=float, default=0.5)
+    aj.add_argument("--open-area-u0-min", type=float, default=0.1)
+    aj.add_argument("--include-luminaires", default=None, help="Comma-separated luminaire ids")
+    aj.add_argument("--exclude-luminaires", default=None, help="Comma-separated luminaire ids")
+    aj.add_argument("--routes", default=None, help="Comma-separated escape route ids")
+    aj.add_argument("--open-area-targets", default=None, help="Comma-separated grid ids")
+    aj.add_argument("--daylight-mode", choices=["daylight_factor", "annual_proxy", "df", "radiance", "annual"], default="daylight_factor")
     aj.add_argument("--exterior-horizontal-illuminance-lux", type=float, default=10000.0)
     aj.add_argument("--daylight-factor-percent", type=float, default=2.0)
     aj.add_argument("--daylight-target-lux", type=float, default=300.0)
     aj.add_argument("--annual-hours", type=int, default=8760)
+    aj.add_argument("--daylight-weather-file", default=None, help="EPW weather file path for annual daylight mode")
+    aj.add_argument("--daylight-occupancy-schedule", default="office_8_to_18", help="Occupancy schedule preset or CSV-like weights")
     aj.add_argument("--weather-hourly-lux-file", default=None, help="Optional file with comma/newline-separated hourly exterior lux values")
     aj.add_argument("--daylight-depth-attenuation", type=float, default=2.0)
     aj.add_argument("--sda-threshold-ratio", type=float, default=0.5)
@@ -762,6 +1197,18 @@ def main(argv: list[str] | None = None) -> int:
     rj.add_argument("project", help="Path to project JSON")
     rj.add_argument("job_id", help="Job id to run")
     rj.set_defaults(func=_cmd_run_job)
+
+    dj = sub.add_parser("daylight", help="Run a daylight job by id.")
+    dj.add_argument("project", help="Path to project JSON")
+    dj.add_argument("--job", dest="job_id", required=True, help="Daylight job id")
+    dj.set_defaults(func=_cmd_daylight)
+
+    ra = sub.add_parser("run-all", help="Validate, run, and optionally generate report and audit bundle.")
+    ra.add_argument("project", help="Path to project JSON")
+    ra.add_argument("--job", dest="job_id", required=True, help="Job id to run")
+    ra.add_argument("--report", action="store_true", help="Generate report.pdf in the result directory")
+    ra.add_argument("--bundle", action="store_true", help="Generate audit_bundle.zip in the result directory")
+    ra.set_defaults(func=_cmd_run_all)
 
     db = sub.add_parser("export-debug", help="Export a debug bundle zip for a job result.")
     db.add_argument("project", help="Path to project JSON")
@@ -794,6 +1241,35 @@ def main(argv: list[str] | None = None) -> int:
     cr.add_argument("--out", default=None, help="Optional output JSON path")
     cr.set_defaults(func=_cmd_compare_results)
 
+    cv = sub.add_parser("compare-variants", help="Run a job for selected variants and export comparison table.")
+    cv.add_argument("project", help="Path to project JSON")
+    cv.add_argument("job_id", help="Job id to run for all selected variants")
+    cv.add_argument("--variants", required=True, help="Comma-separated variant ids")
+    cv.add_argument("--baseline", default=None, help="Optional baseline variant id for delta columns")
+    cv.set_defaults(func=_cmd_compare_variants)
+
+    golden = sub.add_parser("golden", help="Golden regression harness tooling.")
+    golden_sub = golden.add_subparsers(dest="golden_cmd", required=True)
+
+    gr = golden_sub.add_parser("run", help="Run one golden case (or all) and emit produced artifacts.")
+    gr.add_argument("case_id", help="Golden case id or 'all'")
+    gr.add_argument("--root", default=None, help="Golden root directory (default: tests/golden)")
+    gr.add_argument("--out", default=None, help="Output run root (default: <golden_root>/runs)")
+    gr.set_defaults(func=_cmd_golden_run)
+
+    gc = golden_sub.add_parser("compare", help="Run and compare one golden case (or all) against expected.")
+    gc.add_argument("case_id", help="Golden case id or 'all'")
+    gc.add_argument("--root", default=None, help="Golden root directory (default: tests/golden)")
+    gc.add_argument("--out", default=None, help="Output run root (default: <golden_root>/runs)")
+    gc.set_defaults(func=_cmd_golden_compare)
+
+    gu = golden_sub.add_parser("update", help="Run and overwrite expected artifacts for one case (or all).")
+    gu.add_argument("case_id", help="Golden case id or 'all'")
+    gu.add_argument("--root", default=None, help="Golden root directory (default: tests/golden)")
+    gu.add_argument("--out", default=None, help="Output run root (default: <golden_root>/runs)")
+    gu.add_argument("--yes", action="store_true", help="Required acknowledgement for overwriting expected outputs")
+    gu.set_defaults(func=_cmd_golden_update)
+
     phot = sub.add_parser("photometry", help="Photometry tooling.")
     phot_sub = phot.add_subparsers(dest="phot_cmd", required=True)
 
@@ -806,11 +1282,30 @@ def main(argv: list[str] | None = None) -> int:
     geom = sub.add_parser("geometry", help="Geometry import/clean tooling.")
     geom_sub = geom.add_subparsers(dest="geom_cmd", required=True)
 
-    gi = geom_sub.add_parser("import", help="Import geometry into a project (DXF/OBJ/GLTF/IFC).")
+    gi = geom_sub.add_parser("import", help="Import geometry into a project (DXF/OBJ/GLTF/FBX/SKP/IFC/DWG).")
     gi.add_argument("project", help="Path to project JSON")
     gi.add_argument("file", help="Path to geometry file")
-    gi.add_argument("--format", default=None, help="Override format: DXF|OBJ|GLTF|IFC")
+    gi.add_argument("--format", default=None, help="Override format: DXF|OBJ|GLTF|FBX|SKP|IFC|DWG")
     gi.add_argument("--dxf-scale", type=float, default=1.0, help="DXF units -> meters scale")
+    gi.add_argument("--length-unit", default=None, help="Optional unit override: m|mm|cm|ft|in")
+    gi.add_argument("--scale-to-meters", type=float, default=None, help="Optional explicit unit scale")
+    gi.add_argument("--ifc-window-vt", type=float, default=0.70, help="IFC default visible transmittance for imported windows")
+    gi.add_argument("--ifc-room-width", type=float, default=5.0, help="IFC fallback room width")
+    gi.add_argument("--ifc-room-length", type=float, default=5.0, help="IFC fallback room length")
+    gi.add_argument("--ifc-room-height", type=float, default=3.0, help="IFC fallback room height")
+    gi.add_argument("--ifc-source-up-axis", default="Z_UP", choices=["Z_UP", "Y_UP"], help="IFC source up-axis convention")
+    gi.add_argument(
+        "--ifc-source-handedness",
+        default="RIGHT_HANDED",
+        choices=["RIGHT_HANDED", "LEFT_HANDED"],
+        help="IFC source handedness convention",
+    )
+    gi.add_argument(
+        "--layer-map",
+        action="append",
+        default=[],
+        help="Layer role override for DXF (repeatable): LAYER=wall|door|window|room|grid|unmapped",
+    )
     gi.set_defaults(func=_cmd_geometry_import)
 
     gc = geom_sub.add_parser("clean", help="Clean project surfaces (normals, gaps, coplanar merge).")

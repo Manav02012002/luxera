@@ -1,0 +1,9 @@
+{
+  "id": "room_with_multiple_openings",
+  "footprint": [[0, 0], [7, 0], [7, 5], [0, 5]],
+  "openings": [
+    {"host": "wall_1", "width": 1.2, "height": 1.5, "sill": 0.9, "offset": 1.0, "type": "window"},
+    {"host": "wall_2", "width": 0.9, "height": 2.1, "sill": 0.0, "offset": 2.0, "type": "door"}
+  ],
+  "height": 3.0
+}

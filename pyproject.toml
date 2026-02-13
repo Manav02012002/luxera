@@ -34,6 +34,7 @@ include = ["luxera*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-m \"not slow and not radiance and not gui\""
+pythonpath = ["."]
 markers = [
     "slow: slower integration/regression tests",
     "radiance: tests that require Radiance tooling or backend flows",

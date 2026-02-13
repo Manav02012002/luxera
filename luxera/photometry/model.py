@@ -6,6 +6,7 @@ from typing import Literal, Optional
 import numpy as np
 
 from luxera.models.derived import Symmetry
+from luxera.models.tilt import TiltData as TiltSeriesData
 from luxera.parser.ies_parser import ParsedIES
 from luxera.parser.ldt_parser import ParsedLDT
 from luxera.derived.metrics import infer_symmetry
@@ -19,6 +20,15 @@ class TiltData:
     type: Literal["NONE", "INCLUDE", "FILE"]
     angles_deg: Optional[np.ndarray] = None
     factors: Optional[np.ndarray] = None
+    source_file: Optional[str] = None
+    lamp_to_luminaire_geometry: Optional[str] = None
+
+    def to_series(self) -> Optional[TiltSeriesData]:
+        if self.angles_deg is None or self.factors is None:
+            return None
+        s = TiltSeriesData(angles_deg=[float(x) for x in self.angles_deg], factors=[float(x) for x in self.factors])
+        s.validate()
+        return s
 
 
 @dataclass(frozen=True)
@@ -30,8 +40,12 @@ class Photometry:
     luminous_flux_lm: Optional[float]
     symmetry: Symmetry
     tilt: Optional[TiltData] = None
+    tilt_source: Literal["NONE", "INCLUDE", "FILE"] = "NONE"
+    tilt_file: Optional[str] = None
+    tilt_applied_angle: Literal["gamma"] = "gamma"
     luminous_width_m: Optional[float] = None
     luminous_length_m: Optional[float] = None
+    ies_units_type: Optional[int] = None
 
 
 def photometry_from_parsed_ies(doc: ParsedIES) -> Photometry:
@@ -50,18 +64,35 @@ def photometry_from_parsed_ies(doc: ParsedIES) -> Photometry:
     symmetry = infer_symmetry(list(c_angles))
 
     tilt = None
+    tilt_source: Literal["NONE", "INCLUDE", "FILE"] = "NONE"
+    tilt_file: Optional[str] = None
     if doc.tilt_line is not None:
-        tilt_type = doc.tilt_line.split("=", 1)[1].strip().upper()
+        tilt_type = (doc.tilt_mode or doc.tilt_line.split("=", 1)[1].strip().upper())
         if tilt_type == "INCLUDE" and doc.tilt_data is not None:
+            tilt_source = "INCLUDE"
             tilt = TiltData(
                 type="INCLUDE",
                 angles_deg=np.array(doc.tilt_data[0], dtype=float),
                 factors=np.array(doc.tilt_data[1], dtype=float),
+                lamp_to_luminaire_geometry=doc.tilt_lamp_to_luminaire_geometry,
             )
+            # strict validation on ingest
+            _ = tilt.to_series()
+        elif tilt_type == "FILE":
+            tilt_source = "FILE"
+            tilt_file = doc.tilt_file_path
+            if doc.tilt_data is not None:
+                tilt = TiltData(
+                    type="FILE",
+                    angles_deg=np.array(doc.tilt_data[0], dtype=float),
+                    factors=np.array(doc.tilt_data[1], dtype=float),
+                    source_file=doc.tilt_file_path,
+                    lamp_to_luminaire_geometry=doc.tilt_lamp_to_luminaire_geometry,
+                )
+                _ = tilt.to_series()
         elif tilt_type == "NONE":
+            tilt_source = "NONE"
             tilt = TiltData(type="NONE")
-        else:
-            tilt = TiltData(type="FILE")
 
     return Photometry(
         system=system,
@@ -71,8 +102,12 @@ def photometry_from_parsed_ies(doc: ParsedIES) -> Photometry:
         luminous_flux_lm=lumens if lumens > 0 else None,
         symmetry=symmetry,
         tilt=tilt,
+        tilt_source=tilt_source,
+        tilt_file=tilt_file,
+        tilt_applied_angle="gamma",
         luminous_width_m=doc.photometry.width,
         luminous_length_m=doc.photometry.length,
+        ies_units_type=int(doc.photometry.units_type),
     )
 
 
@@ -99,4 +134,5 @@ def photometry_from_parsed_ldt(doc: ParsedLDT) -> Photometry:
         tilt=None,
         luminous_width_m=doc.header.geometry.luminous_width_mm / 1000.0 if doc.header.geometry.luminous_width_mm else None,
         luminous_length_m=doc.header.geometry.luminous_length_mm / 1000.0 if doc.header.geometry.luminous_length_mm else None,
+        ies_units_type=None,
     )

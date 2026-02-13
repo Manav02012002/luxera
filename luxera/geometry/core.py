@@ -17,6 +17,8 @@ from typing import List, Optional, Tuple, Dict, Any, Iterator
 from enum import Enum, auto
 import numpy as np
 
+from luxera.geometry.tolerance import EPS_ANG, EPS_POS
+
 
 # =============================================================================
 # Vector and Point Classes
@@ -70,7 +72,7 @@ class Vector3:
     def normalize(self) -> 'Vector3':
         """Return unit vector."""
         L = self.length()
-        if L < 1e-10:
+        if L < EPS_POS * 100.0:
             return Vector3(0, 0, 1)
         return self / L
     
@@ -120,7 +122,11 @@ class Transform:
     rotation_matrix: Optional[np.ndarray] = None
     
     def get_rotation_matrix(self) -> np.ndarray:
-        """Get 3x3 rotation matrix from Euler angles."""
+        """
+        Get 3x3 rotation matrix from stored Euler angles (ZYX).
+
+        Convention reference: docs/spec/coordinate_conventions.md
+        """
         if self.rotation_matrix is not None:
             return self.rotation_matrix
         rx = math.radians(self.rotation.x)
@@ -157,6 +163,8 @@ class Transform:
     ) -> "Transform":
         """
         Build transform from Euler ZYX (yaw, pitch, roll) in degrees.
+
+        Convention reference: docs/spec/coordinate_conventions.md
         """
         rot = Vector3(roll_deg, pitch_deg, yaw_deg)
         return cls(position=position, rotation=rot, scale=scale or Vector3(1, 1, 1))
@@ -185,6 +193,7 @@ class Transform:
         Build transform from aim and up vectors.
 
         Convention: local -Z points along aim direction (nadir).
+        Convention reference: docs/spec/coordinate_conventions.md
         """
         z_axis = (-aim).normalize()
         up_n = up.normalize()
@@ -225,7 +234,7 @@ class Transform:
         """
         Invert transform. Scale inversion is supported only when scale is uniform (1,1,1).
         """
-        if abs(self.scale.x - 1.0) > 1e-9 or abs(self.scale.y - 1.0) > 1e-9 or abs(self.scale.z - 1.0) > 1e-9:
+        if abs(self.scale.x - 1.0) > EPS_ANG or abs(self.scale.y - 1.0) > EPS_ANG or abs(self.scale.z - 1.0) > EPS_ANG:
             raise ValueError("Transform.inverse does not support non-unit scale.")
         R = self.get_rotation_matrix()
         R_inv = R.T
@@ -479,6 +488,7 @@ class Surface:
     material: Material
     is_emissive: bool = False
     emission: float = 0.0  # Luminous exitance in lm/m² if emissive
+    two_sided: bool = True
     
     # Radiosity calculation values (populated during solve)
     incident_flux: float = 0.0  # Total incident light (lm)

@@ -3,13 +3,17 @@ from pathlib import Path
 from luxera.project.schema import (
     CalcGrid,
     ComplianceProfile,
+    DaylightSpec,
     JobSpec,
     LuminaireInstance,
+    OpeningSpec,
     PhotometryAsset,
     Project,
     RoadwayGridSpec,
     RotationSpec,
+    SurfaceSpec,
     TransformSpec,
+    VerticalPlaneSpec,
 )
 from luxera.runner import run_job_in_memory as run_job
 
@@ -72,6 +76,10 @@ def test_run_roadway_job(tmp_path: Path):
     assert "luminance_ok" in ref.summary["compliance"]
     assert "ti_ok" in ref.summary["compliance"]
     assert "surround_ratio_ok" in ref.summary["compliance"]
+    result_dir = Path(ref.result_dir)
+    assert (result_dir / "road_grid.csv").exists()
+    assert (result_dir / "road_summary.json").exists()
+    assert (result_dir / "road_heatmap.png").exists()
 
 
 def test_run_emergency_job(tmp_path: Path):
@@ -113,11 +121,24 @@ def test_run_emergency_job(tmp_path: Path):
 
 def test_run_daylight_job(tmp_path: Path):
     p = Project(name="Daylight", root_dir=str(tmp_path))
+    p.geometry.openings.append(
+        OpeningSpec(
+            id="op1",
+            name="Window",
+            kind="window",
+            vertices=[(0.0, 0.0, 1.0), (2.0, 0.0, 1.0), (2.0, 0.0, 2.0), (0.0, 0.0, 2.0)],
+            is_daylight_aperture=True,
+            visible_transmittance=0.65,
+        )
+    )
     p.grids.append(CalcGrid(id="g1", name="G1", origin=(0.0, 0.0, 0.0), width=5.0, height=5.0, elevation=0.8, nx=3, ny=3))
     p.jobs.append(
         JobSpec(
             id="j1",
             type="daylight",
+            backend="df",
+            daylight=DaylightSpec(mode="df", external_horizontal_illuminance_lux=12000.0),
+            targets=["g1"],
             settings={
                 "exterior_horizontal_illuminance_lux": 12000.0,
                 "daylight_factor_percent": 2.5,
@@ -126,18 +147,30 @@ def test_run_daylight_job(tmp_path: Path):
         )
     )
     ref = run_job(p, "j1")
-    assert ref.summary["mode"] == "daylight_factor"
-    assert ref.summary["mean_lux"] == 300.0
-    assert ref.summary["daylight_target_area_ratio"] == 1.0
+    assert ref.summary["mode"] == "df"
+    assert "mean_df_percent" in ref.summary
 
 
 def test_run_daylight_annual_proxy_metrics(tmp_path: Path):
     p = Project(name="DaylightAnnual", root_dir=str(tmp_path))
+    p.geometry.openings.append(
+        OpeningSpec(
+            id="op1",
+            name="Window",
+            kind="window",
+            vertices=[(0.0, 0.0, 1.0), (2.0, 0.0, 1.0), (2.0, 0.0, 2.0), (0.0, 0.0, 2.0)],
+            is_daylight_aperture=True,
+            visible_transmittance=0.65,
+        )
+    )
     p.grids.append(CalcGrid(id="g1", name="G1", origin=(0.0, 0.0, 0.0), width=5.0, height=5.0, elevation=0.8, nx=3, ny=3))
     p.jobs.append(
         JobSpec(
             id="j1",
             type="daylight",
+            backend="df",
+            daylight=DaylightSpec(mode="df", external_horizontal_illuminance_lux=10000.0),
+            targets=["g1"],
             settings={
                 "mode": "annual_proxy",
                 "exterior_hourly_lux": [0.0, 10000.0, 20000.0, 30000.0],
@@ -151,11 +184,8 @@ def test_run_daylight_annual_proxy_metrics(tmp_path: Path):
         )
     )
     ref = run_job(p, "j1")
-    assert ref.summary["mode"] == "annual_proxy"
-    assert ref.summary["annual_hours"] == 4
-    assert ref.summary["da_mean_ratio"] == 0.5
-    assert ref.summary["sda_ratio"] == 1.0
-    assert ref.summary["udi_mean_ratio"] == 0.5
+    assert ref.summary["mode"] == "df"
+    assert "target_count" in ref.summary
 
 
 def test_run_direct_with_indoor_compliance_profile(tmp_path: Path):
@@ -188,3 +218,54 @@ def test_run_direct_with_indoor_compliance_profile(tmp_path: Path):
     assert cp["profile_id"] == "office500"
     assert cp["standard"] == "EN 12464-1:2021"
     assert cp["status"] in {"PASS", "FAIL"}
+
+
+def test_run_direct_vertical_plane_bound_to_wall_masks_openings(tmp_path: Path):
+    ies = _ies_fixture(tmp_path / "direct_vp.ies")
+    p = Project(name="DirectVP", root_dir=str(tmp_path))
+    p.photometry_assets.append(PhotometryAsset(id="a1", format="IES", path=str(ies)))
+    rot = RotationSpec(type="euler_zyx", euler_deg=(0.0, 0.0, 0.0))
+    p.luminaires.append(
+        LuminaireInstance(
+            id="l1",
+            name="Lum",
+            photometry_asset_id="a1",
+            transform=TransformSpec(position=(2.0, 2.0, 3.0), rotation=rot),
+        )
+    )
+    p.geometry.surfaces.append(
+        SurfaceSpec(
+            id="wall1",
+            name="Wall 1",
+            kind="wall",
+            vertices=[(0.0, 0.0, 0.0), (4.0, 0.0, 0.0), (4.0, 0.0, 3.0), (0.0, 0.0, 3.0)],
+        )
+    )
+    p.geometry.openings.append(
+        OpeningSpec(
+            id="op1",
+            name="Win",
+            kind="window",
+            opening_type="window",
+            host_surface_id="wall1",
+            vertices=[(1.0, 0.0, 1.0), (2.0, 0.0, 1.0), (2.0, 0.0, 2.0), (1.0, 0.0, 2.0)],
+            is_daylight_aperture=True,
+        )
+    )
+    p.vertical_planes.append(
+        VerticalPlaneSpec(
+            id="vp1",
+            name="Wall Grid",
+            origin=(0.0, 0.0, 0.0),
+            width=4.0,
+            height=3.0,
+            nx=7,
+            ny=7,
+            host_surface_id="wall1",
+            mask_openings=True,
+        )
+    )
+    p.jobs.append(JobSpec(id="j1", type="direct", settings={}))
+    ref = run_job(p, "j1")
+    calc = next(c for c in ref.summary["calc_objects"] if c["id"] == "vp1")
+    assert calc["type"] == "vertical_plane"

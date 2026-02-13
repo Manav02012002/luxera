@@ -4,6 +4,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Literal, Optional, Tuple, Any
 
 from luxera.geometry.core import Vector3
+from luxera.geometry.param.model import ParamModel
 from luxera.core.transform import from_euler_zyx, from_aim_up
 from luxera.core.types import Transform
 
@@ -53,6 +54,10 @@ class MaterialSpec:
     reflectance: float
     specularity: float = 0.0
     reflectance_rgb: Optional[Tuple[float, float, float]] = None
+    diffuse_reflectance_rgb: Optional[Tuple[float, float, float]] = None
+    specular_reflectance: Optional[float] = None
+    roughness: Optional[float] = None
+    transmittance: float = 0.0
     maintenance_factor_placeholder: Optional[float] = None
 
 
@@ -62,6 +67,10 @@ class MaterialLibraryEntry:
     name: str
     reflectance: float
     specularity: float = 0.0
+    diffuse_reflectance_rgb: Optional[Tuple[float, float, float]] = None
+    specular_reflectance: Optional[float] = None
+    roughness: Optional[float] = None
+    transmittance: float = 0.0
 
 
 @dataclass
@@ -95,6 +104,7 @@ class LuminaireInstance:
     family_id: Optional[str] = None
     mounting_type: Optional[str] = None
     mounting_height_m: Optional[float] = None
+    tags: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -110,18 +120,26 @@ class CalcGrid:
     normal: Tuple[float, float, float] = (0.0, 0.0, 1.0)
     room_id: Optional[str] = None
     zone_id: Optional[str] = None
+    evaluation_height_offset: float = 0.0
+    metric_set: List[str] = field(default_factory=lambda: ["E_avg", "E_min", "E_max", "U0", "U1"])
+    sample_points: List[Tuple[float, float, float]] = field(default_factory=list)
+    sample_mask: List[bool] = field(default_factory=list)
 
 
 @dataclass
 class Geometry:
     rooms: List[RoomSpec] = field(default_factory=list)
     zones: List[ZoneSpec] = field(default_factory=list)
+    no_go_zones: List[NoGoZoneSpec] = field(default_factory=list)
     surfaces: List[SurfaceSpec] = field(default_factory=list)
     openings: List[OpeningSpec] = field(default_factory=list)
     obstructions: List[ObstructionSpec] = field(default_factory=list)
     levels: List[LevelSpec] = field(default_factory=list)
     coordinate_systems: List[CoordinateSystemSpec] = field(default_factory=list)
-    length_unit: Literal["m", "ft"] = "m"
+    length_unit: Literal["m", "mm", "cm", "ft", "in"] = "m"
+    scale_to_meters: float = 1.0
+    source_length_unit: Optional[str] = None
+    axis_transform_applied: Optional[str] = None
 
 
 @dataclass
@@ -138,14 +156,26 @@ class RoomSpec:
     activity_type: Optional[str] = None
     level_id: Optional[str] = None
     coordinate_system_id: Optional[str] = None
+    footprint: Optional[List[Tuple[float, float]]] = None
 
 
 @dataclass
 class ZoneSpec:
     id: str
     name: str
+    room_id: Optional[str] = None
     room_ids: List[str] = field(default_factory=list)
+    polygon2d: Optional[List[Tuple[float, float]]] = None
     tags: List[str] = field(default_factory=list)
+
+
+@dataclass
+class NoGoZoneSpec:
+    id: str
+    name: str
+    room_id: Optional[str] = None
+    vertices: List[Tuple[float, float, float]] = field(default_factory=list)
+    note: str = ""
 
 
 @dataclass
@@ -157,15 +187,29 @@ class SurfaceSpec:
     normal: Optional[Tuple[float, float, float]] = None
     room_id: Optional[str] = None
     material_id: Optional[str] = None
+    layer: Optional[str] = None
+    tags: List[str] = field(default_factory=list)
+    two_sided: bool = True
+    wall_room_side_a: Optional[str] = None
+    wall_room_side_b: Optional[str] = None
+    wall_material_side_a: Optional[str] = None
+    wall_material_side_b: Optional[str] = None
 
 
 @dataclass
 class OpeningSpec:
     id: str
     name: str
+    opening_type: Literal["window", "door", "void"] = "window"
     kind: Literal["window", "door", "void", "custom"] = "custom"
     host_surface_id: Optional[str] = None
     vertices: List[Tuple[float, float, float]] = field(default_factory=list)
+    is_daylight_aperture: bool = False
+    vt: Optional[float] = None
+    frame_fraction: Optional[float] = None
+    shade_factor: Optional[float] = None
+    visible_transmittance: Optional[float] = None
+    shading_factor: Optional[float] = None
 
 
 @dataclass
@@ -190,7 +234,10 @@ class CoordinateSystemSpec:
     name: str
     origin: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     rotation: RotationSpec = field(default_factory=lambda: RotationSpec(type="euler_zyx", euler_deg=(0.0, 0.0, 0.0)))
-    units: Literal["m", "ft"] = "m"
+    # `units` retained for backward compatibility with earlier schema payloads.
+    units: Literal["m", "mm", "cm", "ft", "in"] = "m"
+    length_unit: Literal["m", "mm", "cm", "ft", "in"] = "m"
+    scale_to_meters: float = 1.0
 
 
 @dataclass
@@ -202,6 +249,7 @@ class WorkplaneSpec:
     spacing: float
     room_id: Optional[str] = None
     zone_id: Optional[str] = None
+    metric_set: List[str] = field(default_factory=lambda: ["E_avg", "E_min", "E_max", "U0", "U1"])
 
 
 @dataclass
@@ -214,8 +262,33 @@ class VerticalPlaneSpec:
     nx: int
     ny: int
     azimuth_deg: float = 0.0
+    host_surface_id: Optional[str] = None
+    mask_openings: bool = True
+    subrect_u0: Optional[float] = None
+    subrect_u1: Optional[float] = None
+    subrect_v0: Optional[float] = None
+    subrect_v1: Optional[float] = None
     room_id: Optional[str] = None
     zone_id: Optional[str] = None
+    evaluation_height_offset: float = 0.0
+    metric_set: List[str] = field(default_factory=lambda: ["E_avg", "E_min", "E_max", "U0", "U1"])
+
+
+@dataclass
+class ArbitraryPlaneSpec:
+    id: str
+    name: str
+    origin: Tuple[float, float, float]
+    axis_u: Tuple[float, float, float]
+    axis_v: Tuple[float, float, float]
+    width: float
+    height: float
+    nx: int
+    ny: int
+    room_id: Optional[str] = None
+    zone_id: Optional[str] = None
+    evaluation_height_offset: float = 0.0
+    metric_set: List[str] = field(default_factory=lambda: ["E_avg", "E_min", "E_max", "U0", "U1"])
 
 
 @dataclass
@@ -225,6 +298,18 @@ class PointSetSpec:
     points: List[Tuple[float, float, float]] = field(default_factory=list)
     room_id: Optional[str] = None
     zone_id: Optional[str] = None
+    metric_set: List[str] = field(default_factory=lambda: ["E_avg", "E_min", "E_max", "P50", "P90"])
+
+
+@dataclass
+class LineGridSpec:
+    id: str
+    name: str
+    polyline: List[Tuple[float, float, float]] = field(default_factory=list)
+    spacing: float = 0.5
+    room_id: Optional[str] = None
+    zone_id: Optional[str] = None
+    metric_set: List[str] = field(default_factory=lambda: ["E_avg", "E_min", "E_max", "U0"])
 
 
 @dataclass
@@ -233,8 +318,24 @@ class GlareViewSpec:
     name: str
     observer: Tuple[float, float, float]
     view_dir: Tuple[float, float, float]
+    fov_deg: float = 90.0
     room_id: Optional[str] = None
     zone_id: Optional[str] = None
+
+
+@dataclass
+class RoadwaySpec:
+    id: str
+    name: str
+    start: Tuple[float, float, float]
+    end: Tuple[float, float, float]
+    num_lanes: int = 1
+    lane_width: float = 3.5
+    mounting_height_m: Optional[float] = None
+    setback_m: Optional[float] = None
+    pole_spacing_m: Optional[float] = None
+    tilt_deg: Optional[float] = None
+    aim_deg: Optional[float] = None
 
 
 @dataclass
@@ -246,11 +347,15 @@ class RoadwayGridSpec:
     nx: int
     ny: int
     origin: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    roadway_id: Optional[str] = None
     num_lanes: int = 1
+    longitudinal_points: Optional[int] = None
+    transverse_points_per_lane: Optional[int] = None
     pole_spacing_m: Optional[float] = None
     mounting_height_m: Optional[float] = None
     setback_m: Optional[float] = None
     observer_height_m: float = 1.5
+    metric_set: List[str] = field(default_factory=lambda: ["E_avg", "E_min", "E_max", "U0", "UL", "L_avg"])
 
 
 @dataclass
@@ -264,22 +369,94 @@ class ComplianceProfile:
 
 
 @dataclass
+class LayerSpec:
+    id: str
+    name: str
+    visible: bool = True
+    order: int = 0
+
+
+@dataclass
 class ProjectVariant:
     id: str
     name: str
     description: str = ""
+    diff_ops: List[Dict[str, Any]] = field(default_factory=list)
     luminaire_overrides: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     dimming_schemes: Dict[str, float] = field(default_factory=dict)
     tags: List[str] = field(default_factory=list)
 
 
 @dataclass
+class DaylightAnnualSpec:
+    weather_file: Optional[str] = None
+    occupancy_schedule: str | List[float] = "office_8_to_18"
+    grid_targets: List[str] = field(default_factory=list)
+    annual_method_preference: Literal["matrix", "hourly_rtrace", "auto"] = "auto"
+    sda_target_lux: float = 300.0
+    sda_target_percent: float = 50.0
+    ase_threshold_lux: float = 1000.0
+    ase_hours_limit: float = 250.0
+    udi_low: float = 100.0
+    udi_high: float = 2000.0
+
+
+@dataclass
+class DaylightSpec:
+    mode: Literal["df", "radiance", "annual"] = "df"
+    sky: Literal["CIE_overcast", "CIE_clear", "CIE_intermediate"] = "CIE_overcast"
+    external_horizontal_illuminance_lux: Optional[float] = None
+    glass_visible_transmittance_default: float = 0.70
+    surface_reflectance_override: Dict[str, float] = field(default_factory=dict)
+    radiance_quality: Literal["draft", "normal", "high"] = "normal"
+    random_seed: int = 0
+    annual: Optional[DaylightAnnualSpec] = None
+
+
+@dataclass
+class EmergencyModeSpec:
+    emergency_factor: float = 1.0
+    include_luminaires: List[str] = field(default_factory=list)
+    include_luminaire_ids: List[str] = field(default_factory=list)
+    include_tags: List[str] = field(default_factory=list)
+    include_tag: Optional[str] = None
+    exclude_luminaires: List[str] = field(default_factory=list)
+
+
+@dataclass
+class EscapeRouteSpec:
+    id: str
+    polyline: List[Tuple[float, float, float]] = field(default_factory=list)
+    width_m: float = 1.0
+    height_m: float = 0.0
+    spacing_m: float = 0.5
+    end_margin_m: float = 0.0
+    name: str = ""
+
+
+@dataclass
+class EmergencySpec:
+    standard: Literal["EN1838", "BS5266"] = "EN1838"
+    route_min_lux: float = 1.0
+    route_u0_min: float = 0.1
+    open_area_min_lux: float = 0.5
+    open_area_u0_min: float = 0.1
+    high_risk_min_lux: Optional[float] = None
+
+
+@dataclass
 class JobSpec:
     id: str
     type: Literal["direct", "radiosity", "roadway", "emergency", "daylight"]
-    backend: Literal["cpu", "radiance"] = "cpu"
+    backend: Literal["cpu", "df", "radiance"] = "cpu"
     settings: Dict[str, Any] = field(default_factory=dict)
     seed: int = 0
+    daylight: Optional[DaylightSpec] = None
+    targets: List[str] = field(default_factory=list)
+    emergency: Optional[EmergencySpec] = None
+    mode: Optional[EmergencyModeSpec] = None
+    routes: List[str] = field(default_factory=list)
+    open_area_targets: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -303,10 +480,24 @@ class Project:
     grids: List[CalcGrid] = field(default_factory=list)
     workplanes: List[WorkplaneSpec] = field(default_factory=list)
     vertical_planes: List[VerticalPlaneSpec] = field(default_factory=list)
+    arbitrary_planes: List[ArbitraryPlaneSpec] = field(default_factory=list)
     point_sets: List[PointSetSpec] = field(default_factory=list)
+    line_grids: List[LineGridSpec] = field(default_factory=list)
     glare_views: List[GlareViewSpec] = field(default_factory=list)
+    escape_routes: List[EscapeRouteSpec] = field(default_factory=list)
+    roadways: List[RoadwaySpec] = field(default_factory=list)
     roadway_grids: List[RoadwayGridSpec] = field(default_factory=list)
     compliance_profiles: List[ComplianceProfile] = field(default_factory=list)
+    layers: List[LayerSpec] = field(
+        default_factory=lambda: [
+            LayerSpec(id="room", name="Rooms", visible=True, order=10),
+            LayerSpec(id="wall", name="Walls", visible=True, order=20),
+            LayerSpec(id="ceiling_grid", name="Ceiling Grid", visible=True, order=30),
+            LayerSpec(id="opening", name="Openings", visible=True, order=40),
+            LayerSpec(id="luminaire", name="Luminaires", visible=True, order=50),
+            LayerSpec(id="grid", name="Calc Grids", visible=True, order=60),
+        ]
+    )
     variants: List[ProjectVariant] = field(default_factory=list)
     active_variant_id: Optional[str] = None
     jobs: List[JobSpec] = field(default_factory=list)
@@ -314,6 +505,9 @@ class Project:
     root_dir: Optional[str] = None
     asset_bundle_path: Optional[str] = None
     agent_history: List[Dict[str, Any]] = field(default_factory=list)
+    assistant_undo_stack: List[Dict[str, Any]] = field(default_factory=list)
+    assistant_redo_stack: List[Dict[str, Any]] = field(default_factory=list)
+    param: ParamModel = field(default_factory=ParamModel)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

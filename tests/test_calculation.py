@@ -281,3 +281,33 @@ def test_advanced_validation_rules():
     
     validator = default_validator()
     assert len(validator.rules) > 4  # More than basic rules
+
+
+def test_direct_illuminance_uses_lut_fast_path(monkeypatch):
+    doc = parse_ies_text(TEST_IES)
+    phot = photometry_from_parsed_ies(doc)
+    luminaire = Luminaire(
+        transform=Transform(position=Vector3(0, 0, 3)),
+        photometry=phot,
+        lut=object(),
+    )
+
+    called = {"lut": False, "base": False}
+
+    def _fake_lut(_lut, _dir):
+        called["lut"] = True
+        return 1000.0
+
+    def _fake_base(*_args, **_kwargs):
+        called["base"] = True
+        raise AssertionError("base sampler should not be used in LUT fast path")
+
+    monkeypatch.setattr("luxera.calculation.illuminance.sample_lut_intensity_cd", _fake_lut)
+    monkeypatch.setattr("luxera.calculation.illuminance.sample_intensity_cd", _fake_base)
+
+    point = Vector3(0, 0, 0)
+    normal = Vector3(0, 0, 1)
+    E = calculate_direct_illuminance(point, normal, luminaire)
+    assert E > 0
+    assert called["lut"] is True
+    assert called["base"] is False

@@ -1,0 +1,15 @@
+{
+  "case_id": "box_room_radiosity",
+  "engine_version": "0.2.0",
+  "run_settings": {
+    "backend": "cpu",
+    "job_id": "j_radiosity",
+    "seed": 0
+  },
+  "tolerance_policy": "strict",
+  "tolerances": {
+    "max_abs_lux": 1e-06,
+    "mean_rel": 1e-06,
+    "p95_abs_lux": 1e-06
+  }
+}

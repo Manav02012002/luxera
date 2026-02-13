@@ -1,0 +1,36 @@
+{
+  "calc_object_count": 1,
+  "calc_objects": [
+    {
+      "id": "g1",
+      "name": "EdgeGrid",
+      "summary": {
+        "max_lux": 238.82039589895265,
+        "mean_lux": 83.11303249456095,
+        "min_lux": 21.292322735204515,
+        "p50_lux": 61.202942687832596,
+        "p90_lux": 166.0527906154812,
+        "uniformity_diversity": 0.0891562157204258,
+        "uniformity_ratio": 0.2561851264011804
+      },
+      "type": "grid"
+    }
+  ],
+  "compliance": null,
+  "global_highest_ugr": 0.0,
+  "global_worst_min_lux": 21.292322735204515,
+  "global_worst_uniformity_ratio": 0.2561851264011804,
+  "highest_ugr": 0.0,
+  "max_lux": 238.82039589895265,
+  "mean_lux": 83.11303249456095,
+  "mean_of_means_lux": 83.11303249456095,
+  "min_lux": 21.292322735204515,
+  "occluder_count": 0,
+  "occlusion_enabled": true,
+  "p50_lux": 61.202942687832596,
+  "p90_lux": 166.0527906154812,
+  "uniformity_diversity": 0.0891562157204258,
+  "uniformity_ratio": 0.2561851264011804,
+  "worst_min_lux": 21.292322735204515,
+  "worst_uniformity_ratio": 0.2561851264011804
+}

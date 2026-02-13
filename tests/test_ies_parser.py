@@ -47,6 +47,20 @@ TILT=INCLUDE
     assert factors == [1.0, 0.9, 0.8]
 
 
+def test_parse_tilt_file_without_source_keeps_reference_only():
+    text = """IESNA:LM-63-2019
+TILT=FILE tilt.dat
+1 1000 1 3 1 1 2 0.45 0.45 0.10
+0 45 90
+0
+100 80 60
+"""
+    doc = parse_ies_text(text)
+    assert (doc.tilt_mode or "").startswith("FILE")
+    assert doc.tilt_file_path == "tilt.dat"
+    assert doc.tilt_data is None
+
+
 def test_parse_angles_after_photometry():
     text = """IESNA:LM-63-2002
 TILT=NONE

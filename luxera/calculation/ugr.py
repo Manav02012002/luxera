@@ -33,6 +33,8 @@ from typing import List, Optional, Tuple, Dict
 import numpy as np
 
 from luxera.geometry.core import Vector3, Room
+from luxera.geometry.bvh import BVHNode, any_hit, build_bvh, triangulate_surfaces
+from luxera.geometry.ray_config import scaled_ray_policy
 
 
 @dataclass
@@ -312,6 +314,7 @@ def calculate_ugr_at_position(
     observer: UGRObserverPosition,
     luminaires: List[LuminaireForUGR],
     background_luminance: float,
+    occluder_bvh: Optional[BVHNode] = None,
 ) -> UGRResult:
     """
     Calculate UGR at a specific observer position.
@@ -341,6 +344,17 @@ def calculate_ugr_at_position(
             continue
         
         direction = to_lum.normalize()
+        if occluder_bvh is not None:
+            policy = scaled_ray_policy(scene_scale=distance, user_eps=1e-4)
+            origin = observer.eye_position + direction * policy.origin_eps
+            if any_hit(
+                occluder_bvh,
+                origin,
+                direction,
+                t_min=policy.t_min,
+                t_max=max(distance - policy.t_min, policy.t_min),
+            ):
+                continue
         
         # Calculate angles
         # Vertical angle (above/below horizontal)
@@ -402,6 +416,7 @@ def analyze_room_ugr(
     total_flux: float,
     grid_spacing: float = 2.0,
     eye_height: float = 1.2,  # Seated
+    occluder_bvh: Optional[BVHNode] = None,
 ) -> UGRAnalysis:
     """
     Perform complete UGR analysis for a room.
@@ -421,6 +436,7 @@ def analyze_room_ugr(
     """
     # Calculate background luminance
     Lb = calculate_background_luminance(room, total_flux)
+    bvh = occluder_bvh if occluder_bvh is not None else build_bvh(triangulate_surfaces(room.get_surfaces()))
     
     # Get room bounds
     bb_min, bb_max = room.get_bounding_box()
@@ -440,7 +456,7 @@ def analyze_room_ugr(
                 view_direction=Vector3(1, 0, 0),
                 name=f"({x:.1f}, {y:.1f}) +X"
             )
-            result_px = calculate_ugr_at_position(observer_px, luminaires, Lb)
+            result_px = calculate_ugr_at_position(observer_px, luminaires, Lb, occluder_bvh=bvh)
             results.append(result_px)
             
             # Look in -X direction
@@ -449,7 +465,7 @@ def analyze_room_ugr(
                 view_direction=Vector3(-1, 0, 0),
                 name=f"({x:.1f}, {y:.1f}) -X"
             )
-            result_nx = calculate_ugr_at_position(observer_nx, luminaires, Lb)
+            result_nx = calculate_ugr_at_position(observer_nx, luminaires, Lb, occluder_bvh=bvh)
             results.append(result_nx)
             
             # Look in +Y direction
@@ -458,7 +474,7 @@ def analyze_room_ugr(
                 view_direction=Vector3(0, 1, 0),
                 name=f"({x:.1f}, {y:.1f}) +Y"
             )
-            result_py = calculate_ugr_at_position(observer_py, luminaires, Lb)
+            result_py = calculate_ugr_at_position(observer_py, luminaires, Lb, occluder_bvh=bvh)
             results.append(result_py)
             
             # Look in -Y direction
@@ -467,7 +483,7 @@ def analyze_room_ugr(
                 view_direction=Vector3(0, -1, 0),
                 name=f"({x:.1f}, {y:.1f}) -Y"
             )
-            result_ny = calculate_ugr_at_position(observer_ny, luminaires, Lb)
+            result_ny = calculate_ugr_at_position(observer_ny, luminaires, Lb, occluder_bvh=bvh)
             results.append(result_ny)
             
             y += grid_spacing

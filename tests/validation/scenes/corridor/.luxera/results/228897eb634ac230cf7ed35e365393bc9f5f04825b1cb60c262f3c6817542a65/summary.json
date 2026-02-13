@@ -1,0 +1,36 @@
+{
+  "calc_object_count": 1,
+  "calc_objects": [
+    {
+      "id": "g1",
+      "name": "CorridorGrid",
+      "summary": {
+        "max_lux": 141.2946191770808,
+        "mean_lux": 40.440590314006556,
+        "min_lux": 6.530418645014003,
+        "p50_lux": 20.587677459215502,
+        "p90_lux": 122.95049169155455,
+        "uniformity_diversity": 0.04621845250051315,
+        "uniformity_ratio": 0.16148178338416092
+      },
+      "type": "grid"
+    }
+  ],
+  "compliance": null,
+  "global_highest_ugr": 0.0,
+  "global_worst_min_lux": 6.530418645014003,
+  "global_worst_uniformity_ratio": 0.16148178338416092,
+  "highest_ugr": 0.0,
+  "max_lux": 141.2946191770808,
+  "mean_lux": 40.440590314006556,
+  "mean_of_means_lux": 40.440590314006556,
+  "min_lux": 6.530418645014003,
+  "occluder_count": 0,
+  "occlusion_enabled": false,
+  "p50_lux": 20.587677459215502,
+  "p90_lux": 122.95049169155455,
+  "uniformity_diversity": 0.04621845250051315,
+  "uniformity_ratio": 0.16148178338416092,
+  "worst_min_lux": 6.530418645014003,
+  "worst_uniformity_ratio": 0.16148178338416092
+}

@@ -1,0 +1,109 @@
+{
+  "schema_version": 5,
+  "name": "Roadway Basic",
+  "geometry": {
+    "rooms": [],
+    "zones": [],
+    "no_go_zones": [],
+    "surfaces": [],
+    "openings": [],
+    "obstructions": [],
+    "levels": [],
+    "coordinate_systems": [],
+    "length_unit": "m"
+  },
+  "materials": [],
+  "material_library": [],
+  "photometry_assets": [
+    {
+      "id": "asset_road_1",
+      "format": "IES",
+      "path": "assets/sample_office_a.ies",
+      "embedded_b64": null,
+      "content_hash": null,
+      "metadata": {"filename": "sample_office_a.ies"}
+    }
+  ],
+  "luminaire_families": [],
+  "luminaires": [
+    {
+      "id": "lum_1",
+      "name": "Road Luminaire",
+      "photometry_asset_id": "asset_road_1",
+      "transform": {
+        "position": [15.0, 2.0, 8.0],
+        "rotation": {
+          "type": "euler_zyx",
+          "euler_deg": [0.0, 0.0, 0.0],
+          "aim": null,
+          "up": null,
+          "matrix": null
+        }
+      },
+      "maintenance_factor": 1.0,
+      "flux_multiplier": 1.0,
+      "tilt_deg": 0.0,
+      "family_id": null,
+      "mounting_type": null,
+      "mounting_height_m": 8.0
+    }
+  ],
+  "grids": [],
+  "workplanes": [],
+  "vertical_planes": [],
+  "point_sets": [],
+  "glare_views": [],
+  "roadways": [
+    {
+      "id": "road_1",
+      "name": "Main Road",
+      "start": [0.0, 0.0, 0.0],
+      "end": [60.0, 0.0, 0.0],
+      "num_lanes": 2,
+      "lane_width": 3.5,
+      "mounting_height_m": 8.0,
+      "setback_m": 1.0,
+      "pole_spacing_m": 30.0,
+      "tilt_deg": 0.0,
+      "aim_deg": 0.0
+    }
+  ],
+  "roadway_grids": [
+    {
+      "id": "rg_1",
+      "name": "Road Grid",
+      "lane_width": 3.5,
+      "road_length": 60.0,
+      "nx": 20,
+      "ny": 8,
+      "origin": [0.0, 0.0, 0.0],
+      "roadway_id": "road_1",
+      "num_lanes": 2,
+      "longitudinal_points": 20,
+      "transverse_points_per_lane": 4,
+      "pole_spacing_m": 30.0,
+      "mounting_height_m": 8.0,
+      "setback_m": 1.0,
+      "observer_height_m": 1.5
+    }
+  ],
+  "compliance_profiles": [],
+  "variants": [],
+  "active_variant_id": null,
+  "jobs": [
+    {
+      "id": "roadway_job",
+      "type": "roadway",
+      "backend": "cpu",
+      "settings": {
+        "road_class": "M3",
+        "road_surface_reflectance": 0.07
+      },
+      "seed": 0
+    }
+  ],
+  "results": [],
+  "root_dir": null,
+  "asset_bundle_path": null,
+  "agent_history": []
+}

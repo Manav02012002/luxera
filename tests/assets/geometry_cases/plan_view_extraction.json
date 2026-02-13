@@ -1,0 +1,13 @@
+{
+  "id": "plan_view_extraction",
+  "footprint": [[0.0, 0.0], [6.0, 0.0], [6.0, 4.0], [0.0, 4.0]],
+  "height": 3.0,
+  "cut_z": 1.2,
+  "range_zmin": 0.0,
+  "range_zmax": 3.0,
+  "expect": {
+    "min_cut_segments": 1,
+    "min_silhouettes": 1,
+    "linework_layer": "CUT"
+  }
+}

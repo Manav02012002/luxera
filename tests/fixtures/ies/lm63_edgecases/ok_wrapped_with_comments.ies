@@ -1,0 +1,10 @@
+IESNA:LM-63-2019
+TILT=NONE
+1 1000 1 4 2 1 2 0.5 0.5 0.2
+0 30
+60 90
+0 180
+100 90 ; trailing comment
+80 70
+60 50 ! trailing comment
+40 30

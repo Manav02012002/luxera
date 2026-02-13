@@ -1,0 +1,23 @@
+{
+  "grids": [
+    {
+      "area": null,
+      "id": "g1",
+      "max_lux": 180.4238311394975,
+      "mean_lux": 43.215403240297206,
+      "min_lux": 2.5183403844661676,
+      "name": "LGrid",
+      "point_count": 81,
+      "spacing": 1.25,
+      "type": "grid",
+      "uniformity_min_avg": 0.058274138284978044
+    }
+  ],
+  "point_sets": [],
+  "vertical_planes": [],
+  "worst_case": {
+    "global_mean_of_means_lux": 43.215403240297206,
+    "global_worst_min_lux": 2.5183403844661676,
+    "global_worst_uniformity_ratio": 0.058274138284978044
+  }
+}

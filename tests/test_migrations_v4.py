@@ -24,6 +24,7 @@ def test_migrate_v4_to_v5_adds_professional_workflow_fields():
     assert "vertical_planes" in migrated
     assert "point_sets" in migrated
     assert "glare_views" in migrated
+    assert "roadways" in migrated
     assert "roadway_grids" in migrated
     assert "compliance_profiles" in migrated
     assert "variants" in migrated

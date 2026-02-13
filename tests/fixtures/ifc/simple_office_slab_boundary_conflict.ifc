@@ -1,0 +1,16 @@
+ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION(('ViewDefinition [CoordinationView_V2.0]'),'2;1');
+FILE_NAME('simple_office_slab_boundary_conflict.ifc','2026-02-10T00:00:00',('Luxera'),('Luxera'),'','', '');
+FILE_SCHEMA(('IFC4'));
+ENDSEC;
+DATA;
+#1=IFCSIUNIT(*,.LENGTHUNIT.,$,.METRE.);
+#2=IFCUNITASSIGNMENT((#1));
+#11=IFCSPACE('0xR1',$,'Office A',$,$,$,$,$,$,$);
+#12=IFCSPACE('0xR2',$,'Office B',$,$,$,$,$,$,$);
+#31=IFCSLAB('0xSA',$,'Slab A',$,$,$,$,$,$);
+#100=IFCRELSPACEBOUNDARY('0xB1',$,$,$,#12,#31,$,.PHYSICAL.,.INTERNAL.);
+#101=IFCRELSPACEBOUNDARY('0xB2',$,$,$,#11,#31,$,.PHYSICAL.,.INTERNAL.);
+ENDSEC;
+END-ISO-10303-21;

@@ -13,6 +13,7 @@ from luxera.viewer.mesh import (
     create_grid_mesh,
     create_luminaire_mesh,
     create_sphere_mesh,
+    mesh_from_trimesh,
 )
 from luxera.viewer.renderer import Renderer, SceneObject
 from luxera.viewer.widget import LuxeraGLWidget, create_demo_scene
@@ -26,6 +27,7 @@ __all__ = [
     "create_grid_mesh",
     "create_luminaire_mesh",
     "create_sphere_mesh",
+    "mesh_from_trimesh",
     "Renderer",
     "SceneObject",
     "LuxeraGLWidget",

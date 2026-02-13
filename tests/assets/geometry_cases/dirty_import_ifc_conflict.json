@@ -1,0 +1,11 @@
+{
+  "id": "dirty_import_ifc_conflict",
+  "path": "tests/fixtures/ifc/simple_office_boundaries_conflict.ifc",
+  "fmt": "IFC",
+  "expect": {
+    "min_rooms": 1,
+    "required_stages": ["RawImport", "NormalizedGeometry", "Repair2D", "RepairHeal", "SceneBuild"],
+    "require_scene_health_counts": true,
+    "require_scene_health_key": "degenerate_triangles"
+  }
+}

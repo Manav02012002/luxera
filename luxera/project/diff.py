@@ -7,13 +7,20 @@ from luxera.project.schema import Project
 
 
 DiffOpKind = Literal[
+    "geometry_meta",
     "room",
+    "surface",
+    "opening",
+    "obstruction",
+    "level",
+    "escape_route",
     "luminaire",
     "grid",
     "job",
     "material",
     "asset",
     "family",
+    "variant",
 ]
 
 
@@ -36,6 +43,13 @@ class ProjectDiff:
 
 
 def _apply_op(project: Project, op: DiffOp) -> None:
+    if op.kind == "geometry_meta":
+        current = project.geometry
+        if op.op != "update":
+            return
+        for k, v in op.payload.items():
+            setattr(current, k, v)
+        return
     collection = _get_collection(project, op.kind)
     if op.op == "add":
         collection.append(op.payload)
@@ -59,8 +73,20 @@ def _apply_op(project: Project, op: DiffOp) -> None:
 
 
 def _get_collection(project: Project, kind: DiffOpKind):
+    if kind == "geometry_meta":
+        return [project.geometry]
     if kind == "room":
         return project.geometry.rooms
+    if kind == "surface":
+        return project.geometry.surfaces
+    if kind == "opening":
+        return project.geometry.openings
+    if kind == "obstruction":
+        return project.geometry.obstructions
+    if kind == "level":
+        return project.geometry.levels
+    if kind == "escape_route":
+        return project.escape_routes
     if kind == "luminaire":
         return project.luminaires
     if kind == "grid":
@@ -73,6 +99,8 @@ def _get_collection(project: Project, kind: DiffOpKind):
         return project.photometry_assets
     if kind == "family":
         return project.luminaire_families
+    if kind == "variant":
+        return project.variants
     raise ValueError(f"Unsupported diff kind: {kind}")
 
 

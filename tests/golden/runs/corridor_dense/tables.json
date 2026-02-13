@@ -1,0 +1,23 @@
+{
+  "grids": [
+    {
+      "area": null,
+      "id": "g_dense",
+      "max_lux": 226.03765493369767,
+      "mean_lux": 46.73309429713036,
+      "min_lux": 6.530418645014003,
+      "name": "CorridorGrid",
+      "point_count": 105,
+      "spacing": 1.0,
+      "type": "grid",
+      "uniformity_min_avg": 0.13973863154648852
+    }
+  ],
+  "point_sets": [],
+  "vertical_planes": [],
+  "worst_case": {
+    "global_mean_of_means_lux": 46.73309429713036,
+    "global_worst_min_lux": 6.530418645014003,
+    "global_worst_uniformity_ratio": 0.13973863154648852
+  }
+}

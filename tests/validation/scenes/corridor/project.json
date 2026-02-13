@@ -1,0 +1,75 @@
+{
+  "schema_version": 5,
+  "name": "validation_corridor",
+  "geometry": {
+    "rooms": [
+      {
+        "id": "r1",
+        "name": "Corridor",
+        "origin": [0.0, 0.0, 0.0],
+        "width": 20.0,
+        "length": 4.0,
+        "height": 3.0
+      }
+    ]
+  },
+  "photometry_assets": [
+    {
+      "id": "a1",
+      "format": "IES",
+      "path": "fixture.ies"
+    }
+  ],
+  "luminaires": [
+    {
+      "id": "l1",
+      "name": "L1",
+      "photometry_asset_id": "a1",
+      "transform": {
+        "position": [5.0, 2.0, 2.8],
+        "rotation": {
+          "type": "euler_zyx",
+          "euler_deg": [0.0, 0.0, 0.0]
+        }
+      },
+      "flux_multiplier": 1.0
+    },
+    {
+      "id": "l2",
+      "name": "L2",
+      "photometry_asset_id": "a1",
+      "transform": {
+        "position": [15.0, 2.0, 2.8],
+        "rotation": {
+          "type": "euler_zyx",
+          "euler_deg": [0.0, 0.0, 0.0]
+        }
+      },
+      "flux_multiplier": 1.0
+    }
+  ],
+  "grids": [
+    {
+      "id": "g1",
+      "name": "CorridorGrid",
+      "origin": [0.0, 0.0, 0.0],
+      "width": 20.0,
+      "height": 4.0,
+      "elevation": 0.8,
+      "nx": 11,
+      "ny": 3,
+      "room_id": "r1"
+    }
+  ],
+  "jobs": [
+    {
+      "id": "j_direct",
+      "type": "direct",
+      "backend": "cpu",
+      "settings": {
+        "use_occlusion": false
+      },
+      "seed": 0
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "dirty_import_dxf_arcs_blocks",
+  "path": "tests/fixtures/geometry/imported_dxf_arcs_blocks.dxf",
+  "fmt": "DXF",
+  "expect": {
+    "required_stages": ["RawImport", "NormalizedGeometry", "RepairHeal", "SceneBuild"],
+    "raw_import_block_instances_min": 1
+  }
+}
