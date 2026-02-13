@@ -1,0 +1,12 @@
+{
+  "case_id": "tilt_effect_none",
+  "grid_count": 1,
+  "job_ids": [
+    "j_direct_none"
+  ],
+  "luminaire_count": 1,
+  "obstruction_count": 0,
+  "prepared_scene_format": "json",
+  "room_count": 1,
+  "surface_count": 0
+}

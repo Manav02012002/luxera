@@ -1,0 +1,23 @@
+{
+  "grids": [
+    {
+      "area": null,
+      "id": "g1",
+      "max_lux": 238.82039589895265,
+      "mean_lux": 78.70973699723866,
+      "min_lux": 21.29232273520453,
+      "name": "ObsGrid",
+      "point_count": 63,
+      "spacing": 0.9999999999999999,
+      "type": "grid",
+      "uniformity_min_avg": 0.2705170103154012
+    }
+  ],
+  "point_sets": [],
+  "vertical_planes": [],
+  "worst_case": {
+    "global_mean_of_means_lux": 78.70973699723866,
+    "global_worst_min_lux": 21.29232273520453,
+    "global_worst_uniformity_ratio": 0.2705170103154012
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "calc_object_count": 1,
+  "calc_objects": [
+    {
+      "id": "g1",
+      "name": "LGrid",
+      "summary": {
+        "max_lux": 180.42383113949754,
+        "mean_lux": 43.21540324029723,
+        "min_lux": 2.5183403844661694,
+        "p50_lux": 26.63445353007714,
+        "p90_lux": 94.43475034216921,
+        "uniformity_diversity": 0.013957914365087807,
+        "uniformity_ratio": 0.05827413828497806
+      },
+      "type": "grid"
+    }
+  ],
+  "compliance": null,
+  "global_highest_ugr": 0.0,
+  "global_worst_min_lux": 2.5183403844661694,
+  "global_worst_uniformity_ratio": 0.05827413828497806,
+  "highest_ugr": 0.0,
+  "max_lux": 180.42383113949754,
+  "mean_lux": 43.21540324029723,
+  "mean_of_means_lux": 43.21540324029723,
+  "min_lux": 2.5183403844661694,
+  "occluder_count": 0,
+  "occlusion_enabled": false,
+  "p50_lux": 26.63445353007714,
+  "p90_lux": 94.43475034216921,
+  "uniformity_diversity": 0.013957914365087807,
+  "uniformity_ratio": 0.05827413828497806,
+  "worst_min_lux": 2.5183403844661694,
+  "worst_uniformity_ratio": 0.05827413828497806
+}

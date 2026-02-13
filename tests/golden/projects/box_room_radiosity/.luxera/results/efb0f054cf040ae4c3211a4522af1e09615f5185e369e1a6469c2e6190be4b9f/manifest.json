@@ -1,0 +1,105 @@
+{
+  "entries": {
+    "Box_ceiling_grid.csv": "aeca9abb865cdc2483aa710b78f1a4e31ee70f67f2cdf0322afb3b0841c4a25c",
+    "Box_ceiling_heatmap.png": "c46df0db4b552870db88097e3a5de1dd2ce178730a68e825c2b9c00546e7f67a",
+    "Box_floor_grid.csv": "0a4bf6eadd0b7c72fe56d9f711fe13f60a65cfc893785b9ccf9bd12c652d1698",
+    "Box_floor_heatmap.png": "48d26008763bd519381a4686c301f4dc05be0d56ae518be7d882bebb2f30dedc",
+    "Box_wall_0_grid.csv": "c2995768578eb2756f5b3a223ef536e642304b9a137425972bab55c432280319",
+    "Box_wall_0_heatmap.png": "901a0a8423e7e9dcf5d760815f20f256f825fbdb951db07d6d7945333df1129e",
+    "Box_wall_1_grid.csv": "4cf91227d823820d6b9802c03190c64564071257734d3bb2c6be6c494abcdfb2",
+    "Box_wall_1_heatmap.png": "109ad3c259b54bd448fa73051b3dd0e9c9ffb2482662871a83c940cec93f56fb",
+    "Box_wall_2_grid.csv": "105a3033c30d388f35f5d370e87fb9e009ee432b7ff3f18b5c4bae78e6e556a6",
+    "Box_wall_2_heatmap.png": "9d5962471e46e88bb152960a4a53fbc9281d3796ad8b9f76aaaca7655f2a0350",
+    "Box_wall_3_grid.csv": "9ec8a5d828683a376cc45bcd52dce921c86fd72709ec55d2987f0f6a781a0ee9",
+    "Box_wall_3_heatmap.png": "8d6e21d285af9f883924de06573af6c4f470a98eebdc196bd48c0d2c13caa622",
+    "photometry_verify.json": "9cb8b1795c11c2567b6d3bdb2f0092d176c8375be06d0e251e9b2caf348f03ca",
+    "residuals.csv": "4fe4c3064c5f4137fef6e73789e873b9f09942dbff2b546169479413184c2dbe",
+    "result.json": "7eec3722a3f7fc13196b89f9ad316e6e42dd9ddb338219b443db3168d755d421",
+    "surface_illuminance.csv": "9629b27096154c5b8e292fa6046eaaecede4ec4722a78bacfc1cc037280b4149"
+  },
+  "metadata": {
+    "assets": {
+      "a1": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834"
+    },
+    "backend": {
+      "name": "cpu",
+      "version": "0.2.0"
+    },
+    "coordinate_convention": "Local luminaire frame: +Z up, nadir is -Z; C=0 toward +X, C=90 toward +Y",
+    "job_hash": "efb0f054cf040ae4c3211a4522af1e09615f5185e369e1a6469c2e6190be4b9f",
+    "job_id": "j_radiosity",
+    "photometry_assets": {
+      "a1": {
+        "ies_units_type": 2,
+        "photometric_type": 1,
+        "tilt_count": 0,
+        "tilt_factor_max": null,
+        "tilt_factor_min": null,
+        "tilt_file": null,
+        "tilt_mode": "NONE",
+        "tilt_source": "NONE",
+        "tilt_summary": {
+          "geometry_factor": null,
+          "loaded": false
+        }
+      }
+    },
+    "photometry_hashes": {
+      "a1": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834"
+    },
+    "seed": 0,
+    "settings": {
+      "effective": {
+        "ambient_light": 0.0,
+        "convergence_threshold": 0.0001,
+        "damping": 0.9,
+        "max_iterations": 60,
+        "max_iters": 60,
+        "method": "GATHERING",
+        "monte_carlo_samples": 8,
+        "patch_max_area": 0.5,
+        "tol": 0.0001,
+        "ugr_eye_heights": [
+          1.2,
+          1.7
+        ],
+        "ugr_grid_spacing": 2.0,
+        "use_visibility": false
+      },
+      "job": {
+        "backend": "cpu",
+        "daylight": null,
+        "emergency": null,
+        "id": "j_radiosity",
+        "mode": null,
+        "open_area_targets": [],
+        "routes": [],
+        "seed": 0,
+        "settings": {
+          "damping": 0.9,
+          "max_iters": 60,
+          "method": "GATHERING",
+          "monte_carlo_samples": 8,
+          "patch_max_area": 0.5,
+          "tol": 0.0001,
+          "use_visibility": false
+        },
+        "targets": [],
+        "type": "radiosity"
+      },
+      "seed": 0
+    },
+    "solver": {
+      "git_commit": "ae78223a396416d8ae39f11c4cbe2acc8f5cfa51",
+      "package_version": "0.2.0"
+    },
+    "solver_version": "0.2.0",
+    "units": {
+      "angles": "deg",
+      "illuminance": "lux",
+      "length": "m",
+      "luminous_flux": "lm",
+      "luminous_intensity": "cd"
+    }
+  }
+}

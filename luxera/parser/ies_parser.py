@@ -3,11 +3,13 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from luxera.models.photometry import PhotometryHeader
 from luxera.models.angles import AngleGrid
 from luxera.models.candela import CandelaGrid
+from luxera.parser.tilt_file import TiltFileError, load_tilt_file_payload
 
 
 @dataclass(frozen=True)
@@ -21,11 +23,13 @@ class ParseError(Exception):
     message: str
     line_no: Optional[int] = None
     snippet: Optional[str] = None
+    filename: Optional[str] = None
 
     def __str__(self) -> str:
+        prefix = f"{self.filename}: " if self.filename else ""
         if self.line_no is None:
-            return self.message
-        return f"Line {self.line_no}: {self.message}"
+            return f"{prefix}{self.message}"
+        return f"{prefix}Line {self.line_no}: {self.message}"
 
 
 @dataclass
@@ -33,6 +37,9 @@ class ParsedIES:
     standard_line: Optional[str]
     keywords: Dict[str, List[str]]
     tilt_line: Optional[str]
+    tilt_mode: Optional[str]
+    tilt_file_path: Optional[str]
+    tilt_lamp_to_luminaire_geometry: Optional[str]
     tilt_data: Optional[Tuple[List[float], List[float]]]  # (angles_deg, factors)
     photometry: Optional[PhotometryHeader]
     angles: Optional[AngleGrid]
@@ -62,12 +69,20 @@ def _tokenise_numeric_block(lines: List[str], start_idx0: int, count: int) -> Tu
         s = lines[idx0].strip()
         if s:
             toks = s.split()
+            line_token_idx = 0
             for t in toks:
                 if len(values) >= count:
                     break
+                line_token_idx += 1
+                # Allow trailing comments in numeric blocks.
+                if t in {";", "#", "!"} or t.startswith(";") or t.startswith("#") or t.startswith("!") or t.startswith("//"):
+                    break
                 if not _is_number(t):
                     raise ParseError(
-                        f"Expected numeric value, got: {t}",
+                        (
+                            f"Expected numeric value #{len(values) + 1} of {count}, got '{t}' "
+                            f"(token {line_token_idx} on line)"
+                        ),
                         line_no=idx0 + 1,
                         snippet=lines[idx0],
                     )
@@ -81,7 +96,7 @@ def _tokenise_numeric_block(lines: List[str], start_idx0: int, count: int) -> Tu
 
     if len(values) != count:
         raise ParseError(
-            f"Expected {count} numeric values but found {len(values)}",
+            f"Expected {count} numeric values but found {len(values)} in numeric block",
             line_no=(end_line_no or (start_idx0 + 1)),
         )
 
@@ -182,10 +197,17 @@ def _parse_angles_after_photometry(
     h, h_start, h_end, next_idx0 = _tokenise_numeric_block(lines, idx0, ph.num_horizontal_angles)
     idx0 = next_idx0
 
+    if len(v) != ph.num_vertical_angles:
+        raise ParseError("Vertical angle count does not match photometry header", line_no=v_start)
+    if len(h) != ph.num_horizontal_angles:
+        raise ParseError("Horizontal angle count does not match photometry header", line_no=h_start)
+
     if not _is_strictly_increasing(v):
         raise ParseError("Vertical angles are not strictly increasing", line_no=v_start)
     if not _is_strictly_increasing(h):
         raise ParseError("Horizontal angles are not strictly increasing", line_no=h_start)
+    if h and abs(float(h[0])) > 1e-6:
+        raise ParseError("Horizontal angle series must start at 0 degrees", line_no=h_start)
 
     return (
         AngleGrid(
@@ -243,78 +265,128 @@ def _parse_candela_table(
     )
 
 
-def parse_ies_text(text: str) -> ParsedIES:
-    if not text.strip():
-        raise ParseError("Empty file")
+def parse_ies_text(text: str, source_path: str | Path | None = None) -> ParsedIES:
+    src = Path(source_path).expanduser().resolve() if source_path is not None else None
+    try:
+        if not text.strip():
+            raise ParseError("Empty file")
 
-    raw_lines = text.splitlines()
-    lines = [ln.rstrip("\r\n") for ln in raw_lines]
+        raw_lines = text.splitlines()
+        lines = [ln.rstrip("\r\n") for ln in raw_lines]
+        standard_line: Optional[str] = None
+        i = 0
+        while i < len(lines) and not lines[i].strip():
+            i += 1
+        if i < len(lines):
+            head = lines[i].strip()
+            if head.upper().startswith("IESNA:LM-63"):
+                standard_line = head
 
-    standard_line: Optional[str] = None
-    i = 0
-    while i < len(lines) and not lines[i].strip():
-        i += 1
-    if i < len(lines):
-        head = lines[i].strip()
-        if head.upper().startswith("IESNA:LM-63"):
-            standard_line = head
+        keywords: Dict[str, List[str]] = {}
+        tilt_line: Optional[str] = None
+        tilt_data: Optional[Tuple[List[float], List[float]]] = None
+        tilt_mode: Optional[str] = None
+        tilt_file_path: Optional[str] = None
+        tilt_lamp_to_luminaire_geometry: Optional[str] = None
+        tilt_end_idx0: Optional[int] = None
 
-    keywords: Dict[str, List[str]] = {}
-    tilt_line: Optional[str] = None
-    tilt_data: Optional[Tuple[List[float], List[float]]] = None
-    tilt_end_idx0: Optional[int] = None
+        for ln_idx0, ln in enumerate(lines):
+            s = ln.strip()
+            if not s:
+                continue
 
-    for ln_idx0, ln in enumerate(lines):
-        s = ln.strip()
-        if not s:
-            continue
+            if s.startswith("[") and "]" in s:
+                end = s.find("]")
+                key = s[1:end].strip()
+                val = s[end + 1 :].strip()
+                if key:
+                    keywords.setdefault(key, []).append(val)
+                continue
 
-        if s.startswith("[") and "]" in s:
-            end = s.find("]")
-            key = s[1:end].strip()
-            val = s[end + 1 :].strip()
-            if key:
-                keywords.setdefault(key, []).append(val)
-            continue
+            if s.upper().startswith("TILT="):
+                tilt_line = s
+                tilt_type = s.split("=", 1)[1].strip()
+                tilt_type_u = tilt_type.upper()
+                tilt_mode = tilt_type_u.split()[0] if tilt_type_u else None
+                if tilt_type_u.startswith("FILE"):
+                    toks = tilt_type.split(maxsplit=1)
+                    tilt_file_path = toks[1].strip() if len(toks) > 1 else None
+                    if src is not None and tilt_file_path:
+                        resolved = (src.parent / tilt_file_path).resolve()
+                        tilt_file_path = str(resolved)
+                        try:
+                            payload = load_tilt_file_payload(resolved)
+                            tilt_data = (payload.data.angles_deg, payload.data.factors)
+                            tilt_lamp_to_luminaire_geometry = payload.geometry_factor
+                        except TiltFileError:
+                            # Parsing keeps FILE reference even when target is missing/invalid.
+                            # Validation layer decides pass/fail status.
+                            pass
+                    continue
+                if tilt_type_u == "INCLUDE":
+                    # Parse tilt data immediately after this line.
+                    # Format variants:
+                    # 1) <lamp_to_luminaire_geometry>, n, angles, multipliers
+                    # 2) n, angles, multipliers (legacy compact)
+                    idx = ln_idx0 + 1
+                    while idx < len(lines) and not lines[idx].strip():
+                        idx += 1
+                    if idx >= len(lines):
+                        raise ParseError("Missing TILT=INCLUDE payload", line_no=ln_idx0 + 1)
+                    head = lines[idx].strip()
+                    head_tokens = head.split()
+                    head_tok = head_tokens[0] if head_tokens else ""
+                    # Ambiguous case: a single numeric line can be either geometry token or n.
+                    # If next non-empty line is also a single numeric token, treat current as geometry.
+                    assume_geometry = not _is_number(head_tok)
+                    if not assume_geometry and len(head_tokens) == 1:
+                        j = idx + 1
+                        while j < len(lines) and not lines[j].strip():
+                            j += 1
+                        if j < len(lines):
+                            nxt = lines[j].strip().split()
+                            if len(nxt) == 1 and _is_number(nxt[0]):
+                                assume_geometry = True
+                    if assume_geometry:
+                        tilt_lamp_to_luminaire_geometry = head
+                        idx += 1
+                    vals, _, _, next_idx0 = _tokenise_numeric_block(lines, idx, 1)
+                    n = int(round(vals[0]))
+                    if n <= 0:
+                        raise ParseError("Invalid TILT=INCLUDE count", line_no=idx + 1)
+                    angles, _, _, next_idx0 = _tokenise_numeric_block(lines, next_idx0, n)
+                    factors, _, _, next_idx0 = _tokenise_numeric_block(lines, next_idx0, n)
+                    tilt_data = (angles, factors)
+                    tilt_end_idx0 = next_idx0
+                continue
 
-        if s.upper().startswith("TILT="):
-            tilt_line = s
-            tilt_type = s.split("=", 1)[1].strip().upper()
-            if tilt_type == "INCLUDE":
-                # Parse tilt data immediately after this line.
-                # Format: N tilt angles, then N multiplying factors.
-                # Treat as a numeric stream for robustness.
-                # N is the first numeric value after TILT=INCLUDE.
-                vals, _, _, next_idx0 = _tokenise_numeric_block(lines, ln_idx0 + 1, 1)
-                n = int(round(vals[0]))
-                if n <= 0:
-                    raise ParseError("Invalid TILT=INCLUDE count", line_no=ln_idx0 + 1)
-                angles, _, _, next_idx0 = _tokenise_numeric_block(lines, next_idx0, n)
-                factors, _, _, next_idx0 = _tokenise_numeric_block(lines, next_idx0, n)
-                tilt_data = (angles, factors)
-                tilt_end_idx0 = next_idx0
-            continue
+        photometry: Optional[PhotometryHeader] = None
+        angles: Optional[AngleGrid] = None
+        candela: Optional[CandelaGrid] = None
 
-    photometry: Optional[PhotometryHeader] = None
-    angles: Optional[AngleGrid] = None
-    candela: Optional[CandelaGrid] = None
+        start_idx0 = tilt_end_idx0 or 0
+        found = _find_photometry_header_line(lines, start_idx0=start_idx0)
+        if found is not None:
+            photometry_idx0, toks = found
+            photometry = _parse_photometry_header_from_tokens(toks, line_no=photometry_idx0 + 1)
+            angles, next_idx0 = _parse_angles_after_photometry(lines, photometry_idx0, photometry)
+            candela = _parse_candela_table(lines, next_idx0, photometry, angles)
 
-    start_idx0 = tilt_end_idx0 or 0
-    found = _find_photometry_header_line(lines, start_idx0=start_idx0)
-    if found is not None:
-        photometry_idx0, toks = found
-        photometry = _parse_photometry_header_from_tokens(toks, line_no=photometry_idx0 + 1)
-
-        angles, next_idx0 = _parse_angles_after_photometry(lines, photometry_idx0, photometry)
-        candela = _parse_candela_table(lines, next_idx0, photometry, angles)
-
-    return ParsedIES(
-        standard_line=standard_line,
-        keywords=keywords,
-        tilt_line=tilt_line,
-        tilt_data=tilt_data,
-        photometry=photometry,
-        angles=angles,
-        candela=candela,
-        raw_lines=lines,
-    )
+        doc = ParsedIES(
+            standard_line=standard_line,
+            keywords=keywords,
+            tilt_line=tilt_line,
+            tilt_mode=tilt_mode,
+            tilt_file_path=tilt_file_path,
+            tilt_lamp_to_luminaire_geometry=tilt_lamp_to_luminaire_geometry,
+            tilt_data=tilt_data,
+            photometry=photometry,
+            angles=angles,
+            candela=candela,
+            raw_lines=lines,
+        )
+        return doc
+    except ParseError as e:
+        if e.filename is None and src is not None:
+            e.filename = str(src)
+        raise

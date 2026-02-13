@@ -1,195 +1,272 @@
 from __future__ import annotations
 
-import uuid
 import json
+import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from luxera.project.io import load_project_schema, save_project_schema
-from luxera.project.schema import (
-    Project,
-    PhotometryAsset,
-    RoomSpec,
-    LuminaireInstance,
-    CalcGrid,
-    JobSpec,
-    TransformSpec,
-    RotationSpec,
-)
-from luxera.project.presets import en12464_direct_job, en13032_radiosity_job
-from luxera.runner import run_job
-from luxera.export.report_model import build_en13032_report_model
-from luxera.export.en13032_pdf import render_en13032_pdf
-from luxera.export.en12464_report import build_en12464_report_model
-from luxera.export.en12464_pdf import render_en12464_pdf
-from luxera.core.hashing import sha256_file
 from luxera.agent.runtime import AgentRuntime
-from luxera.results.compare import compare_job_results
+from luxera.gui.commands import (
+    cmd_apply_diff,
+    cmd_compare_variants,
+    cmd_delete_object,
+    cmd_duplicate_object,
+    cmd_export_audit_bundle,
+    cmd_export_report,
+    cmd_place_rect_array,
+    cmd_run_job,
+    cmd_update_object,
+)
+from luxera.gui.widgets.assistant_panel import AssistantPanel
+from luxera.gui.widgets.inspector import PropertiesInspector
+from luxera.gui.widgets.job_manager import JobManagerWidget
+from luxera.gui.widgets.log_panel import LogPanel
+from luxera.gui.widgets.project_tree import ProjectTreeWidget
+from luxera.gui.widgets.results_view import ResultsView
+from luxera.gui.widgets.viewer3d import Viewer3D
+from luxera.gui.widgets.viewport2d import Viewport2D
+from luxera.gui.widgets.variants_panel import VariantsPanel
+from luxera.gui.recent_files import add_recent_path, coerce_recent_paths
+from luxera.gui.scene_node_binding import resolve_scene_node_update
+from luxera.gui.theme import set_theme
+from luxera.project.io import load_project_schema, save_project_schema
+from luxera.project.diff import DiffOp, ProjectDiff
+from luxera.project.schema import LuminaireInstance, Project, RotationSpec, TransformSpec
+from luxera.ops.scene_ops import create_room as op_create_room, extrude_room_to_surfaces
+from luxera.ops.calc_ops import create_calc_grid_from_room
 
 
 class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
+    _MAX_RECENT_FILES = 10
+    _SETTINGS_ORG = "Luxera"
+    _SETTINGS_APP = "Luxera"
+    _SETTINGS_RECENT_KEY = "workspace/recent_projects"
+
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Luxera Workspace")
-        self.resize(1200, 800)
+        self.resize(1500, 940)
 
-        self.project_path: Optional[Path] = None
-        self.project: Optional[Project] = None
+        self.project_path: Path | None = None
+        self.project: Project | None = None
         self.agent_runtime = AgentRuntime()
-        self._copilot_preview_ops: Dict[str, Dict[str, Any]] = {}
+        self.recent_project_paths: list[str] = []
+        self._recent_actions: list[QtGui.QAction] = []
+
+        self._run_thread: threading.Thread | None = None
+        self._run_cancel_requested = False
+        self._copilot_preview_ops: dict[str, dict[str, Any]] = {}
 
         self._build_ui()
         self._wire_actions()
+        self._load_recent_projects()
+        self._refresh_recent_projects_menu()
 
     def _build_ui(self) -> None:
+        self._build_menu()
+
+        central = QtWidgets.QWidget()
+        self.setCentralWidget(central)
+        root = QtWidgets.QVBoxLayout(central)
+        root.setContentsMargins(8, 8, 8, 8)
+        self._build_workflow_toolbar(root)
+
+        top_split = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+        bottom_tabs = QtWidgets.QTabWidget()
+
+        self.project_tree = ProjectTreeWidget()
+        self.project_tree.setMinimumWidth(280)
+        top_split.addWidget(self.project_tree)
+
+        self.center_stack = QtWidgets.QStackedWidget()
+        self.viewport = Viewport2D()
+        self.center_stack.addWidget(self.viewport)
+        self.viewer3d = Viewer3D()
+        self.center_stack.addWidget(self.viewer3d)
+        top_split.addWidget(self.center_stack)
+
+        self.inspector = PropertiesInspector()
+        self.inspector.setMinimumWidth(300)
+        top_split.addWidget(self.inspector)
+
+        top_split.setStretchFactor(0, 1)
+        top_split.setStretchFactor(1, 4)
+        top_split.setStretchFactor(2, 2)
+
+        self.job_manager = JobManagerWidget()
+        self.results_view = ResultsView()
+        self.log_panel = LogPanel()
+        self.variants_panel = VariantsPanel()
+
+        bottom_tabs.addTab(self.job_manager, "Job Manager")
+        bottom_tabs.addTab(self.results_view, "Results")
+        bottom_tabs.addTab(self.variants_panel, "Variants")
+        bottom_tabs.addTab(self.log_panel, "Logs")
+
+        outer_split = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        outer_split.addWidget(top_split)
+        outer_split.addWidget(bottom_tabs)
+        outer_split.setStretchFactor(0, 7)
+        outer_split.setStretchFactor(1, 3)
+
+        root.addWidget(outer_split)
+
+        self.assistant_dock = QtWidgets.QDockWidget("Assistant", self)
+        self.assistant_dock.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea | QtCore.Qt.RightDockWidgetArea)
+        self.assistant_dock.setFeatures(
+            QtWidgets.QDockWidget.DockWidgetMovable
+            | QtWidgets.QDockWidget.DockWidgetFloatable
+            | QtWidgets.QDockWidget.DockWidgetClosable
+        )
+        self.assistant_panel = AssistantPanel(self)
+        self.assistant_dock.setWidget(self.assistant_panel)
+        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, self.assistant_dock)
+
+        # Compatibility aliases used by current copilot handlers.
+        self.copilot_input = self.assistant_panel.input
+        self.copilot_run = self.assistant_panel.run
+        self.copilot_apply_only = self.assistant_panel.apply_only
+        self.copilot_run_only = self.assistant_panel.run_only
+        self.copilot_apply_run = self.assistant_panel.apply_run
+        self.copilot_undo_assistant = self.assistant_panel.undo_assistant
+        self.copilot_redo_assistant = self.assistant_panel.redo_assistant
+        self.copilot_plan_view = self.assistant_panel.plan_view
+        self.copilot_diff = self.assistant_panel.diff
+        self.copilot_diff_details = self.assistant_panel.diff_details
+        self.copilot_select_all = self.assistant_panel.select_all
+        self.copilot_select_none = self.assistant_panel.select_none
+        self.copilot_output = self.assistant_panel.output
+        self.copilot_audit = self.assistant_panel.audit
+        self.copilot_activity_log = self.assistant_panel.activity_log
+        self.copilot_design_options = self.assistant_panel.design_options
+        self.copilot_design_iterate = self.assistant_panel.design_iterate
+        self.copilot_design_max_iters = self.assistant_panel.design_max_iters
+
+        self.status = self.statusBar()
+        self.status.showMessage("No project open")
+
+    def _build_workflow_toolbar(self, root: QtWidgets.QVBoxLayout) -> None:
+        row = QtWidgets.QHBoxLayout()
+        self.mode_2d_btn = QtWidgets.QPushButton("2D Plan")
+        self.mode_2d_btn.setCheckable(True)
+        self.mode_2d_btn.setChecked(True)
+        self.mode_3d_btn = QtWidgets.QPushButton("3D View")
+        self.mode_3d_btn.setCheckable(True)
+        self._mode_group = QtWidgets.QButtonGroup(self)
+        self._mode_group.setExclusive(True)
+        self._mode_group.addButton(self.mode_2d_btn)
+        self._mode_group.addButton(self.mode_3d_btn)
+        self.btn_draw_room = QtWidgets.QPushButton("Draw Room")
+        self.btn_add_luminaire = QtWidgets.QPushButton("Add Luminaire")
+        self.btn_array_luminaires = QtWidgets.QPushButton("Array")
+        self.btn_create_grid = QtWidgets.QPushButton("Create Grid")
+        self.btn_view_overlay = QtWidgets.QPushButton("View Overlay")
+        self.btn_run_calc = QtWidgets.QPushButton("Run Calculation")
+        for w in (
+            self.mode_2d_btn,
+            self.mode_3d_btn,
+            self.btn_draw_room,
+            self.btn_add_luminaire,
+            self.btn_array_luminaires,
+            self.btn_create_grid,
+            self.btn_view_overlay,
+            self.btn_run_calc,
+        ):
+            row.addWidget(w)
+        row.addStretch(1)
+        root.addLayout(row)
+
+    def _build_menu(self) -> None:
         menubar = self.menuBar()
         file_menu = menubar.addMenu("&File")
+        run_menu = menubar.addMenu("&Run")
+        view_menu = menubar.addMenu("&View")
 
-        self.act_new = QtGui.QAction("&New Project…", self)
-        self.act_open = QtGui.QAction("&Open Project…", self)
-        self.act_save = QtGui.QAction("&Save", self)
-        self.act_save_as = QtGui.QAction("Save &As…", self)
-        self.act_quit = QtGui.QAction("&Quit", self)
+        self.act_new = QtGui.QAction("New Project...", self)
+        self.act_open = QtGui.QAction("Open Project...", self)
+        self.act_save = QtGui.QAction("Save", self)
+        self.act_save_as = QtGui.QAction("Save As...", self)
+        self.act_quit = QtGui.QAction("Quit", self)
+        self.act_clear_recent = QtGui.QAction("Clear Recent", self)
 
         file_menu.addAction(self.act_new)
         file_menu.addAction(self.act_open)
+        self.recent_menu = file_menu.addMenu("Open Recent")
+        file_menu.addAction(self.act_clear_recent)
         file_menu.addAction(self.act_save)
         file_menu.addAction(self.act_save_as)
         file_menu.addSeparator()
         file_menu.addAction(self.act_quit)
 
-        add_menu = menubar.addMenu("&Add")
-        self.act_add_photometry = QtGui.QAction("Photometry Asset…", self)
-        self.act_add_room = QtGui.QAction("Room…", self)
-        self.act_add_luminaire = QtGui.QAction("Luminaire…", self)
-        self.act_add_grid = QtGui.QAction("Grid…", self)
-        self.act_add_job = QtGui.QAction("Job…", self)
-        add_menu.addAction(self.act_add_photometry)
-        add_menu.addAction(self.act_add_room)
-        add_menu.addAction(self.act_add_luminaire)
-        add_menu.addAction(self.act_add_grid)
-        add_menu.addAction(self.act_add_job)
+        self.act_run_selected = QtGui.QAction("Run Selected Job", self)
+        self.act_cancel_run = QtGui.QAction("Cancel Running Job", self)
+        self.act_toggle_assistant = QtGui.QAction("Toggle Assistant", self)
+        self.act_toggle_assistant.setCheckable(True)
+        self.act_toggle_assistant.setChecked(True)
 
-        run_menu = menubar.addMenu("&Run")
-        self.act_run_job = QtGui.QAction("Run Selected Job", self)
-        self.act_compare_last_two = QtGui.QAction("Compare Last Two Results", self)
-        run_menu.addAction(self.act_run_job)
-        run_menu.addAction(self.act_compare_last_two)
+        run_menu.addAction(self.act_run_selected)
+        run_menu.addAction(self.act_cancel_run)
+        run_menu.addSeparator()
+        run_menu.addAction(self.act_toggle_assistant)
 
-        agent_menu = menubar.addMenu("&Agent")
-        self.act_command_palette = QtGui.QAction("Command Palette…", self)
-        self.act_command_palette.setShortcut(QtGui.QKeySequence("Ctrl+K"))
-        agent_menu.addAction(self.act_command_palette)
-
-        report_menu = menubar.addMenu("&Report")
-        self.act_report_en12464 = QtGui.QAction("Export EN 12464 PDF…", self)
-        self.act_report_en13032 = QtGui.QAction("Export EN 13032 PDF…", self)
-        report_menu.addAction(self.act_report_en12464)
-        report_menu.addAction(self.act_report_en13032)
-
-        # Central layout
-        central = QtWidgets.QWidget()
-        self.setCentralWidget(central)
-        root = QtWidgets.QHBoxLayout(central)
-        root.setContentsMargins(10, 10, 10, 10)
-
-        self.tree = QtWidgets.QTreeWidget()
-        self.tree.setHeaderLabels(["Project Items"])
-        self.tree.setMinimumWidth(280)
-
-        self.details = QtWidgets.QTableWidget(0, 2)
-        self.details.setHorizontalHeaderLabels(["Field", "Value"])
-        self.details.horizontalHeader().setStretchLastSection(True)
-        self.details.verticalHeader().setVisible(False)
-        self.details.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-
-        splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
-        splitter.addWidget(self.tree)
-        splitter.addWidget(self.details)
-        splitter.setStretchFactor(1, 1)
-
-        root.addWidget(splitter)
-
-        self.status = self.statusBar()
-        self.status.showMessage("Ready")
-
-        # Copilot dock
-        self.copilot = QtWidgets.QDockWidget("Copilot", self)
-        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, self.copilot)
-        cwrap = QtWidgets.QWidget()
-        cv = QtWidgets.QVBoxLayout(cwrap)
-        self.copilot_input = QtWidgets.QLineEdit()
-        self.copilot_input.setPlaceholderText("Ask Luxera Copilot: /place panels target 500 lux")
-        self.copilot_run = QtWidgets.QPushButton("Plan / Preview")
-        self.copilot_apply_only = QtWidgets.QPushButton("Apply Diff (Approve)")
-        self.copilot_run_only = QtWidgets.QPushButton("Run Job (Approve)")
-        self.copilot_apply_run = QtWidgets.QPushButton("Apply + Run (Approve)")
-        self.copilot_plan_view = QtWidgets.QPlainTextEdit()
-        self.copilot_plan_view.setReadOnly(True)
-        self.copilot_plan_view.setPlaceholderText("Plan will appear here.")
-        self.copilot_diff = QtWidgets.QListWidget()
-        self.copilot_diff.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
-        self.copilot_diff_details = QtWidgets.QPlainTextEdit()
-        self.copilot_diff_details.setReadOnly(True)
-        self.copilot_diff_details.setPlaceholderText("Selected diff operation details.")
-        self.copilot_select_all = QtWidgets.QPushButton("Select All")
-        self.copilot_select_none = QtWidgets.QPushButton("Select None")
-        self.copilot_output = QtWidgets.QPlainTextEdit()
-        self.copilot_output.setReadOnly(True)
-        self.copilot_audit = QtWidgets.QPlainTextEdit()
-        self.copilot_audit.setReadOnly(True)
-        self.copilot_audit.setPlaceholderText("Latest audit events will appear here.")
-        cv.addWidget(self.copilot_input)
-        cv.addWidget(self.copilot_run)
-        cv.addWidget(self.copilot_apply_only)
-        cv.addWidget(self.copilot_run_only)
-        cv.addWidget(self.copilot_apply_run)
-        cv.addWidget(QtWidgets.QLabel("Plan"))
-        cv.addWidget(self.copilot_plan_view)
-        cv.addWidget(QtWidgets.QLabel("Diff Preview (check approved changes)"))
-        cv.addWidget(self.copilot_diff)
-        cv.addWidget(self.copilot_diff_details)
-        row = QtWidgets.QHBoxLayout()
-        row.addWidget(self.copilot_select_all)
-        row.addWidget(self.copilot_select_none)
-        cv.addLayout(row)
-        cv.addWidget(QtWidgets.QLabel("Run / Artifact Output"))
-        cv.addWidget(self.copilot_output)
-        cv.addWidget(QtWidgets.QLabel("Audit Log"))
-        cv.addWidget(self.copilot_audit)
-        self.copilot.setWidget(cwrap)
+        self.act_theme_dark = QtGui.QAction("Dark Theme", self)
+        self.act_theme_dark.setCheckable(True)
+        view_menu.addAction(self.act_theme_dark)
 
     def _wire_actions(self) -> None:
         self.act_new.triggered.connect(self.new_project)
         self.act_open.triggered.connect(self.open_project)
+        self.act_clear_recent.triggered.connect(self.clear_recent_projects)
         self.act_save.triggered.connect(self.save_project)
         self.act_save_as.triggered.connect(self.save_project_as)
         self.act_quit.triggered.connect(self.close)
 
-        self.act_add_photometry.triggered.connect(self.add_photometry)
-        self.act_add_room.triggered.connect(self.add_room)
-        self.act_add_luminaire.triggered.connect(self.add_luminaire)
-        self.act_add_grid.triggered.connect(self.add_grid)
-        self.act_add_job.triggered.connect(self.add_job)
+        self.act_run_selected.triggered.connect(self.run_selected_job)
+        self.act_cancel_run.triggered.connect(self.cancel_running_job)
+        self.act_toggle_assistant.toggled.connect(self.assistant_dock.setVisible)
+        self.assistant_dock.visibilityChanged.connect(self.act_toggle_assistant.setChecked)
+        self.act_theme_dark.toggled.connect(self._on_toggle_dark_theme)
 
-        self.act_run_job.triggered.connect(self.run_selected_job)
-        self.act_compare_last_two.triggered.connect(self.compare_last_two_results)
-        self.act_report_en12464.triggered.connect(self.export_en12464)
-        self.act_report_en13032.triggered.connect(self.export_en13032)
-        self.act_command_palette.triggered.connect(self.command_palette)
+        self.project_tree.selection_changed.connect(self.on_tree_selection_changed)
+        self.project_tree.action_requested.connect(self.on_tree_action_requested)
+        self.viewport.object_selected.connect(self.on_viewport_selected)
+        self.viewer3d.object_selected.connect(self.on_viewport_selected)
+        self.viewport.luminaire_moved.connect(self.on_luminaire_dragged)
+        self.viewport.layer_visibility_changed.connect(self.on_layer_visibility_changed)
+        self.inspector.apply_requested.connect(self.on_inspector_apply)
 
-        self.tree.itemSelectionChanged.connect(self.on_selection_changed)
+        self.job_manager.run_requested.connect(self.run_job_by_id)
+        self.job_manager.cancel_requested.connect(lambda _job_id: self.cancel_running_job())
+        self.job_manager.view_requested.connect(self.results_view.select_job)
+        self.job_manager.export_requested.connect(self.export_report_for_job)
+
+        self.results_view.open_report_requested.connect(self.open_report_for_job)
+        self.results_view.open_bundle_requested.connect(self.open_bundle_for_job)
+        self.variants_panel.compare_requested.connect(self.compare_variants)
+
         self.copilot_run.clicked.connect(self.copilot_plan_preview)
         self.copilot_apply_only.clicked.connect(self.copilot_apply_only_action)
         self.copilot_run_only.clicked.connect(self.copilot_run_only_action)
         self.copilot_apply_run.clicked.connect(self.copilot_apply_run_action)
+        self.copilot_undo_assistant.clicked.connect(self.copilot_undo_assistant_action)
+        self.copilot_redo_assistant.clicked.connect(self.copilot_redo_assistant_action)
         self.copilot_select_all.clicked.connect(lambda: self._set_all_diff_checks(True))
         self.copilot_select_none.clicked.connect(lambda: self._set_all_diff_checks(False))
         self.copilot_diff.currentItemChanged.connect(self._on_diff_item_changed)
+        self.assistant_panel.export_report.clicked.connect(self.copilot_export_report_action)
+        self.assistant_panel.export_audit_bundle.clicked.connect(self.copilot_export_audit_bundle_action)
+        self.copilot_design_iterate.clicked.connect(self.copilot_design_iterate_action)
+        self.mode_2d_btn.clicked.connect(lambda: self.center_stack.setCurrentIndex(0))
+        self.mode_3d_btn.clicked.connect(lambda: self.center_stack.setCurrentIndex(1))
+        self.btn_draw_room.clicked.connect(self.draw_room_polygon)
+        self.btn_add_luminaire.clicked.connect(self.add_luminaire)
+        self.btn_array_luminaires.clicked.connect(self.array_luminaires)
+        self.btn_create_grid.clicked.connect(self.create_workplane_grid)
+        self.btn_run_calc.clicked.connect(self.run_primary_job)
+        self.btn_view_overlay.clicked.connect(self.view_latest_overlay)
 
-    # ----- Project IO -----
     def new_project(self) -> None:
         path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "New Project", "", "Luxera Project (*.json)")
         if not path:
@@ -197,21 +274,20 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
         self.project = Project(name=Path(path).stem, root_dir=str(Path(path).parent))
         self.project_path = Path(path)
         save_project_schema(self.project, self.project_path)
-        self.refresh_tree()
+        self._remember_recent_project(self.project_path)
+        self.refresh_workspace()
 
     def open_project(self) -> None:
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open Project", "", "Luxera Project (*.json)")
         if not path:
             return
-        self.project_path = Path(path)
-        self.project = load_project_schema(self.project_path)
-        self.refresh_tree()
+        self._open_project_path(Path(path))
 
     def save_project(self) -> None:
         if not self.project or not self.project_path:
             return
         save_project_schema(self.project, self.project_path)
-        self.status.showMessage("Project saved", 3000)
+        self.status.showMessage("Project saved", 2000)
 
     def save_project_as(self) -> None:
         if not self.project:
@@ -222,338 +298,301 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
         self.project_path = Path(path)
         self.project.root_dir = str(self.project_path.parent)
         save_project_schema(self.project, self.project_path)
-        self.refresh_tree()
+        self._remember_recent_project(self.project_path)
+        self.refresh_workspace()
 
-    # ----- Add items -----
-    def add_photometry(self) -> None:
+    def _open_project_path(self, path: Path) -> None:
+        if not path.exists():
+            QtWidgets.QMessageBox.warning(self, "Open Project", f"Project file not found:\n{path}")
+            self._drop_recent_project(path)
+            return
+        try:
+            self.project_path = path
+            self.project = load_project_schema(self.project_path)
+            self._remember_recent_project(self.project_path)
+            self.refresh_workspace()
+        except Exception as exc:
+            QtWidgets.QMessageBox.warning(self, "Open Project", str(exc))
+
+    def _load_recent_projects(self) -> None:
+        settings = QtCore.QSettings(self._SETTINGS_ORG, self._SETTINGS_APP)
+        raw = settings.value(self._SETTINGS_RECENT_KEY, [])
+        self.recent_project_paths = coerce_recent_paths(raw)[: self._MAX_RECENT_FILES]
+
+    def _save_recent_projects(self) -> None:
+        settings = QtCore.QSettings(self._SETTINGS_ORG, self._SETTINGS_APP)
+        settings.setValue(self._SETTINGS_RECENT_KEY, list(self.recent_project_paths))
+
+    def _remember_recent_project(self, path: Path) -> None:
+        self.recent_project_paths = add_recent_path(
+            self.recent_project_paths,
+            str(path),
+            max_items=self._MAX_RECENT_FILES,
+        )
+        self._save_recent_projects()
+        self._refresh_recent_projects_menu()
+
+    def _drop_recent_project(self, path: Path) -> None:
+        resolved = str(path.expanduser().resolve())
+        self.recent_project_paths = [p for p in self.recent_project_paths if p != resolved]
+        self._save_recent_projects()
+        self._refresh_recent_projects_menu()
+
+    def clear_recent_projects(self) -> None:
+        self.recent_project_paths = []
+        self._save_recent_projects()
+        self._refresh_recent_projects_menu()
+
+    def _refresh_recent_projects_menu(self) -> None:
+        self.recent_menu.clear()
+        self._recent_actions = []
+        existing: list[str] = []
+        for p in self.recent_project_paths:
+            if Path(p).exists():
+                existing.append(p)
+        if existing != self.recent_project_paths:
+            self.recent_project_paths = existing[: self._MAX_RECENT_FILES]
+            self._save_recent_projects()
+        if not self.recent_project_paths:
+            action = QtGui.QAction("(No recent projects)", self)
+            action.setEnabled(False)
+            self.recent_menu.addAction(action)
+            self._recent_actions.append(action)
+            return
+        for p in self.recent_project_paths:
+            path = Path(p)
+            action = QtGui.QAction(path.name, self)
+            action.setToolTip(p)
+            action.triggered.connect(lambda _checked=False, pp=path: self._open_project_path(pp))
+            self.recent_menu.addAction(action)
+            self._recent_actions.append(action)
+
+    def refresh_workspace(self) -> None:
+        if self.project_path and self.project is None:
+            self.project = load_project_schema(self.project_path)
+        self.project_tree.set_project(self.project)
+        self.viewport.set_project(self.project)
+        self.viewer3d.set_project(self.project)
+        self.job_manager.set_project(self.project)
+        self.results_view.set_project(self.project)
+        self.variants_panel.set_project(self.project)
+        self.inspector.clear()
+        name = self.project.name if self.project else "No project open"
+        self.status.showMessage(name)
+        self._refresh_audit_view()
+
+    def _reload_project(self) -> None:
+        if self.project_path:
+            self.project = load_project_schema(self.project_path)
+            self.refresh_workspace()
+
+    def on_tree_selection_changed(self, node_type: str, object_id: str) -> None:
         if not self.project:
             return
-        file_path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Add Photometry", "", "Photometry (*.ies *.ldt)")
-        if not file_path:
-            return
-        p = Path(file_path)
-        fmt = p.suffix.replace(".", "").upper()
-        asset = PhotometryAsset(
-            id=str(uuid.uuid4()),
-            format=fmt,
-            path=str(p),
-            content_hash=sha256_file(str(p)),
-            metadata={"filename": p.name},
-        )
-        self.project.photometry_assets.append(asset)
-        self.save_project()
-        self.refresh_tree()
+        self.inspector.set_context(self.project, node_type, object_id)
+        if node_type == "result":
+            self.results_view.select_job(object_id)
 
-    def add_room(self) -> None:
-        if not self.project:
-            return
-        name, ok = QtWidgets.QInputDialog.getText(self, "Room Name", "Room name:")
-        if not ok or not name:
-            return
-        width, ok = QtWidgets.QInputDialog.getDouble(self, "Room Width", "Width (m):", 6.0, 0.1, 200.0, 2)
-        if not ok:
-            return
-        length, ok = QtWidgets.QInputDialog.getDouble(self, "Room Length", "Length (m):", 8.0, 0.1, 200.0, 2)
-        if not ok:
-            return
-        height, ok = QtWidgets.QInputDialog.getDouble(self, "Room Height", "Height (m):", 3.0, 0.1, 50.0, 2)
-        if not ok:
-            return
-        activity, ok = QtWidgets.QInputDialog.getText(self, "Activity Type", "EN 12464 ActivityType (optional):")
-        if not ok:
-            activity = None
-        room = RoomSpec(
-            id=str(uuid.uuid4()),
-            name=name,
-            width=width,
-            length=length,
-            height=height,
-            activity_type=activity or None,
-        )
-        self.project.geometry.rooms.append(room)
-        self.save_project()
-        self.refresh_tree()
+    def on_viewport_selected(self, node_type: str, object_id: str) -> None:
+        if self.project:
+            self.inspector.set_context(self.project, node_type, object_id)
 
-    def add_luminaire(self) -> None:
-        if not self.project or not self.project.photometry_assets:
-            return
-        items = [a.id for a in self.project.photometry_assets]
-        asset_id, ok = QtWidgets.QInputDialog.getItem(self, "Photometry Asset", "Select asset:", items, 0, False)
-        if not ok:
-            return
-        x, ok = QtWidgets.QInputDialog.getDouble(self, "Luminaire X", "X (m):", 2.0, -1000, 1000, 2)
-        if not ok:
-            return
-        y, ok = QtWidgets.QInputDialog.getDouble(self, "Luminaire Y", "Y (m):", 2.0, -1000, 1000, 2)
-        if not ok:
-            return
-        z, ok = QtWidgets.QInputDialog.getDouble(self, "Luminaire Z", "Z (m):", 2.8, -1000, 1000, 2)
-        if not ok:
-            return
-        rot = RotationSpec(type="euler_zyx", euler_deg=(0.0, 0.0, 0.0))
-        lum = LuminaireInstance(
-            id=str(uuid.uuid4()),
-            name="Luminaire",
-            photometry_asset_id=asset_id,
-            transform=TransformSpec(position=(x, y, z), rotation=rot),
-        )
-        self.project.luminaires.append(lum)
-        self.save_project()
-        self.refresh_tree()
-
-    def add_grid(self) -> None:
-        if not self.project:
-            return
-        width, ok = QtWidgets.QInputDialog.getDouble(self, "Grid Width", "Width (m):", 6.0, 0.1, 200.0, 2)
-        if not ok:
-            return
-        height, ok = QtWidgets.QInputDialog.getDouble(self, "Grid Height", "Height (m):", 8.0, 0.1, 200.0, 2)
-        if not ok:
-            return
-        elevation, ok = QtWidgets.QInputDialog.getDouble(self, "Grid Elevation", "Elevation (m):", 0.8, -10, 10, 2)
-        if not ok:
-            return
-        nx, ok = QtWidgets.QInputDialog.getInt(self, "Grid NX", "NX:", 10, 2, 200)
-        if not ok:
-            return
-        ny, ok = QtWidgets.QInputDialog.getInt(self, "Grid NY", "NY:", 10, 2, 200)
-        if not ok:
-            return
-        grid = CalcGrid(
-            id=str(uuid.uuid4()),
-            name="Grid",
-            origin=(0.0, 0.0, 0.0),
-            width=width,
-            height=height,
-            elevation=elevation,
-            nx=nx,
-            ny=ny,
-        )
-        self.project.grids.append(grid)
-        self.save_project()
-        self.refresh_tree()
-
-    def add_job(self) -> None:
-        if not self.project:
-            return
-        choices = ["en12464_direct", "en13032_radiosity", "direct", "radiosity"]
-        choice, ok = QtWidgets.QInputDialog.getItem(self, "Job Preset", "Select job type:", choices, 0, False)
-        if not ok:
-            return
-        job_id = str(uuid.uuid4())
-        if choice == "en12464_direct":
-            job = en12464_direct_job(job_id)
-        elif choice == "en13032_radiosity":
-            job = en13032_radiosity_job(job_id)
-        elif choice == "radiosity":
-            job = JobSpec(id=job_id, type="radiosity")
-        else:
-            job = JobSpec(id=job_id, type="direct")
-        self.project.jobs.append(job)
-        self.save_project()
-        self.refresh_tree()
-
-    # ----- Run / Export -----
-    def run_selected_job(self) -> None:
+    def on_layer_visibility_changed(self, layer_id: str, visible: bool) -> None:
         if not self.project or not self.project_path:
             return
-        item = self.tree.currentItem()
-        if not item or item.data(0, QtCore.Qt.UserRole) != "job":
-            self.status.showMessage("Select a job to run", 3000)
+        layer = next((l for l in self.project.layers if l.id == layer_id), None)
+        if layer is None:
             return
-        job_id = item.data(0, QtCore.Qt.UserRole + 1)
-        ref = run_job(self.project_path, job_id)
-        self.project = load_project_schema(self.project_path)
-        self.refresh_tree()
-        self.status.showMessage(f"Job completed: {ref.job_id}", 5000)
+        layer.visible = bool(visible)
+        save_project_schema(self.project, self.project_path)
 
-    def export_en12464(self) -> None:
-        if not self.project or not self.project.results:
+    def on_inspector_apply(self, node_type: str, object_id: str, payload: dict) -> None:
+        if not self.project_path:
             return
-        ref = self.project.results[-1]
-        model = build_en12464_report_model(self.project, ref)
-        out, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Export EN 12464 PDF", "", "PDF (*.pdf)")
-        if not out:
-            return
-        render_en12464_pdf(model, Path(out))
-        self.status.showMessage("EN 12464 PDF exported", 3000)
-
-    def export_en13032(self) -> None:
-        if not self.project or not self.project.results:
-            return
-        ref = self.project.results[-1]
-        model = build_en13032_report_model(self.project, ref)
-        out, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Export EN 13032 PDF", "", "PDF (*.pdf)")
-        if not out:
-            return
-        render_en13032_pdf(model, Path(out))
-        self.status.showMessage("EN 13032 PDF exported", 3000)
-
-    def compare_last_two_results(self) -> None:
-        if not self.project or len(self.project.results) < 2:
-            self.status.showMessage("Need at least two results to compare", 3000)
-            return
-        a = self.project.results[-2].job_id
-        b = self.project.results[-1].job_id
         try:
-            cmp = compare_job_results(self.project, a, b)
-        except Exception as e:
-            QtWidgets.QMessageBox.warning(self, "Compare Failed", str(e))
+            if node_type == "scene_node":
+                if not self.project:
+                    return
+                kind, oid, mapped = resolve_scene_node_update(self.project, object_id, payload)
+                cmd_update_object(str(self.project_path), kind, oid, mapped)
+                self.log_panel.append(f"Updated scene_node:{object_id} -> {kind}:{oid}")
+            else:
+                cmd_update_object(str(self.project_path), node_type, object_id, payload)
+                self.log_panel.append(f"Updated {node_type}:{object_id}")
+        except Exception as exc:
+            QtWidgets.QMessageBox.warning(self, "Update Failed", str(exc))
             return
-        txt = json.dumps(cmp, indent=2, sort_keys=True)
-        dlg = QtWidgets.QDialog(self)
-        dlg.setWindowTitle(f"Compare Results: {a} -> {b}")
-        dlg.resize(800, 500)
-        lay = QtWidgets.QVBoxLayout(dlg)
-        edit = QtWidgets.QPlainTextEdit()
-        edit.setReadOnly(True)
-        edit.setPlainText(txt)
-        lay.addWidget(edit)
-        dlg.exec()
+        self._reload_project()
 
-    # ----- UI helpers -----
-    def refresh_tree(self) -> None:
-        self.tree.clear()
+    def on_luminaire_dragged(self, luminaire_id: str, x: float, y: float) -> None:
+        if not self.project_path or not self.project:
+            return
+        lum = next((l for l in self.project.luminaires if l.id == luminaire_id), None)
+        if lum is None:
+            return
+        pos = lum.transform.position
+        transform = TransformSpec(position=(x, y, float(pos[2])), rotation=lum.transform.rotation)
+        try:
+            cmd_update_object(str(self.project_path), "luminaire", luminaire_id, {"transform": transform})
+            self.log_panel.append(f"Moved luminaire {luminaire_id} -> ({x:.3f}, {y:.3f}, {pos[2]:.3f})")
+        except Exception as exc:
+            QtWidgets.QMessageBox.warning(self, "Move Failed", str(exc))
+            return
+        self._reload_project()
+
+    def on_tree_action_requested(self, action: str, node_type: str, object_id: str) -> None:
+        if not self.project_path:
+            return
+        if action == "run_job" and node_type == "job":
+            self.run_job_by_id(object_id)
+            return
+        if action == "view_results" and node_type == "result":
+            self.results_view.select_job(object_id)
+            return
+        if action == "export_report":
+            self.export_report_for_job(object_id)
+            return
+        if action == "edit":
+            if self.project:
+                self.inspector.set_context(self.project, node_type, object_id)
+            return
+        if action == "duplicate":
+            try:
+                cmd_duplicate_object(str(self.project_path), node_type, object_id)
+            except Exception as exc:
+                QtWidgets.QMessageBox.warning(self, "Duplicate Failed", str(exc))
+                return
+            self._reload_project()
+            return
+        if action == "delete":
+            ok = QtWidgets.QMessageBox.question(
+                self,
+                "Delete Item",
+                f"Delete {node_type}:{object_id}?",
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            )
+            if ok != QtWidgets.QMessageBox.Yes:
+                return
+            try:
+                cmd_delete_object(str(self.project_path), node_type, object_id)
+            except Exception as exc:
+                QtWidgets.QMessageBox.warning(self, "Delete Failed", str(exc))
+                return
+            self._reload_project()
+
+    def run_selected_job(self) -> None:
         if not self.project:
             return
-
-        root = self.tree.invisibleRootItem()
-        def add_group(name: str, items):
-            group = QtWidgets.QTreeWidgetItem([name])
-            root.addChild(group)
-            for label, role, role_id in items:
-                item = QtWidgets.QTreeWidgetItem([label])
-                item.setData(0, QtCore.Qt.UserRole, role)
-                item.setData(0, QtCore.Qt.UserRole + 1, role_id)
-                group.addChild(item)
-
-        add_group("Photometry", [(a.metadata.get("filename", a.id), "asset", a.id) for a in self.project.photometry_assets])
-        add_group("Rooms", [(r.name, "room", r.id) for r in self.project.geometry.rooms])
-        add_group("Zones", [(z.name, "zone", z.id) for z in self.project.geometry.zones])
-        add_group("Surfaces", [(s.name, "surface", s.id) for s in self.project.geometry.surfaces])
-        add_group("Luminaires", [(l.name, "luminaire", l.id) for l in self.project.luminaires])
-        add_group("Grids", [(g.name, "grid", g.id) for g in self.project.grids])
-        add_group("Workplanes", [(w.name, "workplane", w.id) for w in self.project.workplanes])
-        add_group("Vertical Planes", [(v.name, "vplane", v.id) for v in self.project.vertical_planes])
-        add_group("Point Sets", [(ps.name, "pointset", ps.id) for ps in self.project.point_sets])
-        add_group("Glare Views", [(gv.name, "glareview", gv.id) for gv in self.project.glare_views])
-        add_group("Compliance Profiles", [(cp.name, "cprofile", cp.id) for cp in self.project.compliance_profiles])
-        add_group("Variants", [(v.name, "variant", v.id) for v in self.project.variants])
-        add_group("Jobs", [(j.id, "job", j.id) for j in self.project.jobs])
-        add_group("Results", [(r.job_id, "result", r.job_id) for r in self.project.results])
-        add_group(
-            "Agent Log",
-            [
-                (f"{e.get('action', e.get('kind', 'event'))} @ {int(e.get('created_at', 0))}", "agent_event", str(i))
-                for i, e in enumerate(self.project.agent_history)
-            ],
-        )
-
-        self.tree.expandAll()
-
-    def on_selection_changed(self) -> None:
-        item = self.tree.currentItem()
-        if not item or not self.project:
+        selected = self.project_tree.view.currentIndex()
+        if not selected.isValid() or str(selected.data(QtCore.Qt.UserRole + 1) or "") == "":
+            self.status.showMessage("Select a job in the tree", 3000)
             return
-        role = item.data(0, QtCore.Qt.UserRole)
-        role_id = item.data(0, QtCore.Qt.UserRole + 1)
-        self.details.setRowCount(0)
+        node_type = selected.data(QtCore.Qt.UserRole + 1)
+        object_id = selected.data(QtCore.Qt.UserRole + 2)
+        if str(node_type) != "job":
+            self.status.showMessage("Select a job in the tree", 3000)
+            return
+        self.run_job_by_id(str(object_id))
 
-        def add_row(k, v):
-            row = self.details.rowCount()
-            self.details.insertRow(row)
-            self.details.setItem(row, 0, QtWidgets.QTableWidgetItem(str(k)))
-            self.details.setItem(row, 1, QtWidgets.QTableWidgetItem(str(v)))
+    def run_job_by_id(self, job_id: str) -> None:
+        if not self.project_path:
+            return
+        if self._run_thread is not None and self._run_thread.is_alive():
+            self.status.showMessage("A job is already running", 3000)
+            return
+        self._run_cancel_requested = False
+        self.status.showMessage(f"Running job: {job_id}")
+        self.log_panel.append(f"Run requested: {job_id}")
 
-        if role == "asset":
-            asset = next(a for a in self.project.photometry_assets if a.id == role_id)
-            add_row("ID", asset.id)
-            add_row("Format", asset.format)
-            add_row("Path", asset.path)
-            add_row("Hash", asset.content_hash)
-        elif role == "room":
-            room = next(r for r in self.project.geometry.rooms if r.id == role_id)
-            add_row("Name", room.name)
-            add_row("Size", f"{room.width} x {room.length} x {room.height} m")
-            add_row("Reflectance", f"{room.floor_reflectance}/{room.wall_reflectance}/{room.ceiling_reflectance}")
-            add_row("Activity", room.activity_type)
-        elif role == "luminaire":
-            lum = next(l for l in self.project.luminaires if l.id == role_id)
-            add_row("Name", lum.name)
-            add_row("Asset", lum.photometry_asset_id)
-            add_row("Position", lum.transform.position)
-        elif role == "zone":
-            zone = next(z for z in self.project.geometry.zones if z.id == role_id)
-            add_row("Name", zone.name)
-            add_row("Rooms", zone.room_ids)
-            add_row("Tags", zone.tags)
-        elif role == "surface":
-            surf = next(s for s in self.project.geometry.surfaces if s.id == role_id)
-            add_row("Name", surf.name)
-            add_row("Kind", surf.kind)
-            add_row("Vertices", len(surf.vertices))
-            add_row("Room", surf.room_id)
-        elif role == "grid":
-            grid = next(g for g in self.project.grids if g.id == role_id)
-            add_row("Name", grid.name)
-            add_row("Size", f"{grid.width} x {grid.height} m")
-            add_row("Elevation", grid.elevation)
-            add_row("Resolution", f"{grid.nx} x {grid.ny}")
-        elif role == "workplane":
-            wp = next(w for w in self.project.workplanes if w.id == role_id)
-            add_row("Name", wp.name)
-            add_row("Elevation", wp.elevation)
-            add_row("Spacing", wp.spacing)
-            add_row("Margin", wp.margin)
-            add_row("Room/Zone", wp.room_id or wp.zone_id)
-        elif role == "vplane":
-            vp = next(v for v in self.project.vertical_planes if v.id == role_id)
-            add_row("Name", vp.name)
-            add_row("Size", f"{vp.width} x {vp.height} m")
-            add_row("Resolution", f"{vp.nx} x {vp.ny}")
-            add_row("Azimuth", vp.azimuth_deg)
-        elif role == "pointset":
-            ps = next(p for p in self.project.point_sets if p.id == role_id)
-            add_row("Name", ps.name)
-            add_row("Points", len(ps.points))
-            add_row("Room/Zone", ps.room_id or ps.zone_id)
-        elif role == "glareview":
-            gv = next(g for g in self.project.glare_views if g.id == role_id)
-            add_row("Name", gv.name)
-            add_row("Observer", gv.observer)
-            add_row("View Dir", gv.view_dir)
-        elif role == "cprofile":
-            cp = next(c for c in self.project.compliance_profiles if c.id == role_id)
-            add_row("Name", cp.name)
-            add_row("Domain", cp.domain)
-            add_row("Standard", cp.standard_ref)
-            add_row("Thresholds", cp.thresholds)
-        elif role == "variant":
-            var = next(v for v in self.project.variants if v.id == role_id)
-            add_row("Name", var.name)
-            add_row("Description", var.description)
-            add_row("Dimming schemes", var.dimming_schemes)
-        elif role == "job":
-            job = next(j for j in self.project.jobs if j.id == role_id)
-            add_row("ID", job.id)
-            add_row("Type", job.type)
-            add_row("Seed", job.seed)
-            add_row("Settings", job.settings)
-        elif role == "result":
-            res = next(r for r in self.project.results if r.job_id == role_id)
-            add_row("Job ID", res.job_id)
-            add_row("Hash", res.job_hash)
-            add_row("Dir", res.result_dir)
-            for k, v in (res.summary or {}).items():
-                add_row(f"summary.{k}", v)
-        elif role == "agent_event":
-            idx = int(role_id)
-            if 0 <= idx < len(self.project.agent_history):
-                event = self.project.agent_history[idx]
-                for k, v in event.items():
-                    add_row(k, v)
+        def _worker() -> None:
+            try:
+                ref = cmd_run_job(str(self.project_path), job_id)
+                QtCore.QMetaObject.invokeMethod(
+                    self,
+                    "_on_job_finished",
+                    QtCore.Qt.QueuedConnection,
+                    QtCore.Q_ARG(str, ref.job_id),
+                )
+            except Exception as exc:
+                QtCore.QMetaObject.invokeMethod(
+                    self,
+                    "_on_job_failed",
+                    QtCore.Qt.QueuedConnection,
+                    QtCore.Q_ARG(str, str(exc)),
+                )
 
-    # ----- Copilot -----
+        self._run_thread = threading.Thread(target=_worker, daemon=True)
+        self._run_thread.start()
+
+    @QtCore.Slot(str)
+    def _on_job_finished(self, job_id: str) -> None:
+        self._run_thread = None
+        self._reload_project()
+        self.results_view.select_job(job_id)
+        self.status.showMessage(f"Job completed: {job_id}", 5000)
+        self.log_panel.append(f"Job completed: {job_id}")
+
+    @QtCore.Slot(str)
+    def _on_job_failed(self, err: str) -> None:
+        self._run_thread = None
+        self.status.showMessage(f"Job failed: {err}", 5000)
+        self.log_panel.append(f"Job failed: {err}")
+
+    def cancel_running_job(self) -> None:
+        if self._run_thread is None or not self._run_thread.is_alive():
+            self.status.showMessage("No running job", 3000)
+            return
+        self._run_cancel_requested = True
+        self.status.showMessage("Cancel requested (best effort)", 3000)
+        self.log_panel.append("Cancel requested")
+
+    def export_report_for_job(self, job_id: str) -> None:
+        if not self.project_path:
+            return
+        out, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Export Report", f"{job_id}_report.pdf", "PDF (*.pdf)")
+        if not out:
+            return
+        template = "en12464"
+        if self.project is not None:
+            job = next((j for j in self.project.jobs if j.id == job_id), None)
+            if job is not None and job.type in {"roadway", "daylight", "emergency"}:
+                template = "auto"
+        try:
+            cmd_export_report(str(self.project_path), job_id, template, out_path=out)
+        except Exception as exc:
+            QtWidgets.QMessageBox.warning(self, "Export Failed", str(exc))
+            return
+        self.status.showMessage("Report exported", 3000)
+
+    def open_report_for_job(self, job_id: str) -> None:
+        if not self.project:
+            return
+        ref = next((r for r in self.project.results if r.job_id == job_id), None)
+        if ref is None:
+            return
+        path = Path(ref.result_dir) / "report.pdf"
+        if path.exists():
+            QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(path)))
+
+    def open_bundle_for_job(self, job_id: str) -> None:
+        if not self.project:
+            return
+        ref = next((r for r in self.project.results if r.job_id == job_id), None)
+        if ref is None:
+            return
+        path = Path(ref.result_dir) / "audit_bundle.zip"
+        if path.exists():
+            QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(path)))
+            return
+        if not self.project_path:
+            return
+        try:
+            bundle = cmd_export_audit_bundle(str(self.project_path), job_id)
+            QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(bundle)))
+        except Exception as exc:
+            QtWidgets.QMessageBox.warning(self, "Audit Bundle", str(exc))
+
+    # ----- Assistant integration -----
     def _copilot_execute(self, approve_apply: bool, approve_run: bool) -> None:
         if not self.project_path:
             self.status.showMessage("Open a project first", 3000)
@@ -563,112 +602,92 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
             return
         if approve_run and "run" not in intent.lower():
             intent = f"{intent} run"
-        approvals: Dict[str, Any] = {"apply_diff": approve_apply, "run_job": approve_run}
+        approvals: dict[str, Any] = {"apply_diff": approve_apply, "run_job": approve_run}
+        selected_option_index = self.copilot_design_options.currentData()
+        if isinstance(selected_option_index, int):
+            approvals["selected_option_index"] = selected_option_index
         if approve_apply:
             approvals["selected_diff_ops"] = self._selected_diff_keys()
+
         res = self.agent_runtime.execute(str(self.project_path), intent, approvals=approvals)
         self.copilot_plan_view.setPlainText(res.plan)
         self._populate_diff_preview(res.diff_preview.get("ops", []))
+
         lines = [
             f"Diff ops: {res.diff_preview.get('count', 0)}",
             f"Selected diff ops: {len(self._selected_diff_keys())}",
             f"Actions: {[a.kind + ('*' if a.requires_approval else '') for a in res.actions]}",
-            f"Run manifest: {res.run_manifest}",
             f"Artifacts: {res.produced_artifacts}",
             f"Warnings: {res.warnings}",
         ]
-        suggestions = self._inline_suggestions()
-        if suggestions:
-            lines.append("Suggestions:")
-            lines.extend([f"- {s}" for s in suggestions])
+        self._populate_design_options(res.run_manifest)
         self.copilot_output.setPlainText("\n".join(lines))
-        # Reload project after runtime mutations.
-        self.project = load_project_schema(self.project_path)
-        self.refresh_tree()
-        self._refresh_audit_view()
+
+        self._reload_project()
 
     def copilot_plan_preview(self) -> None:
         self._copilot_execute(approve_apply=False, approve_run=False)
 
     def copilot_apply_only_action(self) -> None:
-        msg = QtWidgets.QMessageBox.question(
-            self,
-            "Approve Diff Apply",
-            "Approve applying selected diff ops?",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-            QtWidgets.QMessageBox.No,
-        )
-        if msg != QtWidgets.QMessageBox.Yes:
-            return
         self._copilot_execute(approve_apply=True, approve_run=False)
 
-    def copilot_apply_run_action(self) -> None:
-        msg = QtWidgets.QMessageBox.question(
-            self,
-            "Approve Actions",
-            "Approve applying diff and running job?",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-            QtWidgets.QMessageBox.No,
-        )
-        if msg != QtWidgets.QMessageBox.Yes:
-            return
-        self._copilot_execute(approve_apply=True, approve_run=True)
-
     def copilot_run_only_action(self) -> None:
-        msg = QtWidgets.QMessageBox.question(
-            self,
-            "Approve Job Run",
-            "Approve running job?",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-            QtWidgets.QMessageBox.No,
-        )
-        if msg != QtWidgets.QMessageBox.Yes:
-            return
         self._copilot_execute(approve_apply=False, approve_run=True)
 
-    def command_palette(self) -> None:
-        commands = [
-            "/place panels target 500 lux",
-            "/grid 0.8 0.25",
-            "/run illuminance",
-            "/report client",
-            "import ./model.ifc detect rooms create grid",
-            "hit 500 lux uniformity",
-            "generate client report and audit bundle",
-            "check compliance",
-            "render heatmap",
-        ]
-        cmd, ok = QtWidgets.QInputDialog.getItem(self, "Command Palette", "Command:", commands, 0, False)
-        if not ok or not cmd:
+    def copilot_apply_run_action(self) -> None:
+        self._copilot_execute(approve_apply=True, approve_run=True)
+
+    def copilot_design_iterate_action(self) -> None:
+        if not self.project_path:
             return
-        self.copilot_input.setText(cmd)
-        self.copilot_input.setFocus()
+        intent = self.copilot_input.text().strip()
+        if "design solve" not in intent.lower():
+            intent = f"design solve {intent}".strip()
+            self.copilot_input.setText(intent)
+        max_iters = int(self.copilot_design_max_iters.value())
+        for _ in range(max_iters):
+            approvals: dict[str, Any] = {"apply_diff": True, "run_job": True}
+            selected_option_index = self.copilot_design_options.currentData()
+            if isinstance(selected_option_index, int):
+                approvals["selected_option_index"] = selected_option_index
+            res = self.agent_runtime.execute(str(self.project_path), intent, approvals=approvals)
+            self._populate_design_options(res.run_manifest)
+            self._reload_project()
+            if self._latest_result_is_pass():
+                break
+        self.status.showMessage("Design iteration complete", 3000)
 
-    def _inline_suggestions(self) -> list[str]:
-        if not self.project:
-            return []
-        out: list[str] = []
-        if not self.project.photometry_assets:
-            out.append("No photometry assets: import IES/LDT before running jobs.")
-        if not self.project.luminaires:
-            out.append("No luminaires placed: use /place panels target 500 lux.")
-        if not self.project.jobs:
-            out.append("No jobs configured: add a direct job to compute illuminance.")
-        if not self.project.grids:
-            out.append("No grids found: use /grid 0.8 0.25 to create a workplane grid.")
-        else:
-            g = self.project.grids[0]
-            sx = g.width / max(g.nx - 1, 1)
-            sy = g.height / max(g.ny - 1, 1)
-            spacing = max(sx, sy)
-            if spacing > 0.5:
-                out.append(f"Grid spacing is coarse (~{spacing:.2f} m): consider 0.25 m for office compliance studies.")
-        has_radiosity = any(j.type == "radiosity" for j in self.project.jobs)
-        if has_radiosity and not self.project.glare_views:
-            out.append("UGR risk: define glare views for observer-specific glare tables.")
-        return out[:5]
+    def copilot_undo_assistant_action(self) -> None:
+        if not self.project_path:
+            return
+        project = load_project_schema(self.project_path)
+        if not project.assistant_undo_stack:
+            self.status.showMessage("No assistant change to undo", 3000)
+            return
+        from luxera.project.history import undo as undo_project_history
 
-    def _populate_diff_preview(self, ops: List[Dict[str, Any]]) -> None:
+        if not undo_project_history(project):
+            self.status.showMessage("Undo failed", 3000)
+            return
+        save_project_schema(project, self.project_path)
+        self._reload_project()
+
+    def copilot_redo_assistant_action(self) -> None:
+        if not self.project_path:
+            return
+        project = load_project_schema(self.project_path)
+        if not project.assistant_redo_stack:
+            self.status.showMessage("No assistant change to redo", 3000)
+            return
+        from luxera.project.history import redo as redo_project_history
+
+        if not redo_project_history(project):
+            self.status.showMessage("Redo failed", 3000)
+            return
+        save_project_schema(project, self.project_path)
+        self._reload_project()
+
+    def _populate_diff_preview(self, ops: list[dict[str, Any]]) -> None:
         previous = set(self._selected_diff_keys())
         self.copilot_diff.clear()
         self._copilot_preview_ops = {}
@@ -685,13 +704,9 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
             item.setFlags(item.flags() | QtCore.Qt.ItemIsUserCheckable)
             item.setCheckState(QtCore.Qt.Checked if (not previous or key in previous) else QtCore.Qt.Unchecked)
             self.copilot_diff.addItem(item)
-        if self.copilot_diff.count() > 0:
-            self.copilot_diff.setCurrentRow(0)
-        else:
-            self.copilot_diff_details.setPlainText("")
 
-    def _selected_diff_keys(self) -> List[str]:
-        out: List[str] = []
+    def _selected_diff_keys(self) -> list[str]:
+        out: list[str] = []
         for i in range(self.copilot_diff.count()):
             item = self.copilot_diff.item(i)
             if item.checkState() == QtCore.Qt.Checked:
@@ -705,7 +720,7 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
         for i in range(self.copilot_diff.count()):
             self.copilot_diff.item(i).setCheckState(state)
 
-    def _on_diff_item_changed(self, current: Optional[QtWidgets.QListWidgetItem], previous: Optional[QtWidgets.QListWidgetItem]) -> None:  # noqa: ARG002
+    def _on_diff_item_changed(self, current: QtWidgets.QListWidgetItem | None, previous: QtWidgets.QListWidgetItem | None) -> None:  # noqa: ARG002
         if current is None:
             self.copilot_diff_details.setPlainText("")
             return
@@ -713,20 +728,206 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
         op = self._copilot_preview_ops.get(str(key), {})
         self.copilot_diff_details.setPlainText(json.dumps(op, indent=2, sort_keys=True))
 
+    def _populate_design_options(self, run_manifest: dict[str, Any]) -> None:
+        info = run_manifest.get("design_solve")
+        if not isinstance(info, dict):
+            return
+        options = info.get("options") or []
+        self.copilot_design_options.blockSignals(True)
+        self.copilot_design_options.clear()
+        for i, option in enumerate(options):
+            if not isinstance(option, dict):
+                continue
+            label = (
+                f"#{i+1} {int(option.get('rows', 0))}x{int(option.get('cols', 0))}, "
+                f"dim {float(option.get('dimming', 1.0)):.2f}, "
+                f"Eavg {float(option.get('mean_lux', 0.0)):.1f}"
+            )
+            self.copilot_design_options.addItem(label, i)
+        selected = int(info.get("selected_option_index", 0) or 0)
+        if self.copilot_design_options.count() > 0:
+            self.copilot_design_options.setCurrentIndex(max(0, min(selected, self.copilot_design_options.count() - 1)))
+        self.copilot_design_options.blockSignals(False)
+
+    def _latest_result_is_pass(self) -> bool:
+        if not self.project or not self.project.results:
+            return False
+        summary = self.project.results[-1].summary or {}
+        comp = summary.get("compliance")
+        if isinstance(comp, str):
+            txt = comp.lower()
+            return ("pass" in txt) and ("non-compliant" not in txt)
+        if isinstance(comp, dict):
+            return all(bool(v) for v in comp.values() if isinstance(v, bool)) if comp else False
+        return False
+
     def _refresh_audit_view(self) -> None:
         if not self.project:
             self.copilot_audit.setPlainText("")
+            self.copilot_activity_log.setPlainText("")
+            self.assistant_panel.card_avg.setText("-")
+            self.assistant_panel.card_u0.setText("-")
+            self.assistant_panel.card_status.setText("No project")
             return
-        events = self.project.agent_history[-5:]
-        lines: List[str] = []
-        for e in events:
-            action = e.get("action", e.get("kind", "event"))
-            ts = int(e.get("created_at", 0))
-            warns = e.get("warnings", [])
-            lines.append(f"{ts} {action}")
-            if warns:
-                lines.append(f"  warnings={warns}")
-        self.copilot_audit.setPlainText("\n".join(lines))
+
+        events = self.project.agent_history[-10:]
+        lines = [json.dumps(e, sort_keys=True) for e in events]
+        txt = "\n".join(lines)
+        self.copilot_audit.setPlainText(txt)
+        self.copilot_activity_log.setPlainText(txt)
+
+        if self.project.results:
+            summary = self.project.results[-1].summary or {}
+            avg = summary.get("avg_lux", summary.get("avg", "-"))
+            u0 = summary.get("u0", summary.get("uniformity", "-"))
+            self.assistant_panel.card_avg.setText(str(avg))
+            self.assistant_panel.card_u0.setText(str(u0))
+            self.assistant_panel.card_status.setText("Ready")
+        else:
+            self.assistant_panel.card_avg.setText("-")
+            self.assistant_panel.card_u0.setText("-")
+            self.assistant_panel.card_status.setText("No results")
+
+    def copilot_export_report_action(self) -> None:
+        if not self.project or not self.project.results:
+            self.status.showMessage("No result to export", 3000)
+            return
+        self.export_report_for_job(self.project.results[-1].job_id)
+
+    def copilot_export_audit_bundle_action(self) -> None:
+        if not self.project or not self.project.results:
+            self.status.showMessage("No result to export", 3000)
+            return
+        self.open_bundle_for_job(self.project.results[-1].job_id)
+
+    def _on_toggle_dark_theme(self, enabled: bool) -> None:
+        app = QtWidgets.QApplication.instance()
+        if app is None:
+            return
+        set_theme(app, "dark" if enabled else "light")
+
+    def compare_variants(self, job_id: str, variant_ids: list[str], baseline: str) -> None:
+        if not self.project_path:
+            return
+        try:
+            out = cmd_compare_variants(str(self.project_path), job_id, variant_ids, baseline_variant_id=baseline or None)
+        except Exception as exc:
+            QtWidgets.QMessageBox.warning(self, "Compare Variants", str(exc))
+            return
+        self.variants_panel.output.setPlainText(json.dumps(out, indent=2, sort_keys=True))
+        self.log_panel.append(f"Variants compared: job={job_id}, variants={variant_ids}, baseline={baseline}")
+
+    # ----- Workflow actions -----
+    def draw_room_polygon(self) -> None:
+        if not self.project_path or not self.project:
+            return
+        room_name, ok = QtWidgets.QInputDialog.getText(self, "Draw Room", "Room name:")
+        if not ok or not room_name.strip():
+            return
+        width, ok = QtWidgets.QInputDialog.getDouble(self, "Draw Room", "Width (m):", 6.0, 1.0, 200.0, 2)
+        if not ok:
+            return
+        length, ok = QtWidgets.QInputDialog.getDouble(self, "Draw Room", "Length (m):", 8.0, 1.0, 200.0, 2)
+        if not ok:
+            return
+        height, ok = QtWidgets.QInputDialog.getDouble(self, "Draw Room", "Height (m):", 3.0, 2.0, 20.0, 2)
+        if not ok:
+            return
+        room_id = f"room_{len(self.project.geometry.rooms) + 1}"
+        op_create_room(self.project, room_id=room_id, name=room_name.strip(), width=width, length=length, height=height)
+        extrude_room_to_surfaces(self.project, room_id, replace_existing=False)
+        save_project_schema(self.project, self.project_path)
+        self.log_panel.append(f"Room created: {room_id}")
+        self._reload_project()
+
+    def add_luminaire(self) -> None:
+        if not self.project_path or not self.project or not self.project.photometry_assets:
+            return
+        asset_ids = [asset.id for asset in self.project.photometry_assets]
+        aid, ok = QtWidgets.QInputDialog.getItem(self, "Add Luminaire", "Photometry asset:", asset_ids, 0, False)
+        if not ok:
+            return
+        room = self.project.geometry.rooms[0] if self.project.geometry.rooms else None
+        if room is None:
+            QtWidgets.QMessageBox.warning(self, "Add Luminaire", "Create a room first.")
+            return
+        x = room.origin[0] + room.width / 2.0
+        y = room.origin[1] + room.length / 2.0
+        z = room.origin[2] + max(room.height - 0.2, 2.5)
+        lum_id = f"lum_{len(self.project.luminaires) + 1}"
+        payload = LuminaireInstance(
+            id=lum_id,
+            name=f"Luminaire {len(self.project.luminaires) + 1}",
+            photometry_asset_id=aid,
+            transform=TransformSpec(position=(x, y, z), rotation=RotationSpec(type="euler_zyx", euler_deg=(0.0, 0.0, 0.0))),
+        )
+        diff = ProjectDiff(ops=[DiffOp(op="add", kind="luminaire", id=lum_id, payload=payload)])
+        cmd_apply_diff(str(self.project_path), diff)
+        self.log_panel.append(f"Luminaire placed: {lum_id}")
+        self._reload_project()
+
+    def array_luminaires(self) -> None:
+        if not self.project_path or not self.project:
+            return
+        if not self.project.geometry.rooms:
+            QtWidgets.QMessageBox.warning(self, "Array Luminaires", "Create a room first.")
+            return
+        if not self.project.photometry_assets:
+            QtWidgets.QMessageBox.warning(self, "Array Luminaires", "Import at least one photometry asset first.")
+            return
+        room = self.project.geometry.rooms[0]
+        asset_id = self.project.photometry_assets[0].id
+        rows, ok = QtWidgets.QInputDialog.getInt(self, "Array Luminaires", "Rows:", 2, 1, 20, 1)
+        if not ok:
+            return
+        cols, ok = QtWidgets.QInputDialog.getInt(self, "Array Luminaires", "Cols:", 2, 1, 20, 1)
+        if not ok:
+            return
+        diff = cmd_place_rect_array(str(self.project_path), room.id, asset_id=asset_id, nx=cols, ny=rows, margins=0.5, mount_height=max(room.height - 0.2, 2.5))
+        cmd_apply_diff(str(self.project_path), diff)
+        self.log_panel.append(f"Luminaire array updated ({rows}x{cols})")
+        self._reload_project()
+
+    def create_workplane_grid(self) -> None:
+        if not self.project_path or not self.project:
+            return
+        if not self.project.geometry.rooms:
+            QtWidgets.QMessageBox.warning(self, "Create Grid", "Create a room first.")
+            return
+        room = self.project.geometry.rooms[0]
+        elevation, ok = QtWidgets.QInputDialog.getDouble(self, "Create Grid", "Workplane elevation (m):", 0.8, 0.0, 5.0, 2)
+        if not ok:
+            return
+        spacing, ok = QtWidgets.QInputDialog.getDouble(self, "Create Grid", "Grid spacing (m):", 0.25, 0.05, 5.0, 2)
+        if not ok:
+            return
+        grid = create_calc_grid_from_room(
+            self.project,
+            grid_id=f"grid_{room.id}_{len(self.project.grids) + 1}",
+            name=f"Workplane {room.name}",
+            room_id=room.id,
+            elevation=elevation,
+            spacing=spacing,
+            margin=0.0,
+        )
+        self.project.grids = [g for g in self.project.grids if g.id != grid.id]
+        diff = ProjectDiff(ops=[DiffOp(op="add", kind="grid", id=grid.id, payload=grid)])
+        cmd_apply_diff(str(self.project_path), diff)
+        self.log_panel.append(f"Grid created: {grid.id}")
+        self._reload_project()
+
+    def run_primary_job(self) -> None:
+        if not self.project or not self.project.jobs:
+            self.status.showMessage("No jobs available", 3000)
+            return
+        self.run_job_by_id(self.project.jobs[0].id)
+
+    def view_latest_overlay(self) -> None:
+        if not self.project or not self.project.results:
+            self.status.showMessage("No results to view", 3000)
+            return
+        self.results_view.select_job(self.project.results[-1].job_id)
+        self.status.showMessage("Showing latest result overlay", 3000)
 
 
 def run() -> int:

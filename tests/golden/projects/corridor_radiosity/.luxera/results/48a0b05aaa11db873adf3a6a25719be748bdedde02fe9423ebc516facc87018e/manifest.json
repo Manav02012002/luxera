@@ -1,0 +1,105 @@
+{
+  "entries": {
+    "Corridor_ceiling_grid.csv": "e842c1493b7f53bb772fcb7ef0cd4303a59964597981dc931bbae2b2d29b914f",
+    "Corridor_ceiling_heatmap.png": "2a0adf406bf98f61ecacca6a2568730daae88c5150b5dd754fba0343fa0d954c",
+    "Corridor_floor_grid.csv": "3ac68a6ea6aed6cfc11ecb1dc0ed1814f18765c21ef511abfe086fc4c1a3a669",
+    "Corridor_floor_heatmap.png": "0242e2cf9c39496f374d91024d26c047e074d8cb88562c5a1a9f124a5d480439",
+    "Corridor_wall_0_grid.csv": "e7650e20b0f15c6e01ff73f670464ef36fcc6278def11381744f4027142aa848",
+    "Corridor_wall_0_heatmap.png": "710b8d5daef4dd727bea82ecc9f7739dfa75541eb61c1c6a736357a137dcc709",
+    "Corridor_wall_1_grid.csv": "3b26dfc9c7f27c190d178c8002393eb09c51182de9ccb535512e2ac03d0ac787",
+    "Corridor_wall_1_heatmap.png": "2f8e4e8f72b8a64e6a3b7577ee471b76f1044ba74fcc5b5c299fbbd297159d15",
+    "Corridor_wall_2_grid.csv": "07af0df7e5f225cf7baf673a6baa99f0369126a8c114e1ce2f4c975a02fc2d1a",
+    "Corridor_wall_2_heatmap.png": "181fd3435a1f3a1744e665729acc223dfa48a1c04065d01d3c81bf9a58ffe534",
+    "Corridor_wall_3_grid.csv": "21b671a6586e801a6e4407b8b33e5f04b125cbee780d3922061db334a84b3c32",
+    "Corridor_wall_3_heatmap.png": "cbfb8d158682e193a57395e77d060a45180d138e5ca02cdbd9275a5c12358979",
+    "photometry_verify.json": "9cb8b1795c11c2567b6d3bdb2f0092d176c8375be06d0e251e9b2caf348f03ca",
+    "residuals.csv": "14f252b7ba5138870afd3f2dbd11bb8c7f9db018c32843df7917a2d4cb6062b5",
+    "result.json": "87bf3eaa7d1473f085c92c443dd07769351d1b006113163212b0fcc6377a9fc6",
+    "surface_illuminance.csv": "c361f7dc40fb533abdbd84481eb2aaeadc6a305563502fa34b8a48cba4a3e546"
+  },
+  "metadata": {
+    "assets": {
+      "a1": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834"
+    },
+    "backend": {
+      "name": "cpu",
+      "version": "0.2.0"
+    },
+    "coordinate_convention": "Local luminaire frame: +Z up, nadir is -Z; C=0 toward +X, C=90 toward +Y",
+    "job_hash": "48a0b05aaa11db873adf3a6a25719be748bdedde02fe9423ebc516facc87018e",
+    "job_id": "j_radiosity",
+    "photometry_assets": {
+      "a1": {
+        "ies_units_type": 2,
+        "photometric_type": 1,
+        "tilt_count": 0,
+        "tilt_factor_max": null,
+        "tilt_factor_min": null,
+        "tilt_file": null,
+        "tilt_mode": "NONE",
+        "tilt_source": "NONE",
+        "tilt_summary": {
+          "geometry_factor": null,
+          "loaded": false
+        }
+      }
+    },
+    "photometry_hashes": {
+      "a1": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834"
+    },
+    "seed": 0,
+    "settings": {
+      "effective": {
+        "ambient_light": 0.0,
+        "convergence_threshold": 0.0001,
+        "damping": 0.9,
+        "max_iterations": 60,
+        "max_iters": 60,
+        "method": "GATHERING",
+        "monte_carlo_samples": 8,
+        "patch_max_area": 0.5,
+        "tol": 0.0001,
+        "ugr_eye_heights": [
+          1.2,
+          1.7
+        ],
+        "ugr_grid_spacing": 2.0,
+        "use_visibility": false
+      },
+      "job": {
+        "backend": "cpu",
+        "daylight": null,
+        "emergency": null,
+        "id": "j_radiosity",
+        "mode": null,
+        "open_area_targets": [],
+        "routes": [],
+        "seed": 0,
+        "settings": {
+          "damping": 0.9,
+          "max_iters": 60,
+          "method": "GATHERING",
+          "monte_carlo_samples": 8,
+          "patch_max_area": 0.5,
+          "tol": 0.0001,
+          "use_visibility": false
+        },
+        "targets": [],
+        "type": "radiosity"
+      },
+      "seed": 0
+    },
+    "solver": {
+      "git_commit": "ae78223a396416d8ae39f11c4cbe2acc8f5cfa51",
+      "package_version": "0.2.0"
+    },
+    "solver_version": "0.2.0",
+    "units": {
+      "angles": "deg",
+      "illuminance": "lux",
+      "length": "m",
+      "luminous_flux": "lm",
+      "luminous_intensity": "cd"
+    }
+  }
+}

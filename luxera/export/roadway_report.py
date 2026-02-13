@@ -29,6 +29,7 @@ def render_roadway_report_html(result_dir: Path, out_html: Path) -> Path:
     summary = meta.get("summary", {}) if isinstance(meta, dict) else {}
     compliance = summary.get("compliance", {}) if isinstance(summary, dict) else {}
     views = summary.get("observer_luminance_views", []) if isinstance(summary, dict) else []
+    lane_metrics = summary.get("lane_metrics", []) if isinstance(summary, dict) else []
 
     key_metrics = [
         "road_class",
@@ -78,6 +79,21 @@ def render_roadway_report_html(result_dir: Path, out_html: Path) -> Path:
 
     heatmap = "grid_heatmap.png" if (result_dir / "grid_heatmap.png").exists() else ""
     isolux = "grid_isolux.png" if (result_dir / "grid_isolux.png").exists() else ""
+    lane_rows = ""
+    for lm in lane_metrics if isinstance(lane_metrics, list) else []:
+        if not isinstance(lm, dict):
+            continue
+        lane_rows += (
+            "<tr>"
+            f"<td>{html.escape(_fmt(lm.get('lane_index')))}</td>"
+            f"<td>{html.escape(_fmt(lm.get('mean_lux')))}</td>"
+            f"<td>{html.escape(_fmt(lm.get('min_lux')))}</td>"
+            f"<td>{html.escape(_fmt(lm.get('max_lux')))}</td>"
+            f"<td>{html.escape(_fmt(lm.get('uniformity_ratio')))}</td>"
+            f"<td>{html.escape(_fmt(lm.get('ul_longitudinal')))}</td>"
+            f"<td>{html.escape(_fmt(lm.get('luminance_mean_cd_m2')))}</td>"
+            "</tr>"
+        )
 
     html_doc = f"""<!doctype html>
 <html lang=\"en\"> 
@@ -101,7 +117,7 @@ def render_roadway_report_html(result_dir: Path, out_html: Path) -> Path:
 
   <div class=\"grid\">
     <section>
-      <h2>Key Metrics</h2>
+      <h2>Road Parameters & Key Metrics</h2>
       <table>{_table_rows(summary if isinstance(summary, dict) else {{}}, key_metrics)}</table>
     </section>
     <section>
@@ -121,6 +137,14 @@ def render_roadway_report_html(result_dir: Path, out_html: Path) -> Path:
   </section>
 
   <section>
+    <h2>Lane-by-Lane Metrics</h2>
+    <table>
+      <tr><th>lane</th><th>mean_lux</th><th>min_lux</th><th>max_lux</th><th>uo</th><th>ul</th><th>luminance_mean_cd_m2</th></tr>
+      {lane_rows}
+    </table>
+  </section>
+
+  <section>
     <h2>Plots</h2>
     {f'<p><img class="img" src="{heatmap}" alt="Roadway heatmap" /></p>' if heatmap else ''}
     {f'<p><img class="img" src="{isolux}" alt="Roadway isolux" /></p>' if isolux else ''}
@@ -129,7 +153,7 @@ def render_roadway_report_html(result_dir: Path, out_html: Path) -> Path:
   <section>
     <h2>Assumptions</h2>
     <p>{html.escape('; '.join(meta.get('assumptions', [])) if isinstance(meta.get('assumptions'), list) else '')}</p>
-    <h2>Unsupported Features</h2>
+    <h2>Limitations</h2>
     <p>{html.escape('; '.join(meta.get('unsupported_features', [])) if isinstance(meta.get('unsupported_features'), list) else '')}</p>
   </section>
 </body>

@@ -1,0 +1,82 @@
+{
+  "entries": {
+    "grid.csv": "6cc3aef4c6dc0904082aa788f0e987c6af0ad6e1082eb30f10b169e6bb92ab84",
+    "grid_g_dense.csv": "6cc3aef4c6dc0904082aa788f0e987c6af0ad6e1082eb30f10b169e6bb92ab84",
+    "grid_g_dense_heatmap.png": "67ea379bdea5d45efe5abe5124ecbd9b6a7e566515fde2a1de2754a4c509c715",
+    "grid_g_dense_isolux.png": "f430228a3ba322de9b601aeee7576e6c5de82165851d171f442d4d3aee06d941",
+    "grid_heatmap.png": "67ea379bdea5d45efe5abe5124ecbd9b6a7e566515fde2a1de2754a4c509c715",
+    "grid_isolux.png": "f430228a3ba322de9b601aeee7576e6c5de82165851d171f442d4d3aee06d941",
+    "photometry_verify.json": "9cb8b1795c11c2567b6d3bdb2f0092d176c8375be06d0e251e9b2caf348f03ca",
+    "result.json": "6a1b0ffd7f94bd3934a57e5f5ed263d7018040ccfcb1b3605f65b02f508b7b0d",
+    "summary.json": "2e4fc1ad624726fd640787f4a7f1220f7c8a02838134e259af2a3e8e68af425c",
+    "tables.csv": "f7dd16ad45224ae734c8e8a608f0d3516ed949853d86dddbc8fac3edccba9abf",
+    "tables.json": "05e3c66fc9c808d4594f92af5ac18bb69e5e31b2b2e3dae329cb8f7c3770a52d"
+  },
+  "metadata": {
+    "assets": {
+      "a1": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834"
+    },
+    "backend": {
+      "name": "cpu",
+      "version": "0.2.0"
+    },
+    "coordinate_convention": "Local luminaire frame: +Z up, nadir is -Z; C=0 toward +X, C=90 toward +Y",
+    "job_hash": "635e5fc9c77f57f46f5b3a9ae76d8492d4e2b737c59e3288baa9bbd6ff7860f4",
+    "job_id": "j_direct_dense",
+    "photometry_assets": {
+      "a1": {
+        "ies_units_type": 2,
+        "photometric_type": 1,
+        "tilt_count": 0,
+        "tilt_factor_max": null,
+        "tilt_factor_min": null,
+        "tilt_file": null,
+        "tilt_mode": "NONE",
+        "tilt_source": "NONE",
+        "tilt_summary": {
+          "geometry_factor": null,
+          "loaded": false
+        }
+      }
+    },
+    "photometry_hashes": {
+      "a1": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834"
+    },
+    "seed": 0,
+    "settings": {
+      "effective": {
+        "occlusion_epsilon": 1e-06,
+        "occlusion_include_room_shell": false,
+        "use_occlusion": false
+      },
+      "job": {
+        "backend": "cpu",
+        "daylight": null,
+        "emergency": null,
+        "id": "j_direct_dense",
+        "mode": null,
+        "open_area_targets": [],
+        "routes": [],
+        "seed": 0,
+        "settings": {
+          "use_occlusion": false
+        },
+        "targets": [],
+        "type": "direct"
+      },
+      "seed": 0
+    },
+    "solver": {
+      "git_commit": "ae78223a396416d8ae39f11c4cbe2acc8f5cfa51",
+      "package_version": "0.2.0"
+    },
+    "solver_version": "0.2.0",
+    "units": {
+      "angles": "deg",
+      "illuminance": "lux",
+      "length": "m",
+      "luminous_flux": "lm",
+      "luminous_intensity": "cd"
+    }
+  }
+}

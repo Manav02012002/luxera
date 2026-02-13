@@ -1,0 +1,47 @@
+QMainWindow {
+  background: #1f2428;
+}
+
+QMenuBar, QMenu {
+  background: #262c31;
+  color: #e6edf3;
+}
+
+QTreeView, QTableWidget, QPlainTextEdit, QLineEdit, QComboBox, QGraphicsView {
+  background: #2d333b;
+  color: #e6edf3;
+  border: 1px solid #46515c;
+  border-radius: 6px;
+  padding: 4px;
+}
+
+QPushButton {
+  background: #238636;
+  color: #ffffff;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+QPushButton:hover {
+  background: #2ea043;
+}
+
+QPushButton:disabled {
+  background: #57606a;
+}
+
+QLabel#InspectorTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e6edf3;
+  padding-bottom: 4px;
+}
+
+QDockWidget::title {
+  background: #30363d;
+  color: #e6edf3;
+  text-align: left;
+  padding: 4px;
+  border: 1px solid #46515c;
+}

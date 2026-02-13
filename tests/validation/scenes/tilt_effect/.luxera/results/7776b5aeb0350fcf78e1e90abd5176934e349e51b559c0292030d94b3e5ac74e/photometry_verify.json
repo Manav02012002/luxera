@@ -1,0 +1,46 @@
+{
+  "assets": {
+    "a1": {
+      "angle_ranges_deg": {
+        "c_max": 0.0,
+        "c_min": 0.0,
+        "gamma_max": 60.0,
+        "gamma_min": 0.0
+      },
+      "candela_stats": {
+        "max_cd": 100.0,
+        "mean_cd": 100.0,
+        "min_cd": 100.0
+      },
+      "coordinate_convention": "Local luminaire frame: +Z up, nadir is -Z; C=0 toward +X, C=90 toward +Y",
+      "counts": {
+        "num_c": 1,
+        "num_gamma": 3
+      },
+      "expected_hash": "923d3096b71d0b713b3e34c6acdfaa972acb4c789bd16249a6fcd4719870ebca",
+      "file": "/Users/manavmadanrawal/Dev/luxera/tests/validation/scenes/tilt_effect/fixture_tilt.ies",
+      "file_hash_sha256": "923d3096b71d0b713b3e34c6acdfaa972acb4c789bd16249a6fcd4719870ebca",
+      "format": "IES",
+      "hash_match": true,
+      "luminous": {
+        "flux_lm": 1000.0,
+        "length_m": 0.5,
+        "width_m": 0.5
+      },
+      "photometric_system": "C",
+      "sanity": {
+        "angles_nonempty": true,
+        "candela_all_zero": false,
+        "candela_has_nan_or_inf": false,
+        "candela_has_negative": false,
+        "candela_nonempty": true
+      },
+      "symmetry": "FULL",
+      "tilt_file": "/Users/manavmadanrawal/Dev/luxera/tests/validation/scenes/tilt_effect/tilt.dat",
+      "tilt_source": "FILE",
+      "tilt_status": "ok",
+      "warnings": []
+    }
+  },
+  "warnings": []
+}

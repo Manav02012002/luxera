@@ -1,0 +1,181 @@
+{
+  "assets": {
+    "a1": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834"
+  },
+  "assumptions": [
+    "Coordinate convention: local luminaire frame +Z up, nadir -Z; Type C C=0 toward +X, C=90 toward +Y.",
+    "Supported photometric types: Type C only.",
+    "TILT factors are applied against gamma (vertical) angle; out-of-range tilt angles are clamped.",
+    "Direct calculation excludes geometry occlusion unless enabled.",
+    "Luminaire tilt is applied when photometry includes tilt data; otherwise tilt has no effect.",
+    "Direct solver uses no inter-reflection reflectance model (direct-only irradiance)."
+  ],
+  "backend": {
+    "name": "cpu",
+    "version": "0.2.0"
+  },
+  "contract_version": "solver_result_v1",
+  "coordinate_convention": "Local luminaire frame: +Z up, nadir is -Z; C=0 toward +X, C=90 toward +Y",
+  "effective_settings": {
+    "occlusion_epsilon": 1e-06,
+    "occlusion_include_room_shell": false,
+    "use_occlusion": false
+  },
+  "job": {
+    "backend": "cpu",
+    "daylight": null,
+    "emergency": null,
+    "id": "j_direct",
+    "mode": null,
+    "open_area_targets": [],
+    "routes": [],
+    "seed": 0,
+    "settings": {
+      "use_occlusion": false
+    },
+    "targets": [],
+    "type": "direct"
+  },
+  "job_hash": "aadfb659033b01bb66c68065447c6373c11b3d2db9a87524804470b4b3ab7640",
+  "job_id": "j_direct",
+  "photometry_assets": {
+    "a1": {
+      "ies_units_type": 2,
+      "photometric_type": 1,
+      "tilt_count": 0,
+      "tilt_factor_max": null,
+      "tilt_factor_min": null,
+      "tilt_file": null,
+      "tilt_mode": "NONE",
+      "tilt_source": "NONE",
+      "tilt_summary": {
+        "geometry_factor": null,
+        "loaded": false
+      }
+    }
+  },
+  "photometry_verification": {
+    "assets": {
+      "a1": {
+        "angle_ranges_deg": {
+          "c_max": 0.0,
+          "c_min": 0.0,
+          "gamma_max": 90.0,
+          "gamma_min": 0.0
+        },
+        "candela_stats": {
+          "max_cd": 900.0,
+          "mean_cd": 700.0,
+          "min_cd": 500.0
+        },
+        "coordinate_convention": "Local luminaire frame: +Z up, nadir is -Z; C=0 toward +X, C=90 toward +Y",
+        "counts": {
+          "num_c": 1,
+          "num_gamma": 3
+        },
+        "expected_hash": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834",
+        "file": "/Users/manavmadanrawal/Dev/luxera/tests/validation/scenes/l_shape/fixture.ies",
+        "file_hash_sha256": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834",
+        "format": "IES",
+        "hash_match": true,
+        "luminous": {
+          "flux_lm": 1000.0,
+          "length_m": 0.5,
+          "width_m": 0.5
+        },
+        "photometric_system": "C",
+        "sanity": {
+          "angles_nonempty": true,
+          "candela_all_zero": false,
+          "candela_has_nan_or_inf": false,
+          "candela_has_negative": false,
+          "candela_nonempty": true
+        },
+        "symmetry": "FULL",
+        "tilt_file": null,
+        "tilt_source": "NONE",
+        "tilt_status": "ok",
+        "warnings": []
+      }
+    },
+    "warnings": []
+  },
+  "project": {
+    "name": "validation_l_shape",
+    "schema_version": 5
+  },
+  "seed": 0,
+  "settings_dump": {
+    "effective": {
+      "occlusion_epsilon": 1e-06,
+      "occlusion_include_room_shell": false,
+      "use_occlusion": false
+    },
+    "job": {
+      "backend": "cpu",
+      "daylight": null,
+      "emergency": null,
+      "id": "j_direct",
+      "mode": null,
+      "open_area_targets": [],
+      "routes": [],
+      "seed": 0,
+      "settings": {
+        "use_occlusion": false
+      },
+      "targets": [],
+      "type": "direct"
+    },
+    "seed": 0
+  },
+  "solver": {
+    "git_commit": "ae78223a396416d8ae39f11c4cbe2acc8f5cfa51",
+    "package_version": "0.2.0"
+  },
+  "summary": {
+    "calc_object_count": 1,
+    "calc_objects": [
+      {
+        "id": "g1",
+        "name": "LGrid",
+        "summary": {
+          "max_lux": 180.4238311394975,
+          "mean_lux": 43.215403240297206,
+          "min_lux": 2.5183403844661676,
+          "p50_lux": 26.63445353007713,
+          "p90_lux": 94.43475034216915,
+          "uniformity_diversity": 0.013957914365087799,
+          "uniformity_ratio": 0.058274138284978044
+        },
+        "type": "grid"
+      }
+    ],
+    "compliance": null,
+    "global_highest_ugr": 0.0,
+    "global_worst_min_lux": 2.5183403844661676,
+    "global_worst_uniformity_ratio": 0.058274138284978044,
+    "highest_ugr": 0.0,
+    "max_lux": 180.4238311394975,
+    "mean_lux": 43.215403240297206,
+    "mean_of_means_lux": 43.215403240297206,
+    "min_lux": 2.5183403844661676,
+    "occluder_count": 0,
+    "occlusion_enabled": false,
+    "p50_lux": 26.63445353007713,
+    "p90_lux": 94.43475034216915,
+    "uniformity_diversity": 0.013957914365087799,
+    "uniformity_ratio": 0.058274138284978044,
+    "worst_min_lux": 2.5183403844661676,
+    "worst_uniformity_ratio": 0.058274138284978044
+  },
+  "units": {
+    "angles": "deg",
+    "illuminance": "lux",
+    "length": "m",
+    "luminous_flux": "lm",
+    "luminous_intensity": "cd"
+  },
+  "unsupported_features": [
+    "Penumbra/area-light soft shadowing is not implemented in CPU direct backend."
+  ]
+}

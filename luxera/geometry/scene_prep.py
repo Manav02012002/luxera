@@ -5,6 +5,9 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Set
 
 from luxera.geometry.core import Vector3
+from luxera.geometry.contracts import assert_surface
+from luxera.geometry.id import derived_id
+from luxera.geometry.tolerance import EPS_ANG, EPS_AREA, EPS_PLANE, EPS_POS, EPS_SNAP, EPS_WELD
 from luxera.project.schema import RoomSpec, SurfaceSpec
 
 
@@ -32,7 +35,7 @@ def _newell_normal(vertices: List[Tuple[float, float, float]]) -> Vector3:
     return n.normalize()
 
 
-def _dedupe_vertices(vertices: List[Tuple[float, float, float]], tol: float = 1e-9) -> List[Tuple[float, float, float]]:
+def _dedupe_vertices(vertices: List[Tuple[float, float, float]], tol: float = EPS_ANG) -> List[Tuple[float, float, float]]:
     if not vertices:
         return []
     out = [vertices[0]]
@@ -68,7 +71,7 @@ def fix_surface_normals(surfaces: List[SurfaceSpec]) -> List[SurfaceSpec]:
     return fixed
 
 
-def close_tiny_gaps(surfaces: List[SurfaceSpec], tolerance: float = 1e-3) -> List[SurfaceSpec]:
+def close_tiny_gaps(surfaces: List[SurfaceSpec], tolerance: float = EPS_SNAP) -> List[SurfaceSpec]:
     """
     Snap near-coincident vertices to a shared coordinate.
     """
@@ -104,26 +107,26 @@ def close_tiny_gaps(surfaces: List[SurfaceSpec], tolerance: float = 1e-3) -> Lis
 
 def _plane_key(surface: SurfaceSpec, angle_tol_deg: float, dist_tol: float) -> Tuple[int, int, int, int]:
     n = _newell_normal(surface.vertices)
-    if n.length() < 1e-12:
+    if n.length() < EPS_POS:
         n = Vector3(0, 0, 1)
     p0 = _to_v3(surface.vertices[0]) if surface.vertices else Vector3(0, 0, 0)
     d = -n.dot(p0)
-    s = max(1e-9, math.sin(math.radians(angle_tol_deg)))
+    s = max(EPS_ANG, math.sin(math.radians(angle_tol_deg)))
     return (
         int(round(n.x / s)),
         int(round(n.y / s)),
         int(round(n.z / s)),
-        int(round(d / max(dist_tol, 1e-9))),
+        int(round(d / max(dist_tol, EPS_ANG))),
     )
 
 
 def _q2(p: Tuple[float, float], tol: float) -> Tuple[int, int]:
-    inv = 1.0 / max(tol, 1e-12)
+    inv = 1.0 / max(tol, EPS_POS)
     return (int(round(p[0] * inv)), int(round(p[1] * inv)))
 
 
 def _q3(p: Tuple[float, float, float], tol: float) -> Tuple[int, int, int]:
-    inv = 1.0 / max(tol, 1e-12)
+    inv = 1.0 / max(tol, EPS_POS)
     return (int(round(p[0] * inv)), int(round(p[1] * inv)), int(round(p[2] * inv)))
 
 
@@ -138,7 +141,7 @@ def _polygon_area_2d(loop: List[Tuple[float, float]]) -> float:
     return 0.5 * a
 
 
-def _extract_boundary_loops_2d(polygons: List[List[Tuple[float, float]]], tol: float = 1e-6) -> Tuple[List[List[Tuple[float, float]]], List[str]]:
+def _extract_boundary_loops_2d(polygons: List[List[Tuple[float, float]]], tol: float = EPS_WELD) -> Tuple[List[List[Tuple[float, float]]], List[str]]:
     warnings: List[str] = []
     rep: Dict[Tuple[int, int], Tuple[float, float]] = {}
     edge_count: Dict[Tuple[Tuple[int, int], Tuple[int, int]], int] = {}
@@ -193,14 +196,14 @@ def _extract_boundary_loops_2d(polygons: List[List[Tuple[float, float]]], tol: f
     if len(loops) > 1:
         warnings.append("Multiple boundary loops detected; potential openings/holes preserved as separate loops.")
 
-    loops = [lp for lp in loops if abs(_polygon_area_2d(lp)) > 1e-12]
+    loops = [lp for lp in loops if abs(_polygon_area_2d(lp)) > EPS_AREA]
     return loops, warnings
 
 
 def merge_coplanar_surfaces(
     surfaces: List[SurfaceSpec],
     angle_tol_deg: float = 1.0,
-    dist_tol: float = 1e-3,
+    dist_tol: float = EPS_SNAP,
 ) -> List[SurfaceSpec]:
     """
     Topology-aware coplanar merge by (room_id, material_id, plane).
@@ -235,7 +238,7 @@ def merge_coplanar_surfaces(
                 poly2d.append((x, y))
             if len(poly2d) >= 3:
                 polys_2d.append(poly2d)
-        loops, _ = _extract_boundary_loops_2d(polys_2d, tol=max(dist_tol * 0.5, 1e-6))
+        loops, _ = _extract_boundary_loops_2d(polys_2d, tol=max(dist_tol * 0.5, EPS_WELD))
         if not loops:
             for s in grp:
                 merged.append(s)
@@ -243,7 +246,15 @@ def merge_coplanar_surfaces(
         first = grp[0]
         for li, loop in enumerate(loops):
             verts3 = [_to_tuple(origin + u * xy[0] + v * xy[1]) for xy in loop]
-            sid = first.id if li == 0 else f"{first.id}_loop_{li+1}"
+            sid = first.id if li == 0 else derived_id(
+                first.id,
+                "merged_loop",
+                {
+                    "loop_index": li,
+                    "vertex_count": len(verts3),
+                    "vertices": [tuple(float(v) for v in p) for p in verts3],
+                },
+            )
             sname = first.name if li == 0 else f"{first.name} (Loop {li+1})"
             merged.append(
                 SurfaceSpec(
@@ -274,7 +285,10 @@ class ScenePrepReport:
     warnings: List[str] = field(default_factory=list)
 
 
-def detect_non_manifold_edges(surfaces: List[SurfaceSpec], tolerance: float = 1e-6) -> List[Tuple[Tuple[float, float, float], Tuple[float, float, float], int]]:
+def detect_non_manifold_edges(
+    surfaces: List[SurfaceSpec],
+    tolerance: float = EPS_WELD,
+) -> List[Tuple[Tuple[float, float, float], Tuple[float, float, float], int]]:
     """
     Return edges used by more than two surface faces.
     """
@@ -300,15 +314,19 @@ def detect_non_manifold_edges(surfaces: List[SurfaceSpec], tolerance: float = 1e
 
 def clean_scene_surfaces(
     surfaces: List[SurfaceSpec],
-    snap_tolerance: float = 1e-3,
+    snap_tolerance: float = EPS_SNAP,
     merge_coplanar: bool = True,
 ) -> Tuple[List[SurfaceSpec], ScenePrepReport]:
+    for s in surfaces:
+        assert_surface(s)
     before = len(surfaces)
     fixed = fix_surface_normals(list(surfaces))
     pre_vertices = sum(len(s.vertices) for s in fixed)
     snapped = close_tiny_gaps(fixed, tolerance=snap_tolerance)
     post_vertices = sum(len(s.vertices) for s in snapped)
     out = merge_coplanar_surfaces(snapped) if merge_coplanar else snapped
+    for s in out:
+        assert_surface(s)
     non_manifold = detect_non_manifold_edges(out)
     warnings: List[str] = []
     if non_manifold:
@@ -352,7 +370,7 @@ def detect_room_volumes_from_surfaces(surfaces: List[SurfaceSpec]) -> List[RoomS
         w = mxx - mnx
         l = mxy - mny
         h = mxz - mnz
-        if w <= 1e-6 or l <= 1e-6 or h <= 1e-6:
+        if w <= EPS_PLANE or l <= EPS_PLANE or h <= EPS_PLANE:
             continue
         rooms.append(
             RoomSpec(

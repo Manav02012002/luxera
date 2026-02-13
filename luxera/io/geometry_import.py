@@ -2,19 +2,48 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional
 
 from luxera.io.dxf_import import extract_rooms_from_dxf, load_dxf
-from luxera.project.schema import RoomSpec, SurfaceSpec
+from luxera.project.schema import LevelSpec, ObstructionSpec, OpeningSpec, RoomSpec, SurfaceSpec
+from luxera.core.units import unit_scale_to_m
+from luxera.io.ifc_import import IFCImportOptions, import_ifc
+from luxera.geometry.ifc_cleaning import clean_ifc_surfaces
+from luxera.io.mesh_import import import_mesh_file
 
 
 @dataclass(frozen=True)
 class GeometryImportResult:
     source_file: str
     format: str
+    length_unit: str = "m"
+    source_length_unit: str = "m"
+    scale_to_meters: float = 1.0
+    axis_transform_applied: str = "Z_UP/RIGHT_HANDED->Z_UP/RIGHT_HANDED"
     rooms: List[RoomSpec] = field(default_factory=list)
     surfaces: List[SurfaceSpec] = field(default_factory=list)
+    openings: List[OpeningSpec] = field(default_factory=list)
+    obstructions: List[ObstructionSpec] = field(default_factory=list)
+    levels: List[LevelSpec] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
+    stage_report: dict = field(default_factory=dict)
+    scene_health_report: dict = field(default_factory=dict)
+    layer_map: dict = field(default_factory=dict)
+
+
+def _normalize_unit(unit: Optional[str]) -> str:
+    u = str(unit or "m").lower()
+    if u in {"m", "meter", "meters"}:
+        return "m"
+    if u in {"mm", "millimeter", "millimeters"}:
+        return "mm"
+    if u in {"cm", "centimeter", "centimeters"}:
+        return "cm"
+    if u in {"ft", "feet", "foot"}:
+        return "ft"
+    if u in {"in", "inch", "inches"}:
+        return "in"
+    return "m"
 
 
 def _infer_format(path: Path, fmt: Optional[str]) -> str:
@@ -23,9 +52,12 @@ def _infer_format(path: Path, fmt: Optional[str]) -> str:
     return path.suffix.replace(".", "").upper()
 
 
-def _import_dxf(path: Path, scale: float = 1.0) -> GeometryImportResult:
+def _import_dxf(path: Path, scale: float = 1.0, length_unit: Optional[str] = None) -> GeometryImportResult:
     doc = load_dxf(path)
-    rooms = extract_rooms_from_dxf(doc, scale=scale)
+    inferred = _normalize_unit(length_unit or getattr(doc, "units", "m"))
+    base_scale = float(unit_scale_to_m(inferred))
+    combined_scale = float(scale) * base_scale
+    rooms = extract_rooms_from_dxf(doc, scale=combined_scale)
     room_specs: List[RoomSpec] = []
     for i, room in enumerate(rooms):
         xs = [v.x for v in room.floor_vertices]
@@ -42,41 +74,21 @@ def _import_dxf(path: Path, scale: float = 1.0) -> GeometryImportResult:
                 origin=(min_x, min_y, 0.0),
             )
         )
-    return GeometryImportResult(source_file=str(path), format="DXF", rooms=room_specs)
+    return GeometryImportResult(
+        source_file=str(path),
+        format="DXF",
+        length_unit=inferred,
+        source_length_unit=inferred,
+        scale_to_meters=combined_scale,
+        rooms=room_specs,
+    )
 
 
-def _parse_obj(path: Path) -> Tuple[List[Tuple[float, float, float]], List[List[int]]]:
-    vertices: List[Tuple[float, float, float]] = []
-    faces: List[List[int]] = []
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-        s = line.strip()
-        if not s or s.startswith("#"):
-            continue
-        if s.startswith("v "):
-            parts = s.split()
-            if len(parts) >= 4:
-                vertices.append((float(parts[1]), float(parts[2]), float(parts[3])))
-        elif s.startswith("f "):
-            idxs: List[int] = []
-            parts = s.split()[1:]
-            for p in parts:
-                tok = p.split("/")[0]
-                if not tok:
-                    continue
-                idx = int(tok)
-                if idx < 0:
-                    idx = len(vertices) + idx + 1
-                idxs.append(idx - 1)
-            if len(idxs) >= 3:
-                faces.append(idxs)
-    return vertices, faces
-
-
-def _import_obj(path: Path) -> GeometryImportResult:
-    vertices, faces = _parse_obj(path)
+def _import_obj(path: Path, length_unit: Optional[str] = None, scale_to_meters: Optional[float] = None) -> GeometryImportResult:
+    mesh = import_mesh_file(str(path), fmt="OBJ", length_unit=length_unit, scale_to_meters=scale_to_meters)
     surfaces: List[SurfaceSpec] = []
-    for i, face in enumerate(faces):
-        pts = [vertices[idx] for idx in face if 0 <= idx < len(vertices)]
+    for i, face in enumerate(mesh.faces):
+        pts = [mesh.vertices[idx] for idx in face if 0 <= idx < len(mesh.vertices)]
         if len(pts) < 3:
             continue
         surfaces.append(
@@ -87,160 +99,172 @@ def _import_obj(path: Path) -> GeometryImportResult:
                 vertices=pts,
             )
         )
-    return GeometryImportResult(source_file=str(path), format="OBJ", surfaces=surfaces)
+    return GeometryImportResult(
+        source_file=str(path),
+        format="OBJ",
+        length_unit=mesh.length_unit,
+        source_length_unit=mesh.length_unit,
+        scale_to_meters=mesh.scale_to_meters,
+        surfaces=surfaces,
+        warnings=list(mesh.warnings),
+    )
 
 
-def _import_gltf(path: Path) -> GeometryImportResult:
-    warnings: List[str] = []
+def _import_gltf(path: Path, length_unit: Optional[str] = None, scale_to_meters: Optional[float] = None) -> GeometryImportResult:
+    mesh = import_mesh_file(str(path), fmt="GLTF", length_unit=length_unit, scale_to_meters=scale_to_meters)
     surfaces: List[SurfaceSpec] = []
-    try:
-        import trimesh  # type: ignore
-    except Exception:
-        return GeometryImportResult(
-            source_file=str(path),
-            format="GLTF",
-            warnings=["GLTF import requires trimesh to be installed."],
-        )
-
-    scene = trimesh.load(str(path), force="scene")
-    mesh_index = 0
-    for _, geom in scene.geometry.items():
-        mesh = geom
-        if not hasattr(mesh, "faces"):
-            continue
-        verts = mesh.vertices
-        faces = mesh.faces
-        for f in faces:
-            mesh_index += 1
-            pts = [
-                (float(verts[f[0]][0]), float(verts[f[0]][1]), float(verts[f[0]][2])),
-                (float(verts[f[1]][0]), float(verts[f[1]][1]), float(verts[f[1]][2])),
-                (float(verts[f[2]][0]), float(verts[f[2]][1]), float(verts[f[2]][2])),
-            ]
-            surfaces.append(
-                SurfaceSpec(
-                    id=f"gltf_surface_{mesh_index}",
-                    name=f"GLTF Surface {mesh_index}",
-                    kind="custom",
-                    vertices=pts,
-                )
+    for i, tri in enumerate(mesh.triangles):
+        a, b, c = tri
+        pts = [mesh.vertices[a], mesh.vertices[b], mesh.vertices[c]]
+        surfaces.append(
+            SurfaceSpec(
+                id=f"gltf_surface_{i+1}",
+                name=f"GLTF Surface {i+1}",
+                kind="custom",
+                vertices=pts,
             )
+        )
     if not surfaces:
-        warnings.append("No mesh surfaces found in GLTF.")
-    return GeometryImportResult(source_file=str(path), format="GLTF", surfaces=surfaces, warnings=warnings)
+        surfaces = []
+    return GeometryImportResult(
+        source_file=str(path),
+        format="GLTF",
+        length_unit=mesh.length_unit,
+        source_length_unit=mesh.length_unit,
+        scale_to_meters=mesh.scale_to_meters,
+        surfaces=surfaces,
+        warnings=list(mesh.warnings),
+    )
 
 
-def _import_ifc(path: Path) -> GeometryImportResult:
-    warnings: List[str] = []
-    rooms: List[RoomSpec] = []
+def _import_fbx(path: Path, length_unit: Optional[str] = None, scale_to_meters: Optional[float] = None) -> GeometryImportResult:
+    mesh = import_mesh_file(str(path), fmt="FBX", length_unit=length_unit, scale_to_meters=scale_to_meters)
     surfaces: List[SurfaceSpec] = []
-    try:
-        import ifcopenshell  # type: ignore
-    except Exception:
-        return GeometryImportResult(
-            source_file=str(path),
-            format="IFC",
-            warnings=["IFC import requires ifcopenshell to be installed."],
-        )
-
-    model = ifcopenshell.open(str(path))
-    spaces = model.by_type("IfcSpace")
-    shape_mod = None
-    settings = None
-    try:
-        import ifcopenshell.geom as ifcgeom  # type: ignore
-        shape_mod = ifcgeom
-        settings = ifcgeom.settings()
-        try:
-            settings.set(settings.USE_WORLD_COORDS, True)
-        except Exception:
-            pass
-    except Exception:
-        warnings.append("IFC geometry kernel unavailable; falling back to metadata extraction.")
-
-    def _mesh_from_space(space_obj) -> Tuple[List[Tuple[float, float, float]], List[Tuple[int, int, int]]]:
-        if shape_mod is None or settings is None:
-            return [], []
-        try:
-            shape = shape_mod.create_shape(settings, space_obj)
-            g = shape.geometry
-            vflat = list(getattr(g, "verts", []) or [])
-            fflat = list(getattr(g, "faces", []) or [])
-            verts: List[Tuple[float, float, float]] = []
-            tris: List[Tuple[int, int, int]] = []
-            for i in range(0, len(vflat), 3):
-                verts.append((float(vflat[i]), float(vflat[i + 1]), float(vflat[i + 2])))
-            for i in range(0, len(fflat), 3):
-                a = int(fflat[i])
-                b = int(fflat[i + 1])
-                c = int(fflat[i + 2])
-                if a >= 0 and b >= 0 and c >= 0 and a < len(verts) and b < len(verts) and c < len(verts):
-                    tris.append((a, b, c))
-            return verts, tris
-        except Exception:
-            return [], []
-
-    def _bbox_room(room_id: str, room_name: str, verts: List[Tuple[float, float, float]]) -> Optional[RoomSpec]:
-        if not verts:
-            return None
-        xs = [p[0] for p in verts]
-        ys = [p[1] for p in verts]
-        zs = [p[2] for p in verts]
-        mnx, mxx = min(xs), max(xs)
-        mny, mxy = min(ys), max(ys)
-        mnz, mxz = min(zs), max(zs)
-        w, l, h = (mxx - mnx), (mxy - mny), (mxz - mnz)
-        if w <= 1e-6 or l <= 1e-6 or h <= 1e-6:
-            return None
-        return RoomSpec(id=room_id, name=room_name, width=w, length=l, height=h, origin=(mnx, mny, mnz))
-
-    for i, sp in enumerate(spaces):
-        name = getattr(sp, "LongName", None) or getattr(sp, "Name", None) or f"IFC Space {i+1}"
-        room_id = f"ifc_space_{i+1}"
-        verts, tris = _mesh_from_space(sp)
-        room_spec = _bbox_room(room_id, str(name), verts)
-        if room_spec is not None:
-            rooms.append(room_spec)
-            for ti, tri in enumerate(tris):
-                pts = [verts[tri[0]], verts[tri[1]], verts[tri[2]]]
-                surfaces.append(
-                    SurfaceSpec(
-                        id=f"{room_id}_surface_{ti+1}",
-                        name=f"{name} Surface {ti+1}",
-                        kind="custom",
-                        vertices=pts,
-                        room_id=room_id,
-                    )
-                )
-        else:
-            # Conservative fallback dimensions if geometry extraction is unavailable.
-            rooms.append(
-                RoomSpec(
-                    id=room_id,
-                    name=str(name),
-                    width=5.0,
-                    length=5.0,
-                    height=3.0,
-                )
+    for i, tri in enumerate(mesh.triangles):
+        a, b, c = tri
+        pts = [mesh.vertices[a], mesh.vertices[b], mesh.vertices[c]]
+        surfaces.append(
+            SurfaceSpec(
+                id=f"fbx_surface_{i+1}",
+                name=f"FBX Surface {i+1}",
+                kind="custom",
+                vertices=pts,
             )
-            warnings.append(f"IFC space '{name}' imported without mesh geometry; using placeholder dimensions.")
-    if not rooms:
-        warnings.append("No IfcSpace entities found.")
-    return GeometryImportResult(source_file=str(path), format="IFC", rooms=rooms, surfaces=surfaces, warnings=warnings)
+        )
+    return GeometryImportResult(
+        source_file=str(path),
+        format="FBX",
+        length_unit=mesh.length_unit,
+        source_length_unit=mesh.length_unit,
+        scale_to_meters=mesh.scale_to_meters,
+        surfaces=surfaces,
+        warnings=list(mesh.warnings),
+    )
 
 
-def import_geometry_file(path: str, fmt: Optional[str] = None, dxf_scale: float = 1.0) -> GeometryImportResult:
+def _import_skp(path: Path, length_unit: Optional[str] = None, scale_to_meters: Optional[float] = None) -> GeometryImportResult:
+    mesh = import_mesh_file(str(path), fmt="SKP", length_unit=length_unit, scale_to_meters=scale_to_meters)
+    surfaces: List[SurfaceSpec] = []
+    for i, tri in enumerate(mesh.triangles):
+        a, b, c = tri
+        pts = [mesh.vertices[a], mesh.vertices[b], mesh.vertices[c]]
+        surfaces.append(
+            SurfaceSpec(
+                id=f"skp_surface_{i+1}",
+                name=f"SKP Surface {i+1}",
+                kind="custom",
+                vertices=pts,
+            )
+        )
+    return GeometryImportResult(
+        source_file=str(path),
+        format="SKP",
+        length_unit=mesh.length_unit,
+        source_length_unit=mesh.length_unit,
+        scale_to_meters=mesh.scale_to_meters,
+        surfaces=surfaces,
+        warnings=list(mesh.warnings),
+    )
+
+
+def _import_dwg(path: Path, length_unit: Optional[str] = None, scale_to_meters: Optional[float] = None) -> GeometryImportResult:
+    # Professional workflows commonly convert DWG to IFC/DXF/OBJ in a pre-step.
+    # We return a clear structured error instead of silently producing wrong geometry.
+    raise ValueError(
+        "DWG import requires external conversion. Convert to DXF/IFC/OBJ first, "
+        "or provide a DWG backend integration."
+    )
+
+
+def _import_ifc(path: Path, length_unit: Optional[str] = None, scale_to_meters: Optional[float] = None) -> GeometryImportResult:
+    return _import_ifc_with_options(path, length_unit=length_unit, scale_to_meters=scale_to_meters, ifc_options=None)
+
+
+def _import_ifc_with_options(
+    path: Path,
+    length_unit: Optional[str] = None,
+    scale_to_meters: Optional[float] = None,
+    ifc_options: Optional[dict] = None,
+) -> GeometryImportResult:
+    opts = dict(ifc_options or {})
+    fallback_room_size = opts.get("fallback_room_size")
+    if fallback_room_size is not None:
+        fallback_room_size = tuple(float(v) for v in fallback_room_size)
+    imported = import_ifc(
+        path,
+        IFCImportOptions(
+            length_unit_override=length_unit,
+            scale_to_meters_override=scale_to_meters,
+            default_window_transmittance=float(opts.get("default_window_transmittance", 0.70)),
+            fallback_room_size=fallback_room_size if fallback_room_size is not None else (5.0, 5.0, 3.0),
+        ),
+    )
+    cleaned_surfaces, cleaning_report = clean_ifc_surfaces(imported.surfaces)
+    warnings = list(imported.warnings)
+    warnings.append(f"ifc_space_boundary_method={imported.ifc_space_boundary_method}")
+    if cleaning_report:
+        warnings.append(f"IFC cleaning: {cleaning_report}")
+    return GeometryImportResult(
+        source_file=str(path),
+        format="IFC",
+        length_unit=str(imported.coordinate_system.get("length_unit", "m")),
+        source_length_unit=str(imported.coordinate_system.get("source_length_unit", imported.coordinate_system.get("length_unit", "m"))),
+        scale_to_meters=float(imported.coordinate_system.get("scale_to_meters", 1.0)),
+        axis_transform_applied=str(imported.coordinate_system.get("axis_transform_applied", "Z_UP/RIGHT_HANDED->Z_UP/RIGHT_HANDED")),
+        rooms=imported.rooms,
+        surfaces=cleaned_surfaces,
+        openings=imported.openings,
+        obstructions=imported.obstructions,
+        levels=imported.levels,
+        warnings=warnings,
+    )
+
+
+def import_geometry_file(
+    path: str,
+    fmt: Optional[str] = None,
+    dxf_scale: float = 1.0,
+    length_unit: Optional[str] = None,
+    scale_to_meters: Optional[float] = None,
+    ifc_options: Optional[dict] = None,
+) -> GeometryImportResult:
     p = Path(path).expanduser().resolve()
     if not p.exists() or not p.is_file():
         raise FileNotFoundError(f"Geometry file not found: {p}")
 
     format_used = _infer_format(p, fmt)
     if format_used == "DXF":
-        return _import_dxf(p, scale=dxf_scale)
+        return _import_dxf(p, scale=dxf_scale, length_unit=length_unit)
     if format_used == "OBJ":
-        return _import_obj(p)
+        return _import_obj(p, length_unit=length_unit, scale_to_meters=scale_to_meters)
     if format_used in {"GLTF", "GLB"}:
-        return _import_gltf(p)
+        return _import_gltf(p, length_unit=length_unit, scale_to_meters=scale_to_meters)
+    if format_used == "FBX":
+        return _import_fbx(p, length_unit=length_unit, scale_to_meters=scale_to_meters)
+    if format_used == "SKP":
+        return _import_skp(p, length_unit=length_unit, scale_to_meters=scale_to_meters)
+    if format_used == "DWG":
+        return _import_dwg(p, length_unit=length_unit, scale_to_meters=scale_to_meters)
     if format_used == "IFC":
-        return _import_ifc(p)
+        return _import_ifc_with_options(p, length_unit=length_unit, scale_to_meters=scale_to_meters, ifc_options=ifc_options)
     raise ValueError(f"Unsupported geometry format: {format_used}")

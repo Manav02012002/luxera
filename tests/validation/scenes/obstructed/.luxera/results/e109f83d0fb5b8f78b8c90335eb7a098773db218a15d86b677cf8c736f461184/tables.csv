@@ -1,0 +1,2 @@
+id,name,type,spacing,area,point_count,min_lux,mean_lux,max_lux,uniformity_min_avg
+g1,ObsGrid,grid,1.0,,63,21.292322735204515,78.70973699723864,238.82039589895265,0.27051701031540115

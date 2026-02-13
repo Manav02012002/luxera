@@ -1,0 +1,11 @@
+{
+  "assets": {
+    "a1": {
+      "error": "Photometry file not found: /Users/manavmadanrawal/Dev/luxera/fixture.ies",
+      "expected_hash": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834"
+    }
+  },
+  "warnings": [
+    "Verification failed for a1: Photometry file not found: /Users/manavmadanrawal/Dev/luxera/fixture.ies"
+  ]
+}

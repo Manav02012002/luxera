@@ -1,0 +1,76 @@
+{
+  "entries": {
+    "grid.csv": "ad99e4eabf2378ca1b7f3a2786071dea5654e0159d2b6f0dfdf237628e0de0d5",
+    "grid_g1.csv": "ad99e4eabf2378ca1b7f3a2786071dea5654e0159d2b6f0dfdf237628e0de0d5",
+    "grid_g1_heatmap.png": "92ad6885221bac117e1ea695bbdc9e40ad81a01ea77f63e7ab421f89aced1974",
+    "grid_g1_isolux.png": "44fef921bd8d919a35e9794c2f29f128e82fd9964acbadec0185f52e7a2c4b47",
+    "grid_heatmap.png": "92ad6885221bac117e1ea695bbdc9e40ad81a01ea77f63e7ab421f89aced1974",
+    "grid_isolux.png": "44fef921bd8d919a35e9794c2f29f128e82fd9964acbadec0185f52e7a2c4b47",
+    "photometry_verify.json": "ad0b37b7fe7c0f0acd77a537da1784f1622cc00fbfd45a61f7f53e69469474da",
+    "result.json": "03eb176d8914c5f5d932781ecd449b58f916ad122c1e6a2403589eb0145463c1",
+    "summary.json": "d11101ddae3c12108fe5cb2bc8647e1697de32356e73a203928972ea9892262c",
+    "tables.csv": "d3449bee8c91044764e4cbf13fcacad777e01a66340ff33971d2bdca409c5205",
+    "tables.json": "37bf6fdb77bb0dd370739f8fb3a2eb3bcb49aadc7807e4775673b01c5f2947d8"
+  },
+  "metadata": {
+    "assets": {
+      "a1": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834"
+    },
+    "backend": {
+      "name": "cpu",
+      "version": "0.2.0"
+    },
+    "coordinate_convention": "Local luminaire frame: +Z up, nadir is -Z; C=0 toward +X, C=90 toward +Y",
+    "job_hash": "0ad272ada5b8f59ff82e1aa136f8c099a3d444b8fc366a3f88244192b36a4b1a",
+    "job_id": "j_direct",
+    "photometry_assets": {
+      "a1": {
+        "ies_units_type": 2,
+        "photometric_type": 1,
+        "tilt_count": 0,
+        "tilt_factor_max": null,
+        "tilt_factor_min": null,
+        "tilt_file": null,
+        "tilt_mode": "NONE",
+        "tilt_source": "NONE",
+        "tilt_summary": {
+          "geometry_factor": null,
+          "loaded": false
+        }
+      }
+    },
+    "photometry_hashes": {
+      "a1": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834"
+    },
+    "seed": 0,
+    "settings": {
+      "effective": {
+        "occlusion_epsilon": 1e-06,
+        "occlusion_include_room_shell": false,
+        "use_occlusion": false
+      },
+      "job": {
+        "backend": "cpu",
+        "id": "j_direct",
+        "seed": 0,
+        "settings": {
+          "use_occlusion": false
+        },
+        "type": "direct"
+      },
+      "seed": 0
+    },
+    "solver": {
+      "git_commit": "unknown",
+      "package_version": "0.2.0"
+    },
+    "solver_version": "0.2.0",
+    "units": {
+      "angles": "deg",
+      "illuminance": "lux",
+      "length": "m",
+      "luminous_flux": "lm",
+      "luminous_intensity": "cd"
+    }
+  }
+}

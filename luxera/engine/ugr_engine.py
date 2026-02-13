@@ -1,4 +1,5 @@
 from __future__ import annotations
+"""Contract: docs/spec/solver_contracts.md, docs/spec/coordinate_conventions.md."""
 
 from typing import List, Optional
 
@@ -14,6 +15,7 @@ from luxera.geometry.core import Room, Vector3
 from luxera.calculation.illuminance import Luminaire
 from luxera.photometry.sample import sample_intensity_cd
 from luxera.project.schema import GlareViewSpec
+from luxera.geometry.bvh import BVHNode, build_bvh, triangulate_surfaces
 
 
 def _to_ugr_luminaires(luminaires: List[Luminaire]) -> List[LuminaireForUGR]:
@@ -41,6 +43,7 @@ def compute_ugr_default(
     luminaires: List[Luminaire],
     grid_spacing: float = 2.0,
     eye_heights: Optional[List[float]] = None,
+    occluder_bvh: Optional[BVHNode] = None,
 ) -> Optional[UGRAnalysis]:
     if not luminaires:
         return None
@@ -65,6 +68,7 @@ def compute_ugr_default(
                     total_flux=total_flux,
                     grid_spacing=grid_spacing,
                     eye_height=h,
+                    occluder_bvh=occluder_bvh,
                 )
             )
         except Exception:
@@ -83,6 +87,7 @@ def compute_ugr_for_views(
     luminaires: List[Luminaire],
     views: List[GlareViewSpec],
     total_flux_override: Optional[float] = None,
+    occluder_bvh: Optional[BVHNode] = None,
 ) -> Optional[UGRAnalysis]:
     """
     Compute UGR for explicit glare view objects.
@@ -105,6 +110,8 @@ def compute_ugr_for_views(
                 total_flux += ugr_lum.luminance * ugr_lum.luminous_area * 3.14159
 
     background = calculate_background_luminance(room, total_flux)
+    if occluder_bvh is None:
+        occluder_bvh = build_bvh(triangulate_surfaces(room.get_surfaces()))
     results = []
     for v in views:
         observer = UGRObserverPosition(
@@ -113,7 +120,7 @@ def compute_ugr_for_views(
             name=v.name,
         )
         try:
-            results.append(calculate_ugr_at_position(observer, ugr_lums, background_luminance=background))
+            results.append(calculate_ugr_at_position(observer, ugr_lums, background_luminance=background, occluder_bvh=occluder_bvh))
         except Exception:
             continue
     if not results:

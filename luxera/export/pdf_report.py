@@ -20,6 +20,11 @@ from reportlab.platypus import (
 
 from luxera.parser.pipeline import LuxeraViewResult
 from luxera.plotting.plots import PlotPaths
+from luxera.project.schema import JobResultRef, Project
+from luxera.reporting.pdf import render_project_pdf
+from luxera.export.templates.daylight_report import render_daylight_pdf_report
+from luxera.export.templates.emergency_report import render_emergency_pdf_report
+from luxera.export.templates.roadway_report import render_roadway_pdf_report
 
 
 @dataclass(frozen=True)
@@ -228,3 +233,18 @@ def build_pdf_report(
 
     pdf.build(story)
     return PDFPaths(pdf_path=out_pdf_path)
+
+
+def build_project_pdf_report(project: Project, job_ref: JobResultRef, out_pdf_path: Path) -> Path:
+    """Render a project-job PDF report using job-kind templates."""
+    job = next((j for j in project.jobs if j.id == job_ref.job_id), None)
+    if job is None:
+        raise ValueError(f"Job not found for report: {job_ref.job_id}")
+    if job.type == "roadway":
+        return render_roadway_pdf_report(project, job_ref, out_pdf_path)
+    if job.type == "daylight":
+        return render_daylight_pdf_report(project, job_ref, out_pdf_path)
+    if job.type == "emergency":
+        return render_emergency_pdf_report(project, job_ref, out_pdf_path)
+    # Generic reporting path includes summary, false-colour overlays, schedule, and audit metadata.
+    return render_project_pdf(project, job_ref, out_pdf_path)

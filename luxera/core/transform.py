@@ -13,6 +13,11 @@ def from_euler_zyx(
     roll_deg: float,
     scale: Optional[Vector3] = None,
 ) -> Transform:
+    """
+    Build a transform from Euler ZYX rotation in degrees.
+
+    Convention reference: docs/spec/coordinate_conventions.md
+    """
     return Transform.from_euler_zyx(position, yaw_deg, pitch_deg, roll_deg, scale=scale)
 
 
@@ -22,6 +27,11 @@ def from_aim_up(
     up: Vector3,
     scale: Optional[Vector3] = None,
 ) -> Transform:
+    """
+    Build a transform from aim/up vectors.
+
+    Convention reference: docs/spec/coordinate_conventions.md
+    """
     return Transform.from_aim_up(position, aim, up, scale=scale)
 
 

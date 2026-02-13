@@ -312,6 +312,7 @@ class RadiositySettings:
     """Settings for radiosity calculation."""
     max_iterations: int = 100
     convergence_threshold: float = 0.001  # 0.1% change
+    damping: float = 1.0
     patch_max_area: float = 0.5  # Maximum patch area in m²
     method: RadiosityMethod = RadiosityMethod.GATHERING
     use_visibility: bool = True

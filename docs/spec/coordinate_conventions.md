@@ -1,35 +1,51 @@
-# Coordinate Conventions
+# Coordinate Conventions (Source of Truth)
 
-## World Frame
-- `+X`: primary horizontal axis.
-- `+Y`: secondary horizontal axis.
+This document is the canonical reference for Luxera coordinate and photometry mapping behavior.
+
+## World Axes
+- `+X`: horizontal axis.
+- `+Y`: horizontal axis orthogonal to `+X`.
 - `+Z`: up.
 
-## Luminaire Local Frame
-- `+Z`: up (same gravity direction as world after transform).
-- Nadir direction is local `-Z`.
-- Type-C photometry convention:
-  - `C=0` toward local `+X`
-  - `C=90` toward local `+Y`
+## Luminaire Local Axes
+- Local frame is right-handed.
+- Local `+Z`: up.
+- Emitting/nadir direction is local `-Z`.
 
-## Euler Rotation Convention
-- `from_euler_zyx(position, yaw, pitch, roll)` uses ZYX composition.
-- Rotation matrix is `Rz(yaw) * Ry(pitch) * Rx(roll)`.
-- Meaning:
-  - `yaw`: rotation about world/local-aligned `Z`
-  - `pitch`: rotation about `Y`
-  - `roll`: rotation about `X`
+## Photometric Angles (Type C)
+- `C` is the azimuthal angle in the local `XY` plane.
+  - `C=0` points toward local `+X`.
+  - `C=90` points toward local `+Y`.
+- `gamma` is measured from local nadir (`-Z`) toward zenith (`+Z`).
+  - `gamma=0`: straight down.
+  - `gamma=90`: horizontal.
+  - `gamma=180`: straight up.
 
-## Aim/Up Convention
-- `from_aim_up(position, aim, up)` creates orientation such that local `-Z` points along `aim`.
-- This matches downlight semantics where the optical axis is downward.
-- `up` resolves the in-plane twist around the aim axis.
+## Rotation Model
+- Primary/canonical model: Euler ZYX with `(yaw, pitch, roll)` in degrees.
+- Composition is `Rz(yaw) * Ry(pitch) * Rx(roll)`.
+  - `yaw`: rotation about `+Z`.
+  - `pitch`: rotation about `+Y`.
+  - `roll`: rotation about `+X`.
+- Secondary model: `aim+up`, where local `-Z` is aligned to `aim` and `up` resolves twist.
 
-## Sampling Pipeline
-- World direction is transformed to luminaire-local direction.
-- Local direction is converted to photometric angles (C/Gamma for Type-C).
-- Symmetry reduction + interpolation are applied in photometric space.
+## Units
+- Angles: degrees.
+- Length: meters.
+
+## Mapping Pipeline
+- `world direction -> luminaire local direction -> photometric angles -> symmetry/interpolation`.
+- All transform and photometry mapping entry points must reference this file in docstrings.
+
+## Tilt Policy
+- `TILT=INCLUDE` is applied as a multiplicative factor on sampled intensity after angular interpolation.
+- The tilt factor is interpolated using the sampled Type-C vertical angle `gamma` (degrees):
+  - `I_final_cd = I_interpolated_cd * tilt_factor(gamma_deg)`.
+- `TILT=FILE` is currently unsupported and rejected at parse/validation time.
 
 ## Invariance Expectations
-- Yaw-only, pitch-only, and roll-only transforms must rotate unit vectors around the expected axes.
-- Rotating a luminaire should rotate the illuminance field accordingly (same values in rotated positions).
+- Axis sanity:
+  - yaw=90 maps local `+X -> +Y`.
+  - pitch-only and roll-only rotations follow right-hand rule on `Y` and `X`.
+- Field rotation:
+  - rotating a luminaire by 90 degrees around `+Z` rotates the illuminance field by 90 degrees.

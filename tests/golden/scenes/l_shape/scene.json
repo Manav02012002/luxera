@@ -1,0 +1,12 @@
+{
+  "case_id": "l_shape",
+  "grid_count": 1,
+  "job_ids": [
+    "j_direct"
+  ],
+  "luminaire_count": 2,
+  "obstruction_count": 0,
+  "prepared_scene_format": "json",
+  "room_count": 2,
+  "surface_count": 0
+}

@@ -1,0 +1,31 @@
+{
+  "id": "edit_propagation_room",
+  "room_id": "r1",
+  "footprint_id": "fp1",
+  "initial_footprint": [[0.0, 0.0], [4.0, 0.0], [4.0, 3.0], [0.0, 3.0]],
+  "edited_first_vertex": [-1.0, 0.0],
+  "height": 3.0,
+  "walls": [
+    {"id": "w01", "edge_ref": [0, 1]},
+    {"id": "w12", "edge_ref": [1, 2]},
+    {"id": "w23", "edge_ref": [2, 3]},
+    {"id": "w30", "edge_ref": [3, 0]}
+  ],
+  "graph": {
+    "nodes": [
+      ["fp:fp1", "footprint"],
+      ["room:r1", "room"],
+      ["wall:w01", "wall"],
+      ["opening:o1", "opening"],
+      ["grid:g1", "grid"]
+    ],
+    "edges": [
+      ["fp:fp1", "room:r1"],
+      ["room:r1", "wall:w01"],
+      ["wall:w01", "opening:o1"],
+      ["room:r1", "grid:g1"]
+    ],
+    "start_ids": ["fp:fp1"],
+    "expected_affected": ["fp:fp1", "room:r1", "wall:w01", "opening:o1", "grid:g1"]
+  }
+}

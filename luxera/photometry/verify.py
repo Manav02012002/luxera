@@ -24,6 +24,9 @@ class PhotometryVerifyResult:
     counts: Dict[str, int]
     candela_stats: Dict[str, float]
     luminous: Dict[str, Optional[float]]
+    tilt_source: str
+    tilt_file: Optional[str]
+    tilt_status: str
     sanity: Dict[str, bool]
     warnings: List[str]
 
@@ -42,6 +45,9 @@ def _build_result(
     luminous_flux_lm: Optional[float],
     luminous_width_m: Optional[float],
     luminous_length_m: Optional[float],
+    tilt_source: str = "NONE",
+    tilt_file: Optional[str] = None,
+    tilt_status: str = "ok",
 ) -> PhotometryVerifyResult:
     warnings: List[str] = []
     if system in ("A", "B"):
@@ -75,6 +81,9 @@ def _build_result(
             "width_m": float(luminous_width_m) if luminous_width_m is not None else None,
             "length_m": float(luminous_length_m) if luminous_length_m is not None else None,
         },
+        tilt_source=str(tilt_source),
+        tilt_file=tilt_file,
+        tilt_status=str(tilt_status),
         sanity={
             "angles_nonempty": bool(c_angles.size and g_angles.size),
             "candela_nonempty": bool(candela.size),
@@ -93,8 +102,14 @@ def verify_photometry_file(path: str, fmt: Optional[str] = None) -> PhotometryVe
 
     format_inferred = (fmt or p.suffix.replace(".", "")).upper()
     if format_inferred == "IES":
-        doc = parse_ies_text(p.read_text(encoding="utf-8", errors="replace"))
+        doc = parse_ies_text(p.read_text(encoding="utf-8", errors="replace"), source_path=p)
         phot = photometry_from_parsed_ies(doc)
+        tilt_source = str(doc.tilt_mode or "NONE")
+        tilt_status = "ok"
+        if tilt_source.startswith("FILE") and doc.tilt_data is None:
+            tilt_status = "missing"
+        elif tilt_source.startswith("FILE") and doc.tilt_data is not None:
+            tilt_status = "ok"
         return _build_result(
             p,
             "IES",
@@ -106,6 +121,9 @@ def verify_photometry_file(path: str, fmt: Optional[str] = None) -> PhotometryVe
             phot.luminous_flux_lm,
             phot.luminous_width_m,
             phot.luminous_length_m,
+            tilt_source=tilt_source,
+            tilt_file=doc.tilt_file_path,
+            tilt_status=tilt_status,
         )
 
     if format_inferred == "LDT":

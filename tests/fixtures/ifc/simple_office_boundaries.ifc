@@ -1,0 +1,16 @@
+ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION(('ViewDefinition [CoordinationView_V2.0]'),'2;1');
+FILE_NAME('simple_office_boundaries.ifc','2026-02-10T00:00:00',('Luxera'),('Luxera'),'','', '');
+FILE_SCHEMA(('IFC4'));
+ENDSEC;
+DATA;
+#1=IFCSIUNIT(*,.LENGTHUNIT.,$,.METRE.);
+#2=IFCUNITASSIGNMENT((#1));
+#10=IFCBUILDINGSTOREY('2Sxg6L8xT5Gf9y7Y2w',#20,'Level 1',$,$,$,$,$,.ELEMENT.,0.);
+#11=IFCSPACE('0xR1',$,'Office A',$,$,$,$,$,$,$);
+#12=IFCSPACE('0xR2',$,'Office B',$,$,$,$,$,$,$);
+#13=IFCWINDOW('0xW1',$,'Window A',$,$,$,$,$,$);
+#100=IFCRELSPACEBOUNDARY('0xB1',$,$,$,#12,#13,$,.PHYSICAL.,.INTERNAL.);
+ENDSEC;
+END-ISO-10303-21;

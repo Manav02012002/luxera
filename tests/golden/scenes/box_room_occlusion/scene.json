@@ -1,0 +1,12 @@
+{
+  "case_id": "box_room_occlusion",
+  "grid_count": 1,
+  "job_ids": [
+    "j_direct_occ"
+  ],
+  "luminaire_count": 1,
+  "obstruction_count": 1,
+  "prepared_scene_format": "json",
+  "room_count": 1,
+  "surface_count": 0
+}

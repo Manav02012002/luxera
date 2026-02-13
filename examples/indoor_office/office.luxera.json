@@ -1,0 +1,292 @@
+{
+  "active_variant_id": null,
+  "agent_history": [
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/examples/indoor_office/.luxera/results/fee24e9a43b465a7f814b2bb519c3c2b39ad809fd36856e3a0e2766d1f31e9ce"
+      ],
+      "created_at": 1770741091.383651,
+      "diffs": [],
+      "id": "e0bc135c-adee-488b-9e26-c2755e5a030b",
+      "job_hashes": [
+        "fee24e9a43b465a7f814b2bb519c3c2b39ad809fd36856e3a0e2766d1f31e9ce"
+      ],
+      "metadata": {
+        "job_id": "office_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    }
+  ],
+  "asset_bundle_path": null,
+  "assistant_redo_stack": [],
+  "assistant_undo_stack": [],
+  "compliance_profiles": [],
+  "escape_routes": [],
+  "geometry": {
+    "coordinate_systems": [],
+    "length_unit": "m",
+    "levels": [],
+    "no_go_zones": [],
+    "obstructions": [],
+    "openings": [],
+    "rooms": [
+      {
+        "activity_type": "OFFICE_GENERAL",
+        "ceiling_reflectance": 0.7,
+        "coordinate_system_id": null,
+        "floor_reflectance": 0.2,
+        "height": 3.0,
+        "id": "room_office",
+        "length": 10.0,
+        "level_id": null,
+        "name": "Office",
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "wall_reflectance": 0.5,
+        "width": 8.0
+      }
+    ],
+    "scale_to_meters": 1.0,
+    "surfaces": [],
+    "zones": []
+  },
+  "glare_views": [],
+  "grids": [
+    {
+      "elevation": 0.8,
+      "height": 10.0,
+      "id": "grid_workplane",
+      "name": "Workplane",
+      "normal": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "nx": 17,
+      "ny": 21,
+      "origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "room_id": "room_office",
+      "width": 8.0,
+      "zone_id": null
+    }
+  ],
+  "jobs": [
+    {
+      "backend": "cpu",
+      "daylight": null,
+      "emergency": null,
+      "id": "office_direct",
+      "mode": null,
+      "open_area_targets": [],
+      "routes": [],
+      "seed": 42,
+      "settings": {
+        "use_occlusion": false
+      },
+      "targets": [],
+      "type": "direct"
+    }
+  ],
+  "luminaire_families": [],
+  "luminaires": [
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "lum_1",
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L1",
+      "photometry_asset_id": "asset_a",
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          2.0,
+          2.5,
+          2.8
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    },
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "lum_2",
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L2",
+      "photometry_asset_id": "asset_b",
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          6.0,
+          2.5,
+          2.8
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    },
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "lum_3",
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L3",
+      "photometry_asset_id": "asset_a",
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          2.0,
+          7.5,
+          2.8
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    },
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "lum_4",
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L4",
+      "photometry_asset_id": "asset_b",
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          6.0,
+          7.5,
+          2.8
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    }
+  ],
+  "material_library": [],
+  "materials": [],
+  "name": "Indoor Office Hero",
+  "photometry_assets": [
+    {
+      "content_hash": null,
+      "embedded_b64": null,
+      "format": "IES",
+      "id": "asset_a",
+      "metadata": {
+        "filename": "sample_office_a.ies"
+      },
+      "path": "assets/sample_office_a.ies"
+    },
+    {
+      "content_hash": null,
+      "embedded_b64": null,
+      "format": "IES",
+      "id": "asset_b",
+      "metadata": {
+        "filename": "sample_office_b.ies"
+      },
+      "path": "assets/sample_office_b.ies"
+    }
+  ],
+  "point_sets": [],
+  "results": [
+    {
+      "job_hash": "fee24e9a43b465a7f814b2bb519c3c2b39ad809fd36856e3a0e2766d1f31e9ce",
+      "job_id": "office_direct",
+      "result_dir": "/Users/manavmadanrawal/Dev/luxera/examples/indoor_office/.luxera/results/fee24e9a43b465a7f814b2bb519c3c2b39ad809fd36856e3a0e2766d1f31e9ce",
+      "summary": {
+        "calc_object_count": 1,
+        "calc_objects": [
+          {
+            "id": "grid_workplane",
+            "name": "Workplane",
+            "summary": {
+              "max_lux": 275.4024426218155,
+              "mean_lux": 113.50740525987798,
+              "min_lux": 25.88430900409955,
+              "uniformity_diversity": 0.09398721651733517,
+              "uniformity_ratio": 0.2280407075189217
+            },
+            "type": "grid"
+          }
+        ],
+        "compliance": "Office: NON-COMPLIANT\n  Activity: Writing, typing, reading, data processing\n  Standard: EN 12464-1:2021\n  Results: 0 pass, 2 fail, 0 warning of 2 checks",
+        "global_highest_ugr": 0.0,
+        "global_worst_min_lux": 25.88430900409955,
+        "global_worst_uniformity_ratio": 0.2280407075189217,
+        "highest_ugr": 0.0,
+        "max_lux": 275.4024426218155,
+        "mean_lux": 113.50740525987798,
+        "mean_of_means_lux": 113.50740525987798,
+        "min_lux": 25.88430900409955,
+        "occluder_count": 0,
+        "occlusion_enabled": false,
+        "uniformity_diversity": 0.09398721651733517,
+        "uniformity_ratio": 0.2280407075189217,
+        "worst_min_lux": 25.88430900409955,
+        "worst_uniformity_ratio": 0.2280407075189217
+      }
+    }
+  ],
+  "roadway_grids": [],
+  "roadways": [],
+  "root_dir": "/Users/manavmadanrawal/Dev/luxera/examples/indoor_office",
+  "schema_version": 5,
+  "variants": [],
+  "vertical_planes": [],
+  "workplanes": []
+}

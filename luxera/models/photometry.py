@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Literal
+from typing import Optional
+
+from luxera.models.tilt import TiltData
 
 
 @dataclass(frozen=True)
@@ -17,3 +20,7 @@ class PhotometryHeader:
     length: float
     height: float
     line_no: int                         # 1-indexed
+    tilt: Optional[TiltData] = None
+    tilt_source: Literal["NONE", "INCLUDE", "FILE"] = "NONE"
+    tilt_file: Optional[str] = None
+    tilt_applied_angle: Literal["gamma"] = "gamma"

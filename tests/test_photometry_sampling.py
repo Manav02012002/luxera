@@ -46,22 +46,23 @@ def test_sample_symmetry_quadrant():
 
 
 def test_tilt_include_multiplier():
-    phot = make_photometry()
+    base_phot = make_photometry()
     tilt = TiltData(type="INCLUDE", angles_deg=np.array([0.0, 30.0]), factors=np.array([1.0, 0.5]))
     phot = Photometry(
-        system=phot.system,
-        c_angles_deg=phot.c_angles_deg,
-        gamma_angles_deg=phot.gamma_angles_deg,
-        candela=phot.candela,
+        system=base_phot.system,
+        c_angles_deg=base_phot.c_angles_deg,
+        gamma_angles_deg=base_phot.gamma_angles_deg,
+        candela=base_phot.candela,
         luminous_flux_lm=None,
-        symmetry=phot.symmetry,
+        symmetry=base_phot.symmetry,
         tilt=tilt,
     )
 
-    # gamma=0, c=0 base is 0; set a non-zero direction for meaningful scaling
-    base = sample_intensity_cd(phot, Vector3(1, 0, -1).normalize(), tilt_deg=0.0)
-    scaled = sample_intensity_cd(phot, Vector3(1, 0, -1).normalize(), tilt_deg=30.0)
-    assert scaled == pytest.approx(base * 0.5, rel=1e-6)
+    # Tilt policy is gamma-based; compare same direction with/without tilt.
+    d30 = Vector3(0.5, 0, -np.sqrt(3.0) / 2.0).normalize()
+    raw = sample_intensity_cd(base_phot, d30)
+    tilted = sample_intensity_cd(phot, d30)
+    assert tilted == pytest.approx(raw * 0.5, rel=1e-6)
 
 
 def test_sample_bilinear_interpolation_midpoint():

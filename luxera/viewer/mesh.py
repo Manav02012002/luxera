@@ -9,6 +9,9 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 from enum import Enum, auto
 
+from luxera.geometry.lod import build_lod
+from luxera.geometry.mesh import TriMesh
+
 
 class PrimitiveType(Enum):
     """OpenGL primitive types."""
@@ -230,3 +233,37 @@ def create_sphere_mesh(
     indices = np.array(indices, dtype=np.uint32)
     
     return Mesh(vertices, normals, colors, indices)
+
+
+def mesh_from_trimesh(
+    tri: TriMesh,
+    *,
+    color: Tuple[float, float, float] = (0.7, 0.7, 0.7),
+    use_lod: bool = True,
+    lod_ratio: float = 0.4,
+) -> Mesh:
+    src = build_lod(tri, viewport_ratio=lod_ratio).simplified if use_lod else tri
+    vertices = np.asarray(src.vertices, dtype=np.float32)
+    if len(vertices) == 0:
+        vertices = np.zeros((0, 3), dtype=np.float32)
+    indices = np.asarray(src.faces, dtype=np.uint32)
+    if indices.size == 0:
+        indices = np.zeros((0, 3), dtype=np.uint32)
+
+    normals = np.zeros_like(vertices, dtype=np.float32)
+    for a, b, c in indices.tolist():
+        va = vertices[a]
+        vb = vertices[b]
+        vc = vertices[c]
+        n = np.cross(vb - va, vc - va)
+        ln = float(np.linalg.norm(n))
+        if ln > 0.0:
+            n = n / ln
+        normals[a] += n
+        normals[b] += n
+        normals[c] += n
+    nl = np.linalg.norm(normals, axis=1, keepdims=True)
+    nl[nl == 0.0] = 1.0
+    normals = normals / nl
+    colors = np.full((len(vertices), 3), color, dtype=np.float32)
+    return Mesh(vertices=vertices, normals=normals, colors=colors, indices=indices)

@@ -1,0 +1,12 @@
+{
+  "case_id": "obstructed",
+  "grid_count": 1,
+  "job_ids": [
+    "j_direct"
+  ],
+  "luminaire_count": 2,
+  "obstruction_count": 1,
+  "prepared_scene_format": "json",
+  "room_count": 1,
+  "surface_count": 0
+}

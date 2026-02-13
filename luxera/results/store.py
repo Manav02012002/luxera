@@ -39,6 +39,18 @@ def write_grid_csv(out_dir: Path, points: np.ndarray, values: np.ndarray) -> Pat
     return out_path
 
 
+def write_grid_csv_named(out_dir: Path, filename: str, points: np.ndarray, values: np.ndarray) -> Path:
+    out_path = out_dir / filename
+    data = np.column_stack([points, values.reshape(-1, 1)])
+    header = "x,y,z,illuminance"
+    np.savetxt(out_path, data, delimiter=",", header=header, comments="")
+    return out_path
+
+
+def write_points_csv(out_dir: Path, filename: str, points: np.ndarray, values: np.ndarray) -> Path:
+    return write_grid_csv_named(out_dir, filename, points, values)
+
+
 def write_residuals_csv(out_dir: Path, residuals: list[float]) -> Path:
     out_path = out_dir / "residuals.csv"
     data = np.array(residuals, dtype=float).reshape(-1, 1)

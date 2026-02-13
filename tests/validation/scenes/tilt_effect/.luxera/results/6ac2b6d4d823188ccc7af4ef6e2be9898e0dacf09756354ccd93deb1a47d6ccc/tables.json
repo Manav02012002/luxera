@@ -1,0 +1,23 @@
+{
+  "grids": [
+    {
+      "area": null,
+      "id": "g1",
+      "max_lux": 25.000000000000007,
+      "mean_lux": 2.7608432424611244,
+      "min_lux": 0.38763766610110983,
+      "name": "Workplane",
+      "point_count": 25,
+      "spacing": 1.5,
+      "type": "grid",
+      "uniformity_min_avg": 0.14040553267905
+    }
+  ],
+  "point_sets": [],
+  "vertical_planes": [],
+  "worst_case": {
+    "global_mean_of_means_lux": 2.7608432424611244,
+    "global_worst_min_lux": 0.38763766610110983,
+    "global_worst_uniformity_ratio": 0.14040553267905
+  }
+}

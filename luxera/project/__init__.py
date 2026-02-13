@@ -36,13 +36,20 @@ from luxera.project.schema import (
     VerticalPlaneSpec,
     PointSetSpec,
     GlareViewSpec,
+    EscapeRouteSpec,
+    RoadwaySpec,
     RoadwayGridSpec,
     ComplianceProfile,
     ProjectVariant,
+    DaylightAnnualSpec,
+    DaylightSpec,
+    EmergencyModeSpec,
+    EmergencySpec,
     JobSpec,
     JobResultRef,
 )
 from luxera.project.io import save_project_schema, load_project_schema
+from luxera.project.variants import VariantCompareResult, run_job_for_variants
 from luxera.project.presets import en12464_direct_job, en13032_radiosity_job, default_compliance_profiles
 
 __all__ = [
@@ -75,13 +82,21 @@ __all__ = [
     "VerticalPlaneSpec",
     "PointSetSpec",
     "GlareViewSpec",
+    "EscapeRouteSpec",
+    "RoadwaySpec",
     "RoadwayGridSpec",
     "ComplianceProfile",
     "ProjectVariant",
+    "DaylightAnnualSpec",
+    "DaylightSpec",
+    "EmergencyModeSpec",
+    "EmergencySpec",
     "JobSpec",
     "JobResultRef",
     "save_project_schema",
     "load_project_schema",
+    "VariantCompareResult",
+    "run_job_for_variants",
     "en12464_direct_job",
     "en13032_radiosity_job",
     "default_compliance_profiles",

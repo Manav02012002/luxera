@@ -1,4 +1,5 @@
 from __future__ import annotations
+"""Contract: docs/spec/photometry_contracts.md, docs/spec/coordinate_conventions.md."""
 
 import math
 from typing import Tuple
@@ -123,9 +124,49 @@ def _angles_from_direction_type_ab(
 def world_to_luminaire_local_direction(transform: Transform, world_dir: Vector3) -> Vector3:
     """
     Convert a world-space direction to luminaire-local direction.
+
+    Convention reference: docs/spec/coordinate_conventions.md
     """
     R = transform.get_rotation_matrix()
     return Vector3.from_array(R.T @ world_dir.normalize().to_array())
+
+
+def _axis_from_token(token: str) -> Vector3:
+    t = str(token).strip().upper()
+    axes = {
+        "+X": Vector3(1.0, 0.0, 0.0),
+        "-X": Vector3(-1.0, 0.0, 0.0),
+        "+Y": Vector3(0.0, 1.0, 0.0),
+        "-Y": Vector3(0.0, -1.0, 0.0),
+        "+Z": Vector3(0.0, 0.0, 1.0),
+        "-Z": Vector3(0.0, 0.0, -1.0),
+    }
+    return axes.get(t, Vector3(0.0, 0.0, 1.0))
+
+
+def _apply_orientation(local_dir: Vector3, orientation: dict[str, str] | None) -> Vector3:
+    if not orientation:
+        return local_dir
+    up = _axis_from_token(orientation.get("luminaire_up_axis", "+Z")).normalize()
+    forward = _axis_from_token(orientation.get("photometric_forward_axis", "+X")).normalize()
+    side = up.cross(forward)
+    if side.length() < 1e-9:
+        return local_dir
+    side = side.normalize()
+    d = local_dir.normalize()
+    return Vector3(d.dot(forward), d.dot(side), d.dot(up))
+
+
+def world_dir_to_photometric_angles(
+    world_dir: Vector3,
+    luminaire_transform: Transform,
+    orientation: dict[str, str] | None,
+    system: str,
+    vertical_angles: np.ndarray | None = None,
+) -> Tuple[float, float]:
+    local_dir = world_to_luminaire_local_direction(luminaire_transform, world_dir)
+    oriented = _apply_orientation(local_dir, orientation)
+    return direction_to_photometric_angles(oriented, system, vertical_angles)
 
 
 def direction_to_photometric_angles(
@@ -136,6 +177,8 @@ def direction_to_photometric_angles(
     """
     Convert luminaire-local direction to photometric angles for the given system.
     Returns (C_or_H_deg, gamma_or_V_deg).
+
+    Convention reference: docs/spec/coordinate_conventions.md
     """
     if system == "C":
         return _angles_from_direction_type_c(direction_luminaire_frame)
@@ -145,18 +188,11 @@ def direction_to_photometric_angles(
     raise NotImplementedError(f"Photometric system {system} not yet supported")
 
 
-def _tilt_factor(tilt: TiltData, tilt_deg: float) -> float:
-    if tilt.angles_deg is None or tilt.factors is None:
+def _tilt_factor_for_gamma(tilt: TiltData, gamma_deg: float) -> float:
+    series = tilt.to_series()
+    if series is None:
         return 1.0
-    angles = tilt.angles_deg
-    factors = tilt.factors
-    if len(angles) == 0:
-        return 1.0
-    t = max(float(angles[0]), min(float(angles[-1]), float(tilt_deg)))
-    i0, i1, tt = _find_bracket(t, angles)
-    f0 = factors[i0]
-    f1 = factors[i1]
-    return float(f0 * (1 - tt) + f1 * tt)
+    return float(series.interpolate(float(gamma_deg)))
 
 
 def sample_intensity_cd(
@@ -192,8 +228,9 @@ def sample_intensity_cd(
     c0 = c00 * (1 - g_t) + c01 * g_t
     c1 = c10 * (1 - g_t) + c11 * g_t
     value = c0 * (1 - c_t) + c1 * c_t
-    if phot.tilt is not None and phot.tilt.type == "INCLUDE" and tilt_deg is not None:
-        value *= _tilt_factor(phot.tilt, tilt_deg)
+    # TILT factor policy: apply interpolation against gamma (vertical) angle.
+    if phot.tilt is not None and (phot.tilt_source in {"INCLUDE", "FILE"} or phot.tilt.type in {"INCLUDE", "FILE"}):
+        value *= _tilt_factor_for_gamma(phot.tilt, gamma_deg)
     return value
 
 
@@ -206,6 +243,33 @@ def sample_intensity_cd_world(
     """
     Authoritative world-space sampling API.
     Pipeline: world direction -> luminaire local frame -> photometric angles -> symmetry/wrap/interpolation.
+
+    Convention reference: docs/spec/coordinate_conventions.md
     """
-    local_dir = world_to_luminaire_local_direction(transform, direction_world)
-    return sample_intensity_cd(phot, local_dir, tilt_deg=tilt_deg)
+    c_deg, gamma_deg = world_dir_to_photometric_angles(
+        direction_world,
+        transform,
+        {"luminaire_up_axis": "+Z", "photometric_forward_axis": "+X"},
+        phot.system,
+        phot.gamma_angles_deg,
+    )
+    c_deg = _apply_symmetry(c_deg, phot)
+    c_angles = phot.c_angles_deg
+    g_angles = phot.gamma_angles_deg
+    if len(c_angles) >= 2 and c_angles[0] < 0 < c_angles[-1]:
+        if c_deg > 180:
+            c_deg -= 360
+    c_deg = max(c_angles[0], min(c_angles[-1], c_deg))
+    gamma_deg = max(g_angles[0], min(g_angles[-1], gamma_deg))
+    c_lo, c_hi, c_t = _find_bracket(c_deg, c_angles)
+    g_lo, g_hi, g_t = _find_bracket(gamma_deg, g_angles)
+    c00 = phot.candela[c_lo][g_lo]
+    c01 = phot.candela[c_lo][g_hi]
+    c10 = phot.candela[c_hi][g_lo]
+    c11 = phot.candela[c_hi][g_hi]
+    c0 = c00 * (1 - g_t) + c01 * g_t
+    c1 = c10 * (1 - g_t) + c11 * g_t
+    value = c0 * (1 - c_t) + c1 * c_t
+    if phot.tilt is not None and (phot.tilt_source in {"INCLUDE", "FILE"} or phot.tilt.type in {"INCLUDE", "FILE"}):
+        value *= _tilt_factor_for_gamma(phot.tilt, gamma_deg)
+    return value

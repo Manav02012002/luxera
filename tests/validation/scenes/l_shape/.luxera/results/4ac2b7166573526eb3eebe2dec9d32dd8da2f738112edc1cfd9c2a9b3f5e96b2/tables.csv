@@ -1,0 +1,2 @@
+id,name,type,spacing,area,point_count,min_lux,mean_lux,max_lux,uniformity_min_avg
+g1,LGrid,grid,1.25,,81,2.5183403844661676,43.215403240297206,180.4238311394975,0.058274138284978044

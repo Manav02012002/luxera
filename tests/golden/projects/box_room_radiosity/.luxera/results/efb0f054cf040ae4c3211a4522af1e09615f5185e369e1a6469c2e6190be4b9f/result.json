@@ -1,0 +1,170 @@
+{
+  "assets": {
+    "a1": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834"
+  },
+  "assumptions": [
+    "Coordinate convention: local luminaire frame +Z up, nadir -Z; Type C C=0 toward +X, C=90 toward +Y.",
+    "Supported photometric types: Type C only.",
+    "TILT factors are applied against gamma (vertical) angle; out-of-range tilt angles are clamped.",
+    "Radiosity uses diffuse reflectance model with iterative convergence.",
+    "Specular reflectance is treated in direct-only pathways; radiosity secondary bounce is diffuse-only.",
+    "Material transmittance is currently not included in radiosity energy exchange.",
+    "UGR uses default observer grid and eye heights when glare_views are absent."
+  ],
+  "backend": {
+    "name": "cpu",
+    "version": "0.2.0"
+  },
+  "contract_version": "solver_result_v1",
+  "coordinate_convention": "Local luminaire frame: +Z up, nadir is -Z; C=0 toward +X, C=90 toward +Y",
+  "effective_settings": {
+    "ambient_light": 0.0,
+    "convergence_threshold": 0.0001,
+    "damping": 0.9,
+    "max_iterations": 60,
+    "max_iters": 60,
+    "method": "GATHERING",
+    "monte_carlo_samples": 8,
+    "patch_max_area": 0.5,
+    "tol": 0.0001,
+    "ugr_eye_heights": [
+      1.2,
+      1.7
+    ],
+    "ugr_grid_spacing": 2.0,
+    "use_visibility": false
+  },
+  "job": {
+    "backend": "cpu",
+    "daylight": null,
+    "emergency": null,
+    "id": "j_radiosity",
+    "mode": null,
+    "open_area_targets": [],
+    "routes": [],
+    "seed": 0,
+    "settings": {
+      "damping": 0.9,
+      "max_iters": 60,
+      "method": "GATHERING",
+      "monte_carlo_samples": 8,
+      "patch_max_area": 0.5,
+      "tol": 0.0001,
+      "use_visibility": false
+    },
+    "targets": [],
+    "type": "radiosity"
+  },
+  "job_hash": "efb0f054cf040ae4c3211a4522af1e09615f5185e369e1a6469c2e6190be4b9f",
+  "job_id": "j_radiosity",
+  "photometry_assets": {
+    "a1": {
+      "ies_units_type": 2,
+      "photometric_type": 1,
+      "tilt_count": 0,
+      "tilt_factor_max": null,
+      "tilt_factor_min": null,
+      "tilt_file": null,
+      "tilt_mode": "NONE",
+      "tilt_source": "NONE",
+      "tilt_summary": {
+        "geometry_factor": null,
+        "loaded": false
+      }
+    }
+  },
+  "photometry_verification": {
+    "assets": {
+      "a1": {
+        "error": "Photometry file not found: /Users/manavmadanrawal/Dev/luxera/fixture.ies",
+        "expected_hash": "c2afac9722125d6d8dbab260bf146e01713653fcd1f55888704dab208748d834"
+      }
+    },
+    "warnings": [
+      "Verification failed for a1: Photometry file not found: /Users/manavmadanrawal/Dev/luxera/fixture.ies"
+    ]
+  },
+  "project": {
+    "name": "golden_box_room_radiosity",
+    "schema_version": 5
+  },
+  "seed": 0,
+  "settings_dump": {
+    "effective": {
+      "ambient_light": 0.0,
+      "convergence_threshold": 0.0001,
+      "damping": 0.9,
+      "max_iterations": 60,
+      "max_iters": 60,
+      "method": "GATHERING",
+      "monte_carlo_samples": 8,
+      "patch_max_area": 0.5,
+      "tol": 0.0001,
+      "ugr_eye_heights": [
+        1.2,
+        1.7
+      ],
+      "ugr_grid_spacing": 2.0,
+      "use_visibility": false
+    },
+    "job": {
+      "backend": "cpu",
+      "daylight": null,
+      "emergency": null,
+      "id": "j_radiosity",
+      "mode": null,
+      "open_area_targets": [],
+      "routes": [],
+      "seed": 0,
+      "settings": {
+        "damping": 0.9,
+        "max_iters": 60,
+        "method": "GATHERING",
+        "monte_carlo_samples": 8,
+        "patch_max_area": 0.5,
+        "tol": 0.0001,
+        "use_visibility": false
+      },
+      "targets": [],
+      "type": "radiosity"
+    },
+    "seed": 0
+  },
+  "solver": {
+    "git_commit": "ae78223a396416d8ae39f11c4cbe2acc8f5cfa51",
+    "package_version": "0.2.0"
+  },
+  "summary": {
+    "avg_illuminance": 2.965897150476499,
+    "compliance": null,
+    "converged": true,
+    "energy": {
+      "total_absorbed": 191.38007450229787,
+      "total_emitted": 826.5306122448982,
+      "total_exitance": 1095.1296777120715,
+      "total_reflected": 268.5996781434384
+    },
+    "iterations": 9,
+    "residuals": [
+      5.72280326291974e-05
+    ],
+    "solver_status": {
+      "converged": true,
+      "iterations": 9,
+      "residual": 5.72280326291974e-05,
+      "warnings": []
+    },
+    "stop_reason": "converged",
+    "total_flux": 1095.1296777120715,
+    "ugr_views": null,
+    "ugr_worst_case": 27.83388574672066
+  },
+  "units": {
+    "angles": "deg",
+    "illuminance": "lux",
+    "length": "m",
+    "luminous_flux": "lm",
+    "luminous_intensity": "cd"
+  },
+  "unsupported_features": []
+}

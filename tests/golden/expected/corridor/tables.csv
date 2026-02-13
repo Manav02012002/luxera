@@ -1,0 +1,2 @@
+id,name,type,spacing,area,point_count,min_lux,mean_lux,max_lux,uniformity_min_avg
+g1,CorridorGrid,grid,2.0,,33,6.530418645014003,40.440590314006556,141.2946191770808,0.16148178338416092
