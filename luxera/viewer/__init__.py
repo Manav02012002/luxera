@@ -16,7 +16,6 @@ from luxera.viewer.mesh import (
     mesh_from_trimesh,
 )
 from luxera.viewer.renderer import Renderer, SceneObject
-from luxera.viewer.widget import LuxeraGLWidget, create_demo_scene
 
 __all__ = [
     "Camera",
@@ -30,6 +29,11 @@ __all__ = [
     "mesh_from_trimesh",
     "Renderer",
     "SceneObject",
-    "LuxeraGLWidget",
-    "create_demo_scene",
 ]
+
+try:
+    from luxera.viewer.widget import LuxeraGLWidget, create_demo_scene
+except ImportError:
+    pass
+else:
+    __all__.extend(["LuxeraGLWidget", "create_demo_scene"])
