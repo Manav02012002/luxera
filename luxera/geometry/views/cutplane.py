@@ -30,6 +30,8 @@ class SectionView:
 class ElevationView:
     plane_origin: Point3
     plane_normal: Point3
+    direction: Point3 | None = None
+    depth: float = 0.0
 
 
 def _normalize(v: np.ndarray) -> np.ndarray:
@@ -49,7 +51,10 @@ def view_basis(view: PlanView | SectionView | ElevationView) -> Basis:
         return origin, u, v, n
 
     origin = np.asarray(view.plane_origin, dtype=float)
-    n = _normalize(np.asarray(view.plane_normal, dtype=float))
+    if isinstance(view, ElevationView) and view.direction is not None:
+        n = _normalize(np.asarray(view.direction, dtype=float))
+    else:
+        n = _normalize(np.asarray(view.plane_normal, dtype=float))
     up = np.array([0.0, 0.0, 1.0], dtype=float)
     if abs(float(np.dot(up, n))) >= (1.0 - EPS_POS):
         up = np.array([0.0, 1.0, 0.0], dtype=float)

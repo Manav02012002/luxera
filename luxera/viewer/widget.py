@@ -17,6 +17,7 @@ from luxera.viewer.mesh import (
     create_room_mesh, create_grid_mesh, 
     create_luminaire_mesh, Mesh
 )
+from luxera.viewer.streaming import StoreyChunk, filter_chunks_for_storeys
 
 
 class LuxeraGLWidget(QOpenGLWidget):
@@ -48,6 +49,8 @@ class LuxeraGLWidget(QOpenGLWidget):
         
         # Minimum size
         self.setMinimumSize(400, 300)
+        self._stream_chunks: list[StoreyChunk] = []
+        self._stream_chunk_object_ids: dict[str, int] = {}
     
     def initializeGL(self):
         """Initialize OpenGL context."""
@@ -166,6 +169,7 @@ class LuxeraGLWidget(QOpenGLWidget):
     
     def clear_scene(self, keep_grid: bool = True):
         """Clear all objects from scene."""
+        self._stream_chunk_object_ids = {}
         if keep_grid:
             grid_obj = None
             for obj in self.renderer.objects:
@@ -177,6 +181,26 @@ class LuxeraGLWidget(QOpenGLWidget):
                 self.renderer.add_object(grid_obj)
         else:
             self.renderer.clear_objects()
+        self.update()
+
+    def set_storey_chunks(self, chunks: list[StoreyChunk], visible_storeys: set[str] | None = None) -> None:
+        """Load viewport meshes per storey chunk for streaming."""
+        self._stream_chunks = list(chunks)
+        self.clear_scene(keep_grid=True)
+        for chunk in filter_chunks_for_storeys(self._stream_chunks, visible_storeys):
+            idx = self.renderer.add_object(SceneObject(mesh=chunk.viewport_mesh, name=f"chunk:{chunk.chunk_id}"))
+            self._stream_chunk_object_ids[chunk.chunk_id] = idx
+        self.update()
+
+    def set_visible_storeys(self, visible_storeys: set[str] | None) -> None:
+        """Toggle chunk visibility without rebuilding meshes."""
+        if not self._stream_chunks:
+            return
+        visible = {c.chunk_id for c in filter_chunks_for_storeys(self._stream_chunks, visible_storeys)}
+        for chunk_id, idx in self._stream_chunk_object_ids.items():
+            if idx < 0 or idx >= len(self.renderer.objects):
+                continue
+            self.renderer.objects[idx].visible = chunk_id in visible
         self.update()
     
     def fit_view(self):

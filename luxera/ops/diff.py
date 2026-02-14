@@ -65,15 +65,53 @@ def combine_deltas(deltas: List[Delta]) -> Delta:
 
 
 def diff_project(before: Dict[str, Any], after: Dict[str, Any]) -> Delta:
-    deltas = [
-        diff_collections(before, after, kind="room", path=("geometry", "rooms")),
-        diff_collections(before, after, kind="surface", path=("geometry", "surfaces")),
-        diff_collections(before, after, kind="opening", path=("geometry", "openings")),
-        diff_collections(before, after, kind="material", path=("materials",)),
-        diff_collections(before, after, kind="grid", path=("grids",)),
-        diff_collections(before, after, kind="workplane", path=("workplanes",)),
-        diff_collections(before, after, kind="vertical_plane", path=("vertical_planes",)),
-        diff_collections(before, after, kind="point_set", path=("point_sets",)),
+    specs = [
+        ("room", ("geometry", "rooms")),
+        ("surface", ("geometry", "surfaces")),
+        ("opening", ("geometry", "openings")),
+        ("obstruction", ("geometry", "obstructions")),
+        ("level", ("geometry", "levels")),
+        ("material", ("materials",)),
+        ("grid", ("grids",)),
+        ("workplane", ("workplanes",)),
+        ("vertical_plane", ("vertical_planes",)),
+        ("arbitrary_plane", ("arbitrary_planes",)),
+        ("point_set", ("point_sets",)),
+        ("line_grid", ("line_grids",)),
+        ("glare_view", ("glare_views",)),
+        ("escape_route", ("escape_routes",)),
+        ("roadway", ("roadways",)),
+        ("roadway_grid", ("roadway_grids",)),
+        ("luminaire", ("luminaires",)),
+        ("asset", ("photometry_assets",)),
+        ("family", ("luminaire_families",)),
+        ("variant", ("variants",)),
+        ("layer", ("layers",)),
+        ("symbol_2d", ("symbols_2d",)),
+        ("block_instance", ("block_instances",)),
+        ("selection_set", ("selection_sets",)),
+        ("param_footprint", ("param", "footprints")),
+        ("param_room", ("param", "rooms")),
+        ("param_wall", ("param", "walls")),
+        ("param_shared_wall", ("param", "shared_walls")),
+        ("param_opening", ("param", "openings")),
+        ("param_slab", ("param", "slabs")),
+        ("param_zone", ("param", "zones")),
+        ("param_instance", ("param", "instances")),
     ]
-    return combine_deltas(deltas)
-
+    deltas = [diff_collections(before, after, kind=k, path=p) for k, p in specs]
+    out = combine_deltas(deltas)
+    param_changes = {
+        "created": [i.id for i in out.created if i.kind.startswith("param_")],
+        "updated": [i.id for i in out.updated if i.kind.startswith("param_")],
+        "deleted": [i.id for i in out.deleted if i.kind.startswith("param_")],
+    }
+    return Delta(
+        created=list(out.created),
+        updated=list(out.updated),
+        deleted=list(out.deleted),
+        param_changes=param_changes,
+        derived_regen_summary=dict(out.derived_regen_summary),
+        stable_id_map=dict(out.stable_id_map),
+        attachment_remap=dict(out.attachment_remap),
+    )

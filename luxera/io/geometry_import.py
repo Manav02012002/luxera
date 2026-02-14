@@ -20,6 +20,14 @@ class GeometryImportResult:
     source_length_unit: str = "m"
     scale_to_meters: float = 1.0
     axis_transform_applied: str = "Z_UP/RIGHT_HANDED->Z_UP/RIGHT_HANDED"
+    axis_matrix: List[List[float]] = field(
+        default_factory=lambda: [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
     rooms: List[RoomSpec] = field(default_factory=list)
     surfaces: List[SurfaceSpec] = field(default_factory=list)
     openings: List[OpeningSpec] = field(default_factory=list)
@@ -231,6 +239,13 @@ def _import_ifc_with_options(
         source_length_unit=str(imported.coordinate_system.get("source_length_unit", imported.coordinate_system.get("length_unit", "m"))),
         scale_to_meters=float(imported.coordinate_system.get("scale_to_meters", 1.0)),
         axis_transform_applied=str(imported.coordinate_system.get("axis_transform_applied", "Z_UP/RIGHT_HANDED->Z_UP/RIGHT_HANDED")),
+        axis_matrix=[
+            [float(v) for v in row]
+            for row in imported.coordinate_system.get(
+                "axis_matrix",
+                [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]],
+            )
+        ],
         rooms=imported.rooms,
         surfaces=cleaned_surfaces,
         openings=imported.openings,

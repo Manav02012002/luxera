@@ -35,6 +35,9 @@ from luxera.project.schema import (
     RoadwaySpec,
     RoadwayGridSpec,
     ComplianceProfile,
+    Symbol2DSpec,
+    BlockInstanceSpec,
+    SelectionSetSpec,
     LayerSpec,
     ProjectVariant,
     DaylightAnnualSpec,
@@ -43,7 +46,9 @@ from luxera.project.schema import (
     EmergencySpec,
 )
 from luxera.geometry.param.model import (
+    FootprintHoleParam,
     FootprintParam,
+    InstanceParam,
     OpeningParam,
     ParamModel,
     RoomParam,
@@ -168,6 +173,7 @@ def _project_from_dict(d: Dict[str, Any]) -> Project:
                 family_id=l.get("family_id"),
                 mounting_type=l.get("mounting_type"),
                 mounting_height_m=l.get("mounting_height_m"),
+                layer_id=l.get("layer_id"),
                 tags=[str(x) for x in l.get("tags", [])] if isinstance(l.get("tags"), list) else [],
             )
             for l in d.get("luminaires", [])
@@ -182,6 +188,9 @@ def _project_from_dict(d: Dict[str, Any]) -> Project:
         roadways=[RoadwaySpec(**rw) for rw in d.get("roadways", [])],
         roadway_grids=[RoadwayGridSpec(**rg) for rg in d.get("roadway_grids", [])],
         compliance_profiles=[ComplianceProfile(**cp) for cp in d.get("compliance_profiles", [])],
+        symbols_2d=[Symbol2DSpec(**s) for s in d.get("symbols_2d", [])],
+        block_instances=[BlockInstanceSpec(**b) for b in d.get("block_instances", [])],
+        selection_sets=[SelectionSetSpec(**s) for s in d.get("selection_sets", [])],
         layers=[LayerSpec(**layer) for layer in layers_payload] if isinstance(layers_payload, list) and layers_payload else [
             LayerSpec(id="room", name="Rooms", visible=True, order=10),
             LayerSpec(id="wall", name="Walls", visible=True, order=20),
@@ -189,6 +198,7 @@ def _project_from_dict(d: Dict[str, Any]) -> Project:
             LayerSpec(id="opening", name="Openings", visible=True, order=40),
             LayerSpec(id="luminaire", name="Luminaires", visible=True, order=50),
             LayerSpec(id="grid", name="Calc Grids", visible=True, order=60),
+            LayerSpec(id="symbol", name="Symbols", visible=True, order=70),
         ],
         variants=[ProjectVariant(**v) for v in d.get("variants", [])],
         active_variant_id=d.get("active_variant_id"),
@@ -240,6 +250,18 @@ def _project_from_dict(d: Dict[str, Any]) -> Project:
                 FootprintParam(
                     id=str(x["id"]),
                     polygon2d=[(float(p[0]), float(p[1])) for p in x.get("polygon2d", [])],
+                    vertex_ids=[str(v) for v in x.get("vertex_ids", [])],
+                    edge_ids=[str(e) for e in x.get("edge_ids", [])],
+                    holes=[
+                        FootprintHoleParam(
+                            id=str(h.get("id", "")),
+                            polygon2d=[(float(p[0]), float(p[1])) for p in h.get("polygon2d", [])],
+                            vertex_ids=[str(v) for v in h.get("vertex_ids", [])],
+                            edge_ids=[str(e) for e in h.get("edge_ids", [])],
+                        )
+                        for h in x.get("holes", [])
+                    ],
+                    edge_bulges={str(k): float(v) for k, v in dict(x.get("edge_bulges", {})).items()},
                 )
                 for x in param_payload.get("footprints", [])
             ],
@@ -249,9 +271,14 @@ def _project_from_dict(d: Dict[str, Any]) -> Project:
                     footprint_id=str(x["footprint_id"]),
                     height=float(x["height"]),
                     wall_thickness=float(x.get("wall_thickness", 0.2)),
+                    wall_thickness_policy=str(x.get("wall_thickness_policy", x.get("wall_align_mode", "center"))),  # type: ignore[arg-type]
                     wall_align_mode=str(x.get("wall_align_mode", "center")),  # type: ignore[arg-type]
                     name=str(x.get("name", "")),
                     origin_z=float(x.get("origin_z", 0.0)),
+                    floor_slab_thickness=float(x.get("floor_slab_thickness", 0.0)),
+                    ceiling_slab_thickness=float(x.get("ceiling_slab_thickness", 0.0)),
+                    floor_offset=float(x.get("floor_offset", 0.0)),
+                    ceiling_offset=float(x.get("ceiling_offset", 0.0)),
                     polygon2d=[(float(p[0]), float(p[1])) for p in x.get("polygon2d", [])],
                 )
                 for x in param_payload.get("rooms", [])
@@ -261,8 +288,11 @@ def _project_from_dict(d: Dict[str, Any]) -> Project:
                     id=str(x["id"]),
                     room_id=str(x["room_id"]),
                     edge_ref=(int(x.get("edge_ref", [0, 0])[0]), int(x.get("edge_ref", [0, 0])[1])),
+                    edge_id=(str(x["edge_id"]) if x.get("edge_id") is not None else None),
+                    shared_edge_id=(str(x["shared_edge_id"]) if x.get("shared_edge_id") is not None else None),
                     thickness=float(x.get("thickness", 0.2)),
                     align_mode=str(x.get("align_mode", "center")),  # type: ignore[arg-type]
+                    finish_thickness=float(x.get("finish_thickness", 0.0)),
                     height=(float(x["height"]) if x.get("height") is not None else None),
                     name=str(x.get("name", "")),
                 )
@@ -271,6 +301,7 @@ def _project_from_dict(d: Dict[str, Any]) -> Project:
             shared_walls=[
                 SharedWallParam(
                     id=str(x["id"]),
+                    shared_edge_id=(str(x["shared_edge_id"]) if x.get("shared_edge_id") is not None else None),
                     edge_geom=(
                         (float(x.get("edge_geom", [[0.0, 0.0], [0.0, 0.0]])[0][0]), float(x.get("edge_geom", [[0.0, 0.0], [0.0, 0.0]])[0][1])),
                         (float(x.get("edge_geom", [[0.0, 0.0], [0.0, 0.0]])[1][0]), float(x.get("edge_geom", [[0.0, 0.0], [0.0, 0.0]])[1][1])),
@@ -290,11 +321,22 @@ def _project_from_dict(d: Dict[str, Any]) -> Project:
                 OpeningParam(
                     id=str(x["id"]),
                     wall_id=str(x["wall_id"]),
+                    host_wall_id=(str(x["host_wall_id"]) if x.get("host_wall_id") is not None else None),
                     anchor=float(x.get("anchor", 0.5)),
+                    anchor_mode=str(x.get("anchor_mode", "center_at_fraction")),  # type: ignore[arg-type]
+                    from_start_distance=(float(x["from_start_distance"]) if x.get("from_start_distance") is not None else None),
+                    from_end_distance=(float(x["from_end_distance"]) if x.get("from_end_distance") is not None else None),
+                    center_at_fraction=(float(x["center_at_fraction"]) if x.get("center_at_fraction") is not None else None),
+                    snap_to_nearest=bool(x.get("snap_to_nearest", False)),
+                    gridline_spacing=(float(x["gridline_spacing"]) if x.get("gridline_spacing") is not None else None),
+                    spacing_group_id=(str(x["spacing_group_id"]) if x.get("spacing_group_id") is not None else None),
                     width=float(x.get("width", 1.0)),
                     height=float(x.get("height", 1.2)),
                     sill=float(x.get("sill", 0.9)),
+                    polygon2d=[(float(p[0]), float(p[1])) for p in x.get("polygon2d", [])],
                     type=str(x.get("type", "window")),  # type: ignore[arg-type]
+                    glazing_material_id=(str(x["glazing_material_id"]) if x.get("glazing_material_id") is not None else None),
+                    visible_transmittance=(float(x["visible_transmittance"]) if x.get("visible_transmittance") is not None else None),
                 )
                 for x in param_payload.get("openings", [])
             ],
@@ -312,9 +354,21 @@ def _project_from_dict(d: Dict[str, Any]) -> Project:
                     id=str(x["id"]),
                     room_id=str(x["room_id"]),
                     polygon2d=[(float(p[0]), float(p[1])) for p in x.get("polygon2d", [])],
+                    holes2d=[[(float(p[0]), float(p[1])) for p in hole] for hole in x.get("holes2d", [])],
                     rule_pack_id=(str(x["rule_pack_id"]) if x.get("rule_pack_id") is not None else None),
                 )
                 for x in param_payload.get("zones", [])
+            ],
+            instances=[
+                InstanceParam(
+                    id=str(x["id"]),
+                    symbol_id=str(x["symbol_id"]),
+                    position=tuple(float(v) for v in x.get("position", (0.0, 0.0, 0.0))),  # type: ignore[arg-type]
+                    rotation_deg=tuple(float(v) for v in x.get("rotation_deg", (0.0, 0.0, 0.0))),  # type: ignore[arg-type]
+                    scale=tuple(float(v) for v in x.get("scale", (1.0, 1.0, 1.0))),  # type: ignore[arg-type]
+                    room_id=(str(x["room_id"]) if x.get("room_id") is not None else None),
+                )
+                for x in param_payload.get("instances", [])
             ],
         ),
         escape_routes=[EscapeRouteSpec(**er) for er in d.get("escape_routes", [])],

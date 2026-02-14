@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from luxera.engine.direct_illuminance import build_direct_occlusion_context, update_occlusion_instance_transforms
-from luxera.geometry.accel import MeshInstance, build_two_level_bvh, refit_two_level_bvh
-from luxera.geometry.bvh import Triangle, any_hit, ray_intersects_triangle
+from luxera.geometry.accel import MeshInstance, Ray, build_two_level_bvh, refit_two_level_bvh, ray_intersect
+from luxera.geometry.bvh import Triangle, ray_intersects_triangle
 from luxera.geometry.core import Vector3
 from luxera.project.schema import Project, SurfaceSpec
 
@@ -44,12 +44,10 @@ def test_two_level_bvh_refit_for_instance_transforms() -> None:
         MeshInstance(instance_id="i1", mesh_id="m1", transform_4x4=[[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
     ]
     accel = build_two_level_bvh(mesh, inst)
-    assert accel.tlas_world is not None
-    h1 = any_hit(accel.tlas_world, Vector3(0.1, 0.1, 1.0), Vector3(0.0, 0.0, -1.0), t_min=1e-6, t_max=10.0)
-    assert h1
+    r = Ray(origin=Vector3(0.1, 0.1, 1.0), direction=Vector3(0.0, 0.0, -1.0), t_min=1e-6, t_max=10.0)
+    assert ray_intersect(accel, r) is not None
     refit_two_level_bvh(
         accel,
         {"i1": [[1, 0, 0, 5], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]},
     )
-    h2 = any_hit(accel.tlas_world, Vector3(0.1, 0.1, 1.0), Vector3(0.0, 0.0, -1.0), t_min=1e-6, t_max=10.0)
-    assert not h2
+    assert ray_intersect(accel, r) is None

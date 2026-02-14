@@ -15,11 +15,14 @@ Basis = Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 
 @dataclass(frozen=True)
 class DrawingPrimitive:
-    type: Literal["line", "polyline", "arc"]
+    type: Literal["line", "polyline", "arc", "text"]
     points: List[Point2] = field(default_factory=list)
+    bulges: List[float] = field(default_factory=list)
+    closed: bool = False
     layer: str = "0"
     style: str = "solid"
     depth: float = 0.0
+    text: str = ""
 
 
 def project_polyline_to_view(poly3d: Polyline3D, basis: Basis) -> Polyline2D:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Tuple
 
+from luxera.geometry.id import stable_id
 from luxera.geometry.param.model import RoomParam
 from luxera.geometry.tolerance import EPS_WELD
 
@@ -12,11 +13,16 @@ Point2 = Tuple[float, float]
 
 @dataclass(frozen=True)
 class SharedEdge:
+    id: str
+    geom: Tuple[Point2, Point2]
     room_a: str
     edge_a: int
     room_b: str
     edge_b: int
     overlap_segment: Tuple[Point2, Point2]
+    # Local overlap segments preserve orientation in each room's local edge direction.
+    segment_a_local: Tuple[Point2, Point2]
+    segment_b_local: Tuple[Point2, Point2]
 
 
 def _sub(a: Point2, b: Point2) -> Point2:
@@ -64,6 +70,18 @@ def _overlap_segment(a0: Point2, a1: Point2, b0: Point2, b1: Point2, tol: float)
     return p0, p1
 
 
+def _dot_dir(a0: Point2, a1: Point2, b0: Point2, b1: Point2) -> float:
+    da = _sub(a1, a0)
+    db = _sub(b1, b0)
+    return _dot(da, db)
+
+
+def _oriented(seg: Tuple[Point2, Point2], ref0: Point2, ref1: Point2) -> Tuple[Point2, Point2]:
+    if _dot_dir(seg[0], seg[1], ref0, ref1) >= 0.0:
+        return seg
+    return (seg[1], seg[0])
+
+
 def find_shared_edges(rooms: list[RoomParam], tolerance: float = EPS_WELD) -> list[SharedEdge]:
     out: list[SharedEdge] = []
     for i in range(len(rooms)):
@@ -86,12 +104,35 @@ def find_shared_edges(rooms: list[RoomParam], tolerance: float = EPS_WELD) -> li
                     db = _sub(b1, b0)
                     if _norm(db) <= tolerance:
                         continue
-                    # Shared walls should be opposite-direction edges (tolerant).
-                    if _dot(da, db) >= 0.0:
-                        continue
                     ov = _overlap_segment(a0, a1, b0, b1, tolerance)
                     if ov is None:
                         continue
-                    out.append(SharedEdge(room_a=ra.id, edge_a=ea, room_b=rb.id, edge_b=eb, overlap_segment=ov))
+                    seg_a = _oriented(ov, a0, a1)
+                    seg_b = _oriented(ov, b0, b1)
+                    sid = stable_id(
+                        "shared_edge",
+                        {
+                            "room_a": str(ra.id),
+                            "edge_a": int(ea),
+                            "room_b": str(rb.id),
+                            "edge_b": int(eb),
+                            "geom": [
+                                [round(float(ov[0][0]), 9), round(float(ov[0][1]), 9)],
+                                [round(float(ov[1][0]), 9), round(float(ov[1][1]), 9)],
+                            ],
+                        },
+                    )
+                    out.append(
+                        SharedEdge(
+                            id=sid,
+                            geom=ov,
+                            room_a=ra.id,
+                            edge_a=ea,
+                            room_b=rb.id,
+                            edge_b=eb,
+                            overlap_segment=ov,
+                            segment_a_local=seg_a,
+                            segment_b_local=seg_b,
+                        )
+                    )
     return out
-

@@ -6,10 +6,11 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 import numpy as np
 
 from luxera.geometry.tolerance import EPS_ANG, EPS_POS, EPS_WELD
-from luxera.geometry.views.cutplane import PlanView, view_basis
+from luxera.geometry.views.cutplane import ElevationView, PlanView, SectionView, view_basis
 from luxera.geometry.views.hiddenline import depth_sort_primitives
 from luxera.geometry.views.intersect import Plane, Polyline3D, intersect_trimesh_with_plane, stitch_segments_to_polylines
 from luxera.geometry.views.project import DrawingPrimitive, polylines_to_primitives
+from luxera.geometry.layers import layer_visible, object_layer_id
 from luxera.project.schema import CalcGrid, Project, SurfaceSpec
 
 
@@ -180,6 +181,94 @@ def luminaire_symbol_inserts(project: Project) -> List[Tuple[str, Point2, float]
     return out
 
 
+@dataclass(frozen=True)
+class PlanLineworkPolicy:
+    show_walls_below_as_dashed: bool = True
+    include_openings: bool = True
+    include_luminaire_symbols: bool = True
+    below_layer: str = "WALLS_BELOW"
+    cut_layer: str = "CUT"
+    opening_layer: str = "OPENINGS"
+    symbol_layer: str = "LUMINAIRES"
+
+
+def plan_view_primitives(
+    project: Project,
+    view: PlanView,
+    *,
+    policy: PlanLineworkPolicy = PlanLineworkPolicy(),
+) -> List[DrawingPrimitive]:
+    cut = float(view.cut_z)
+    zmin = float(view.range_zmin)
+    zmax = float(view.range_zmax)
+    out: List[DrawingPrimitive] = []
+    for s in project.geometry.surfaces:
+        if len(s.vertices) < 3 or s.kind != "wall":
+            continue
+        if not layer_visible(project, object_layer_id(s, default="wall")):
+            continue
+        zs = [float(v[2]) for v in s.vertices]
+        vmin, vmax = min(zs), max(zs)
+        if vmax < zmin - EPS_POS or vmin > zmax + EPS_POS:
+            continue
+        if vmin <= cut <= vmax:
+            for a, b in _cut_polygon_at_z(s.vertices, cut):
+                out.append(DrawingPrimitive(type="line", points=[a, b], layer=policy.cut_layer, style="solid", depth=0.0))
+        elif policy.show_walls_below_as_dashed and vmax < cut:
+            for a, b in _poly_edges_xy(s.vertices):
+                out.append(DrawingPrimitive(type="line", points=[a, b], layer=policy.below_layer, style="dashed", depth=0.0))
+    if policy.include_openings:
+        for op in project.geometry.openings:
+            if len(op.vertices) < 2:
+                continue
+            if not layer_visible(project, object_layer_id(op, default="opening")):
+                continue
+            pts = [(float(v[0]), float(v[1])) for v in op.vertices]
+            if len(pts) >= 2:
+                out.append(DrawingPrimitive(type="polyline", points=pts, layer=policy.opening_layer, style="solid", depth=0.0))
+    if policy.include_luminaire_symbols:
+        for lum in project.luminaires:
+            if not layer_visible(project, object_layer_id(lum, default="luminaire")):
+                continue
+            x, y, z = lum.transform.position
+            if z < zmin - EPS_POS or z > zmax + EPS_POS:
+                continue
+            out.append(
+                DrawingPrimitive(
+                    type="text",
+                    points=[(float(x), float(y))],
+                    layer=policy.symbol_layer,
+                    style="solid",
+                    depth=0.0,
+                    text=str(lum.id),
+                )
+            )
+    out.sort(key=lambda p: (p.layer, p.style, p.type, len(p.points), p.points[0] if p.points else (0.0, 0.0)))
+    return out
+
+
+def view_linework_from_meshes(
+    meshes: Sequence[object],
+    view: PlanView | SectionView | ElevationView,
+    *,
+    layer: str = "CUT",
+) -> List[DrawingPrimitive]:
+    basis = view_basis(view)
+    _origin, _u, _v, n = basis
+    if isinstance(view, PlanView):
+        plane = Plane(origin=(0.0, 0.0, float(view.cut_z)), normal=(float(n[0]), float(n[1]), float(n[2])))
+    elif isinstance(view, SectionView):
+        plane = Plane(origin=view.plane_origin, normal=view.plane_normal, thickness=float(view.thickness))
+    else:
+        plane = Plane(origin=view.plane_origin, normal=(float(n[0]), float(n[1]), float(n[2])), thickness=float(max(0.0, view.depth)))
+    polylines: List[Polyline3D] = []
+    for m in meshes:
+        segs = intersect_trimesh_with_plane(m, plane)  # type: ignore[arg-type]
+        polylines.extend(stitch_segments_to_polylines(segs))
+    prims = polylines_to_primitives(polylines, basis, layer=layer)
+    return depth_sort_primitives(prims, back_to_front=False)
+
+
 def plan_linework_from_meshes(
     meshes: Sequence[object],
     *,
@@ -195,11 +284,4 @@ def plan_linework_from_meshes(
     is accepted to keep integration minimal.
     """
     view = PlanView(cut_z=float(cut_z), range_zmin=float(range_zmin), range_zmax=float(range_zmax))
-    basis = view_basis(view)
-    plane = Plane(origin=(0.0, 0.0, float(cut_z)), normal=(0.0, 0.0, 1.0))
-    polylines: List[Polyline3D] = []
-    for m in meshes:
-        segs = intersect_trimesh_with_plane(m, plane)  # type: ignore[arg-type]
-        polylines.extend(stitch_segments_to_polylines(segs))
-    prims = polylines_to_primitives(polylines, basis, layer=layer)
-    return depth_sort_primitives(prims, back_to_front=False)
+    return view_linework_from_meshes(meshes, view, layer=layer)

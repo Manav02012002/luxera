@@ -419,6 +419,134 @@ def _apply_opening_subtractions(
     return out, warnings
 
 
+def _derive_rooms_from_wall_surfaces(
+    surfaces: List[SurfaceSpec],
+    *,
+    min_xy_span: float = 0.25,
+    min_z_span: float = 1.8,
+) -> Tuple[List[RoomSpec], List[str]]:
+    walls = [s for s in surfaces if str(s.kind).lower() == "wall" and len(s.vertices) >= 3]
+    if not walls:
+        return [], []
+
+    wall_boxes: List[Tuple[float, float, float, float, float, float]] = []
+    for s in walls:
+        xs = [float(v[0]) for v in s.vertices]
+        ys = [float(v[1]) for v in s.vertices]
+        zs = [float(v[2]) for v in s.vertices]
+        wall_boxes.append((min(xs), min(ys), min(zs), max(xs), max(ys), max(zs)))
+
+    # Build connected components from XY bbox proximity/overlap.
+    tol = 0.5
+    n = len(wall_boxes)
+    adj: Dict[int, set[int]] = {i: set() for i in range(n)}
+    for i in range(n):
+        ax0, ay0, _az0, ax1, ay1, _az1 = wall_boxes[i]
+        for j in range(i + 1, n):
+            bx0, by0, _bz0, bx1, by1, _bz1 = wall_boxes[j]
+            overlap_x = min(ax1, bx1) - max(ax0, bx0)
+            overlap_y = min(ay1, by1) - max(ay0, by0)
+            close_x = max(0.0, max(ax0 - bx1, bx0 - ax1))
+            close_y = max(0.0, max(ay0 - by1, by0 - ay1))
+            if overlap_x >= -tol and overlap_y >= -tol:
+                adj[i].add(j)
+                adj[j].add(i)
+                continue
+            if close_x <= tol and close_y <= tol:
+                adj[i].add(j)
+                adj[j].add(i)
+
+    comps: List[List[int]] = []
+    seen: set[int] = set()
+    for i in range(n):
+        if i in seen:
+            continue
+        stack = [i]
+        comp: List[int] = []
+        while stack:
+            cur = stack.pop()
+            if cur in seen:
+                continue
+            seen.add(cur)
+            comp.append(cur)
+            stack.extend(list(adj.get(cur, ())))
+        comps.append(comp)
+
+    rooms: List[RoomSpec] = []
+    warnings: List[str] = []
+    for ri, comp in enumerate(comps):
+        xs: List[float] = []
+        ys: List[float] = []
+        zs: List[float] = []
+        for wi in comp:
+            x0, y0, z0, x1, y1, z1 = wall_boxes[wi]
+            xs.extend([x0, x1])
+            ys.extend([y0, y1])
+            zs.extend([z0, z1])
+        if not xs or not ys or not zs:
+            continue
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        min_z, max_z = min(zs), max(zs)
+        w = max_x - min_x
+        l = max_y - min_y
+        h = max_z - min_z
+        if w < min_xy_span or l < min_xy_span or h < min_z_span:
+            continue
+        rid = f"ifc_derived_room_{ri+1}"
+        rooms.append(
+            RoomSpec(
+                id=rid,
+                name=f"Derived Room {ri+1}",
+                width=float(w),
+                length=float(l),
+                height=float(h),
+                origin=(float(min_x), float(min_y), float(min_z)),
+                footprint=[(float(min_x), float(min_y)), (float(max_x), float(min_y)), (float(max_x), float(max_y)), (float(min_x), float(max_y))],
+            )
+        )
+
+    if rooms:
+        warnings.append(
+            "IfcSpace missing: derived room envelopes from wall surfaces (gap/overlap healing via tolerance-based enclosure)."
+        )
+    return rooms, warnings
+
+
+def _ensure_floor_ceiling_for_rooms(rooms: List[RoomSpec], surfaces: List[SurfaceSpec]) -> List[SurfaceSpec]:
+    out = list(surfaces)
+    by_room_and_kind: set[Tuple[str, str]] = set()
+    for s in surfaces:
+        if s.room_id and s.kind in {"floor", "ceiling"}:
+            by_room_and_kind.add((s.room_id, s.kind))
+    for room in rooms:
+        x0, y0, z0 = room.origin
+        x1 = x0 + float(room.width)
+        y1 = y0 + float(room.length)
+        z1 = z0 + float(room.height)
+        if (room.id, "floor") not in by_room_and_kind:
+            out.append(
+                SurfaceSpec(
+                    id=f"{room.id}_floor",
+                    name=f"{room.name} Floor",
+                    kind="floor",
+                    room_id=room.id,
+                    vertices=[(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0)],
+                )
+            )
+        if (room.id, "ceiling") not in by_room_and_kind:
+            out.append(
+                SurfaceSpec(
+                    id=f"{room.id}_ceiling",
+                    name=f"{room.name} Ceiling",
+                    kind="ceiling",
+                    room_id=room.id,
+                    vertices=[(x0, y0, z1), (x0, y1, z1), (x1, y1, z1), (x1, y0, z1)],
+                )
+            )
+    return out
+
+
 def _extract_ifcgeom_surfaces(
     model,
     ifcgeom,
@@ -773,6 +901,11 @@ def import_ifc(path: Path, options: IFCImportOptions | None = None) -> ImportedI
 
     if not rooms:
         warnings.append("No IfcSpace entities found.")
+        derived_rooms, derive_warnings = _derive_rooms_from_wall_surfaces(surfaces)
+        rooms.extend(derived_rooms)
+        warnings.extend(derive_warnings)
+        if rooms:
+            surfaces = _ensure_floor_ceiling_for_rooms(rooms, surfaces)
 
     source_conv = AxisConvention(
         up_axis=("Y_UP" if str(options.source_up_axis).upper() == "Y_UP" else "Z_UP"),  # type: ignore[arg-type]

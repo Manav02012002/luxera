@@ -3,7 +3,7 @@ from __future__ import annotations
 from math import isclose
 from typing import List, Optional, Sequence, Tuple
 
-from luxera.calcs.masks import apply_obstacle_masks
+from luxera.calcs.masks import apply_obstacle_masks, apply_opening_proximity_mask
 from luxera.geometry.zones import obstacle_polygons_for_room, resolve_zone_polygon, room_polygon
 from luxera.ops.base import OpContext, execute_op
 from luxera.geometry.spatial import clip_polyline_to_polygon, snap_polyline_to_segments
@@ -78,6 +78,8 @@ def create_calc_grid_from_room(
     spacing: float,
     margin: float = 0.0,
     zone_id: Optional[str] = None,
+    mask_near_openings: bool = False,
+    opening_mask_margin: float = 0.0,
     ctx: Optional[OpContext] = None,
 ) -> CalcGrid:
     def _validate() -> None:
@@ -118,6 +120,14 @@ def create_calc_grid_from_room(
                 sample_mask.append(bool(inside))
         obstacles = obstacle_polygons_for_room(project.geometry.no_go_zones, room_id)
         sample_mask = apply_obstacle_masks(sample_mask, points_xy, obstacles)
+        if bool(mask_near_openings) and float(opening_mask_margin) > 0.0:
+            room_wall_ids = {s.id for s in project.geometry.surfaces if s.kind == "wall" and s.room_id == room_id}
+            opening_polys = [
+                [(float(v[0]), float(v[1])) for v in o.vertices]
+                for o in project.geometry.openings
+                if o.host_surface_id in room_wall_ids and len(o.vertices) >= 2
+            ]
+            sample_mask = apply_opening_proximity_mask(sample_mask, points_xy, opening_polys, float(opening_mask_margin))
         for i, inside in enumerate(sample_mask):
             if inside:
                 px, py = points_xy[i]
@@ -134,6 +144,8 @@ def create_calc_grid_from_room(
             ny=ny,
             room_id=room_id,
             zone_id=zone_id,
+            mask_near_openings=bool(mask_near_openings),
+            opening_mask_margin=float(opening_mask_margin),
             sample_points=sample_points,
             sample_mask=sample_mask,
         )
@@ -151,6 +163,8 @@ def create_calc_grid_from_room(
             "elevation": elevation,
             "spacing": spacing,
             "margin": margin,
+            "mask_near_openings": bool(mask_near_openings),
+            "opening_mask_margin": float(opening_mask_margin),
         },
         ctx=ctx,
         validate=_validate,

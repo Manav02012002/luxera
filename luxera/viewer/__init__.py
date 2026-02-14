@@ -16,6 +16,7 @@ from luxera.viewer.mesh import (
     mesh_from_trimesh,
 )
 from luxera.viewer.renderer import Renderer, SceneObject
+from luxera.viewer.streaming import StoreyChunk, build_storey_chunks, filter_chunks_for_storeys
 
 __all__ = [
     "Camera",
@@ -29,6 +30,9 @@ __all__ = [
     "mesh_from_trimesh",
     "Renderer",
     "SceneObject",
+    "StoreyChunk",
+    "build_storey_chunks",
+    "filter_chunks_for_storeys",
 ]
 
 try:

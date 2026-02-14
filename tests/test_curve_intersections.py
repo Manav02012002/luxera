@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from luxera.geometry.curves.arc import Arc
-from luxera.geometry.curves.intersections import Segment2D, arc_arc_intersections, segment_arc_intersections, segment_segment_intersections
+from luxera.geometry.curves.intersections import Segment2D, arc_arc_intersections, cluster_points, polycurve_intersections, segment_arc_intersections, segment_segment_intersections
 from luxera.geometry.curves.polycurve import PolyCurve
 
 
@@ -25,3 +25,12 @@ def test_polycurve_intersections_mixed_parts() -> None:
     p2 = PolyCurve(parts=[Segment2D((1.0, -1.0), (1.0, 1.0))])
     hits = p1.intersections(p2)
     assert hits
+
+
+def test_polycurve_intersections_cluster_near_duplicates() -> None:
+    p1 = [Segment2D((0.0, 0.0), (2.0, 0.0)), Segment2D((2.0, 0.0), (2.0, 2.0))]
+    p2 = [Segment2D((1.0, -1.0), (1.0, 1.0)), Segment2D((1.0, 1e-7), (3.0, 1e-7))]
+    hits = polycurve_intersections(p1, p2, eps=1e-5)
+    assert len(hits) >= 1
+    c = cluster_points([(1.0, 0.0), (1.0 + 1e-7, 0.0)], eps=1e-5)
+    assert len(c) == 1

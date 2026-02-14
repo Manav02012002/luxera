@@ -4,12 +4,7 @@ from dataclasses import dataclass, field
 from typing import List, Tuple, Union
 
 from luxera.geometry.curves.arc import Arc
-from luxera.geometry.curves.intersections import (
-    Segment2D,
-    arc_arc_intersections,
-    segment_arc_intersections,
-    segment_segment_intersections,
-)
+from luxera.geometry.curves.intersections import Segment2D, polycurve_intersections
 
 
 Point2 = Tuple[float, float]
@@ -21,22 +16,7 @@ class PolyCurve:
     parts: List[CurvePart] = field(default_factory=list)
 
     def intersections(self, other: "PolyCurve") -> List[Point2]:
-        out: List[Point2] = []
-        for a in self.parts:
-            for b in other.parts:
-                pts: List[Point2]
-                if isinstance(a, Segment2D) and isinstance(b, Segment2D):
-                    pts = segment_segment_intersections(a, b)
-                elif isinstance(a, Segment2D) and isinstance(b, Arc):
-                    pts = segment_arc_intersections(a, b)
-                elif isinstance(a, Arc) and isinstance(b, Segment2D):
-                    pts = segment_arc_intersections(b, a)
-                else:
-                    pts = arc_arc_intersections(a, b)  # type: ignore[arg-type]
-                for p in pts:
-                    if p not in out:
-                        out.append(p)
-        return out
+        return polycurve_intersections(self.parts, other.parts)
 
 
 def polycurve_from_polyline(points: List[Point2], *, closed: bool = False) -> PolyCurve:
