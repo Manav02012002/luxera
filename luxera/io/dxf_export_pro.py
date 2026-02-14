@@ -5,7 +5,10 @@ from math import atan2, degrees
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Sequence, Tuple
 
-from luxera.geometry.drafting import grid_linework_xy, luminaire_symbol_inserts, project_plan_view
+from luxera.geometry.drafting import PlanLineworkPolicy, grid_linework_xy, plan_view_primitives
+from luxera.geometry.layers import layer_visible
+from luxera.geometry.symbols import all_symbol_placements
+from luxera.geometry.views.cutplane import PlanView
 from luxera.geometry.views.project import DrawingPrimitive
 from luxera.project.schema import Project
 
@@ -34,7 +37,13 @@ def _line_entity(a: Point2, b: Point2, layer: str) -> str:
     )
 
 
-def _lwpolyline_entity(points: Sequence[Point2], layer: str, closed: bool = False) -> str:
+def _lwpolyline_entity(
+    points: Sequence[Point2],
+    layer: str,
+    *,
+    bulges: Sequence[float] = (),
+    closed: bool = False,
+) -> str:
     if len(points) < 2:
         return ""
     out = (
@@ -43,8 +52,11 @@ def _lwpolyline_entity(points: Sequence[Point2], layer: str, closed: bool = Fals
         f"90\n{len(points)}\n"
         f"70\n{1 if closed else 0}\n"
     )
-    for x, y in points:
+    for i, (x, y) in enumerate(points):
         out += f"10\n{_f(x)}\n20\n{_f(y)}\n"
+        b = float(bulges[i]) if i < len(bulges) else 0.0
+        if abs(b) > 0.0:
+            out += f"42\n{_f(b)}\n"
     return out
 
 
@@ -75,14 +87,24 @@ def _insert_entity(sym: SymbolInsert) -> str:
     )
 
 
-def _block_luminaire_symbol(name: str = "LUM_SYMBOL") -> str:
+def _text_entity(point: Point2, text: str, layer: str) -> str:
+    return (
+        "0\nTEXT\n"
+        f"8\n{layer}\n"
+        f"10\n{_f(point[0])}\n20\n{_f(point[1])}\n30\n0.0\n"
+        "40\n0.25\n"
+        f"1\n{text}\n"
+    )
+
+
+def _block_symbol(name: str, *, layer: str = "LUMINAIRES") -> str:
     return (
         "0\nBLOCK\n8\n0\n"
         f"2\n{name}\n"
         "70\n0\n10\n0.0\n20\n0.0\n30\n0.0\n"
-        "0\nCIRCLE\n8\nLUMINAIRES\n10\n0.0\n20\n0.0\n30\n0.0\n40\n0.25\n"
-        "0\nLINE\n8\nLUMINAIRES\n10\n-0.3\n20\n0.0\n30\n0.0\n11\n0.3\n21\n0.0\n31\n0.0\n"
-        "0\nLINE\n8\nLUMINAIRES\n10\n0.0\n20\n-0.3\n30\n0.0\n11\n0.0\n21\n0.3\n31\n0.0\n"
+        f"0\nCIRCLE\n8\n{layer}\n10\n0.0\n20\n0.0\n30\n0.0\n40\n0.25\n"
+        f"0\nLINE\n8\n{layer}\n10\n-0.3\n20\n0.0\n30\n0.0\n11\n0.3\n21\n0.0\n31\n0.0\n"
+        f"0\nLINE\n8\n{layer}\n10\n0.0\n20\n-0.3\n30\n0.0\n11\n0.0\n21\n0.3\n31\n0.0\n"
         "0\nENDBLK\n"
     )
 
@@ -116,9 +138,18 @@ def export_view_linework_to_dxf(
         if p.type == "line" and len(pts) >= 2:
             entities.append(_line_entity(pts[0], pts[1], lay))
         elif p.type == "polyline" and len(pts) >= 2:
-            entities.append(_lwpolyline_entity(pts, lay, closed=False))
+            entities.append(
+                _lwpolyline_entity(
+                    pts,
+                    lay,
+                    bulges=[float(x) for x in getattr(p, "bulges", [])],
+                    closed=bool(getattr(p, "closed", False)),
+                )
+            )
         elif p.type == "arc" and len(pts) >= 3:
             entities.append(_arc_entity(pts[0], pts[1], pts[2], lay))
+        elif p.type == "text" and len(pts) >= 1:
+            entities.append(_text_entity(pts[0], p.text or "", lay))
 
     for s in symbols:
         mapped = SymbolInsert(
@@ -136,7 +167,11 @@ def export_view_linework_to_dxf(
     content += _layer_table(used_layers)
     content += "0\nENDSEC\n"
     content += "0\nSECTION\n2\nBLOCKS\n"
-    content += _block_luminaire_symbol("LUM_SYMBOL")
+    block_names = sorted({str(s.block) for s in symbols if str(s.block)})
+    if "LUM_SYMBOL" not in block_names:
+        block_names.insert(0, "LUM_SYMBOL")
+    for bname in block_names:
+        content += _block_symbol(bname, layer="LUMINAIRES")
     content += "0\nENDSEC\n"
     content += "0\nSECTION\n2\nENTITIES\n"
     content += "".join(entities)
@@ -157,13 +192,20 @@ def export_plan_to_dxf_pro(
     include_luminaires: bool = True,
     layer_map: Mapping[str, str] | None = None,
 ) -> Path:
-    proj = project_plan_view(project.geometry.surfaces, cut_z=float(cut_z), include_below=True)
-    prims: List[DrawingPrimitive] = []
-
-    for a, b in proj.silhouettes:
-        prims.append(DrawingPrimitive(type="line", points=[a, b], layer="WALLS", style="solid", depth=0.0))
-    for a, b in proj.cut_segments:
-        prims.append(DrawingPrimitive(type="line", points=[a, b], layer="CUT", style="solid", depth=0.0))
+    view = PlanView(cut_z=float(cut_z), range_zmin=float(cut_z) - 1000.0, range_zmax=float(cut_z) + 1000.0)
+    prims: List[DrawingPrimitive] = plan_view_primitives(
+        project,
+        view,
+        policy=PlanLineworkPolicy(
+            show_walls_below_as_dashed=True,
+            include_openings=True,
+            include_luminaire_symbols=False,
+            below_layer="WALLS",
+            cut_layer="CUT",
+            opening_layer="OPENINGS",
+            symbol_layer="LUMINAIRES",
+        ),
+    )
 
     if include_grids:
         for a, b in grid_linework_xy(project.grids):
@@ -171,8 +213,20 @@ def export_plan_to_dxf_pro(
 
     syms: List[SymbolInsert] = []
     if include_luminaires:
-        for _lum_id, p, s in luminaire_symbol_inserts(project):
-            syms.append(SymbolInsert(block="LUM_SYMBOL", point=p, scale=float(s), layer="LUMINAIRES"))
+        for sp in all_symbol_placements(project):
+            if not layer_visible(project, sp.layer_id):
+                continue
+            syms.append(
+                SymbolInsert(
+                    block=str(sp.symbol_id or "LUM_SYMBOL"),
+                    point=(float(sp.anchor[0]), float(sp.anchor[1])),
+                    scale=float(sp.scale),
+                    rotation_deg=float(sp.rotation_deg),
+                    layer=str(sp.layer_id).upper(),
+                )
+            )
+        # Do not emit duplicate text anchors when exporting symbol inserts.
+        prims = [x for x in prims if not (x.type == "text" and x.layer == "LUMINAIRES")]
 
     prims.sort(key=lambda x: (x.layer, x.type, len(x.points), x.points[0] if x.points else (0.0, 0.0)))
     return export_view_linework_to_dxf(prims, out_path, symbols=syms, layer_map=layer_map)

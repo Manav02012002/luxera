@@ -15,6 +15,44 @@ ENDSEC
 0
 SECTION
 2
+BLOCKS
+0
+BLOCK
+8
+0
+2
+B_EXIT
+70
+0
+10
+0.0
+20
+0.0
+30
+0.0
+0
+LINE
+8
+0
+10
+-0.1
+20
+0.0
+30
+0.0
+11
+0.1
+21
+0.0
+31
+0.0
+0
+ENDBLK
+0
+ENDSEC
+0
+SECTION
+2
 ENTITIES
 0
 LWPOLYLINE
@@ -47,6 +85,22 @@ A-AXIS
 21
 1.0
 0
+INSERT
+8
+A-SYMB
+2
+B_EXIT
+10
+0.5
+20
+0.5
+41
+1.2
+42
+1.2
+50
+30.0
+0
 ENDSEC
 0
 EOF
@@ -64,6 +118,10 @@ def test_dxf_roundtrip_preserves_bulges_and_layers(tmp_path: Path) -> None:
     assert first.polylines[0].bulges[0] == 0.5
     assert len(first.lines) == 1
     assert first.lines[0].layer == "A-AXIS"
+    assert len(first.inserts) == 1
+    assert first.inserts[0].block_name == "B_EXIT"
+    assert first.inserts[0].layer == "A-SYMB"
+    assert "B_EXIT" in first.blocks
 
     roundtrip_dxf(src, dst)
 
@@ -73,8 +131,14 @@ def test_dxf_roundtrip_preserves_bulges_and_layers(tmp_path: Path) -> None:
     assert abs(second.polylines[0].bulges[0] - 0.5) < 1e-12
     assert len(second.lines) == 1
     assert second.lines[0].layer == "A-AXIS"
+    assert len(second.inserts) == 1
+    assert second.inserts[0].block_name == "B_EXIT"
+    assert second.inserts[0].layer == "A-SYMB"
+    assert "B_EXIT" in second.blocks
 
     text = dst.read_text(encoding="utf-8")
     assert "LWPOLYLINE" in text
     assert "8\nA-WALL\n" in text
     assert "42\n0.5\n" in text
+    assert "INSERT" in text
+    assert "2\nB_EXIT\n" in text

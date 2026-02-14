@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from luxera.ops.delta import Delta, apply_delta, invert
@@ -16,12 +16,15 @@ class TransactionRecord:
     delta: Delta
     before_hash: str
     after_hash: str
+    group_id: Optional[str] = None
+    grouped_ops: List[str] = field(default_factory=list)
 
 
 class TransactionManager:
     def __init__(self, project: Project) -> None:
         self.project = project
         self._active: Optional[Dict[str, Any]] = None
+        self._group: Optional[Dict[str, Any]] = None
         self._undo: List[TransactionRecord] = []
         self._redo: List[TransactionRecord] = []
 
@@ -34,21 +37,99 @@ class TransactionManager:
             "before": self.project.to_dict(),
         }
 
-    def commit(self, *, before_hash: str = "", after_hash: str = "") -> TransactionRecord:
+    def begin_group(self, group_id: str = "group", args: Optional[Dict[str, Any]] = None) -> None:
+        if self._group is not None:
+            raise RuntimeError("transaction group already active")
+        self._group = {
+            "group_id": str(group_id),
+            "args": dict(args or {}),
+            "before": self.project.to_dict(),
+            "before_hash": "",
+            "records": [],
+        }
+
+    def end_group(self, *, before_hash: str = "", after_hash: str = "") -> Optional[TransactionRecord]:
+        if self._group is None:
+            raise RuntimeError("no active transaction group")
+        grp = self._group
+        self._group = None
+        records: List[TransactionRecord] = list(grp.get("records", []))
+        if not records:
+            return None
+        before = grp["before"]
+        after = self.project.to_dict()
+        base_delta = diff_project(before, after)
+        # Merge metadata from grouped records.
+        stable: Dict[str, List[str]] = {}
+        attach: Dict[str, str] = {}
+        regen_ids: set[str] = set()
+        for r in records:
+            stable.update(r.delta.stable_id_map)
+            attach.update(r.delta.attachment_remap)
+            for x in list(r.delta.derived_regen_summary.get("regenerated_ids", [])):
+                regen_ids.add(str(x))
+        delta = Delta(
+            created=list(base_delta.created),
+            updated=list(base_delta.updated),
+            deleted=list(base_delta.deleted),
+            param_changes=dict(base_delta.param_changes),
+            derived_regen_summary={
+                "regenerated_ids": sorted(regen_ids),
+                "count": len(regen_ids),
+                "group_id": str(grp["group_id"]),
+            },
+            stable_id_map=stable,
+            attachment_remap=attach,
+        )
+        rec = TransactionRecord(
+            op_name=str(grp["group_id"]),
+            args=dict(grp["args"]),
+            delta=delta,
+            before_hash=str(before_hash),
+            after_hash=str(after_hash),
+            group_id=str(grp["group_id"]),
+            grouped_ops=[r.op_name for r in records],
+        )
+        self._undo.append(rec)
+        self._redo.clear()
+        return rec
+
+    def commit(
+        self,
+        *,
+        before_hash: str = "",
+        after_hash: str = "",
+        stable_id_map: Optional[Dict[str, List[str]]] = None,
+        attachment_remap: Optional[Dict[str, str]] = None,
+        derived_regen_summary: Optional[Dict[str, Any]] = None,
+    ) -> TransactionRecord:
         if self._active is None:
             raise RuntimeError("no active transaction")
         before = self._active["before"]
         after = self.project.to_dict()
-        delta = diff_project(before, after)
+        base_delta = diff_project(before, after)
+        delta = Delta(
+            created=list(base_delta.created),
+            updated=list(base_delta.updated),
+            deleted=list(base_delta.deleted),
+            param_changes=dict(base_delta.param_changes),
+            derived_regen_summary=dict(derived_regen_summary or base_delta.derived_regen_summary),
+            stable_id_map={str(k): [str(x) for x in v] for k, v in (stable_id_map or base_delta.stable_id_map).items()},
+            attachment_remap={str(k): str(v) for k, v in (attachment_remap or base_delta.attachment_remap).items()},
+        )
         rec = TransactionRecord(
             op_name=str(self._active["op_name"]),
             args=dict(self._active["args"]),
             delta=delta,
             before_hash=str(before_hash),
             after_hash=str(after_hash),
+            grouped_ops=[],
         )
-        self._undo.append(rec)
-        self._redo.clear()
+        if self._group is not None:
+            self._group["records"].append(rec)
+        else:
+            self._undo.append(rec)
+            self._redo.clear()
         self._active = None
         return rec
 
@@ -87,6 +168,10 @@ class TransactionManager:
     def active(self) -> bool:
         return self._active is not None
 
+    @property
+    def group_active(self) -> bool:
+        return self._group is not None
+
 
 def _copy_project_state(project: Project, restored: Project) -> None:
     project.geometry = restored.geometry
@@ -98,11 +183,18 @@ def _copy_project_state(project: Project, restored: Project) -> None:
     project.grids = restored.grids
     project.workplanes = restored.workplanes
     project.vertical_planes = restored.vertical_planes
+    project.arbitrary_planes = restored.arbitrary_planes
     project.point_sets = restored.point_sets
+    project.line_grids = restored.line_grids
     project.glare_views = restored.glare_views
+    project.escape_routes = restored.escape_routes
     project.roadways = restored.roadways
     project.roadway_grids = restored.roadway_grids
     project.compliance_profiles = restored.compliance_profiles
+    project.symbols_2d = restored.symbols_2d
+    project.block_instances = restored.block_instances
+    project.selection_sets = restored.selection_sets
+    project.layers = restored.layers
     project.variants = restored.variants
     project.active_variant_id = restored.active_variant_id
     project.jobs = restored.jobs
@@ -116,4 +208,3 @@ def get_transaction_manager(project: Project) -> TransactionManager:
         mgr = TransactionManager(project)
         setattr(project, "_ops_transaction_manager", mgr)
     return mgr
-

@@ -23,9 +23,20 @@ class RoundtripLine:
 
 
 @dataclass(frozen=True)
+class RoundtripInsert:
+    layer: str
+    block_name: str
+    point: Point2
+    scale: float = 1.0
+    rotation_deg: float = 0.0
+
+
+@dataclass(frozen=True)
 class RoundtripDoc:
     polylines: List[RoundtripPolyline] = field(default_factory=list)
     lines: List[RoundtripLine] = field(default_factory=list)
+    inserts: List[RoundtripInsert] = field(default_factory=list)
+    blocks: List[str] = field(default_factory=list)
 
 
 def _pairs(text: str) -> List[Tuple[int, str]]:
@@ -71,6 +82,31 @@ def _entity_chunks(pairs: Sequence[Tuple[int, str]]) -> List[List[Tuple[int, str
             cur.append((code, val))
 
     return chunks
+
+
+def _block_names(pairs: Sequence[Tuple[int, str]]) -> List[str]:
+    names: List[str] = []
+    in_blocks = False
+    cur_is_block = False
+    for code, val in pairs:
+        if code == 0 and val == "SECTION":
+            continue
+        if code == 2 and val == "BLOCKS":
+            in_blocks = True
+            continue
+        if in_blocks and code == 0 and val == "ENDSEC":
+            break
+        if not in_blocks:
+            continue
+        if code == 0:
+            cur_is_block = val == "BLOCK"
+            continue
+        if cur_is_block and code == 2:
+            nm = str(val).strip()
+            if nm and nm not in names:
+                names.append(nm)
+            cur_is_block = False
+    return names
 
 
 def _parse_lwpolyline(chunk: Sequence[Tuple[int, str]]) -> RoundtripPolyline:
@@ -142,12 +178,40 @@ def _parse_line(chunk: Sequence[Tuple[int, str]]) -> RoundtripLine | None:
     return RoundtripLine(layer=str(layer), start=(x0, y0), end=(x1, y1))
 
 
+def _parse_insert(chunk: Sequence[Tuple[int, str]]) -> RoundtripInsert | None:
+    layer = "0"
+    block_name = ""
+    x = y = 0.0
+    sx = sy = 1.0
+    rot = 0.0
+    for code, val in chunk:
+        if code == 8:
+            layer = val or "0"
+        elif code == 2:
+            block_name = str(val)
+        elif code == 10:
+            x = float(val)
+        elif code == 20:
+            y = float(val)
+        elif code == 41:
+            sx = float(val)
+        elif code == 42:
+            sy = float(val)
+        elif code == 50:
+            rot = float(val)
+    if not block_name:
+        return None
+    return RoundtripInsert(layer=str(layer), block_name=str(block_name), point=(x, y), scale=float((sx + sy) * 0.5), rotation_deg=float(rot))
+
+
 def load_roundtrip_dxf(path: str | Path) -> RoundtripDoc:
     p = Path(path).expanduser().resolve()
     pairs = _pairs(p.read_text(encoding="utf-8", errors="replace"))
     chunks = _entity_chunks(pairs)
     polylines: List[RoundtripPolyline] = []
     lines: List[RoundtripLine] = []
+    inserts: List[RoundtripInsert] = []
+    blocks = _block_names(pairs)
 
     for ch in chunks:
         etype = ch[0][1] if ch and ch[0][0] == 0 else ""
@@ -159,8 +223,12 @@ def load_roundtrip_dxf(path: str | Path) -> RoundtripDoc:
             line = _parse_line(ch)
             if line is not None:
                 lines.append(line)
+        elif etype == "INSERT":
+            ins = _parse_insert(ch)
+            if ins is not None:
+                inserts.append(ins)
 
-    return RoundtripDoc(polylines=polylines, lines=lines)
+    return RoundtripDoc(polylines=polylines, lines=lines, inserts=inserts, blocks=blocks)
 
 
 def _f(v: float) -> str:
@@ -199,6 +267,27 @@ def _write_line(line: RoundtripLine) -> str:
     )
 
 
+def _write_insert(ins: RoundtripInsert) -> str:
+    return (
+        "0\nINSERT\n"
+        f"8\n{ins.layer}\n"
+        f"2\n{ins.block_name}\n"
+        f"10\n{_f(ins.point[0])}\n20\n{_f(ins.point[1])}\n30\n0.0\n"
+        f"41\n{_f(ins.scale)}\n42\n{_f(ins.scale)}\n43\n{_f(ins.scale)}\n"
+        f"50\n{_f(ins.rotation_deg)}\n"
+    )
+
+
+def _write_block(name: str) -> str:
+    return (
+        "0\nBLOCK\n8\n0\n"
+        f"2\n{name}\n"
+        "70\n0\n10\n0.0\n20\n0.0\n30\n0.0\n"
+        "0\nLINE\n8\n0\n10\n-0.1\n20\n0.0\n30\n0.0\n11\n0.1\n21\n0.0\n31\n0.0\n"
+        "0\nENDBLK\n"
+    )
+
+
 def export_roundtrip_dxf(doc: RoundtripDoc, out_path: str | Path) -> Path:
     out = Path(out_path).expanduser().resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -206,16 +295,24 @@ def export_roundtrip_dxf(doc: RoundtripDoc, out_path: str | Path) -> Path:
     layers = ["0"]
     layers.extend(p.layer for p in doc.polylines)
     layers.extend(l.layer for l in doc.lines)
+    layers.extend(i.layer for i in doc.inserts)
 
     content = "0\nSECTION\n2\nHEADER\n0\nENDSEC\n"
     content += "0\nSECTION\n2\nTABLES\n"
     content += _write_layers(layers)
+    content += "0\nENDSEC\n"
+    content += "0\nSECTION\n2\nBLOCKS\n"
+    block_names = sorted({str(b) for b in doc.blocks if str(b)} | {str(i.block_name) for i in doc.inserts if str(i.block_name)})
+    for b in block_names:
+        content += _write_block(b)
     content += "0\nENDSEC\n"
     content += "0\nSECTION\n2\nENTITIES\n"
     for p in doc.polylines:
         content += _write_lwpolyline(p)
     for l in doc.lines:
         content += _write_line(l)
+    for ins in doc.inserts:
+        content += _write_insert(ins)
     content += "0\nENDSEC\n0\nEOF\n"
 
     out.write_text(content, encoding="utf-8")

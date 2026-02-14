@@ -21,23 +21,28 @@ def wall_basis(surface: SurfaceSpec) -> Tuple[np.ndarray, np.ndarray, np.ndarray
         raise ValueError("wall needs at least 3 vertices")
 
     origin = verts[0]
-    # Prefer the first edge as U so IDs/anchor semantics remain stable.
-    u = verts[1] - origin
+    # Fit a robust plane normal for noisy/imported/slanted walls.
+    c = np.mean(verts, axis=0)
+    centered = verts - c
+    _u_svd, _s_svd, vh = np.linalg.svd(centered, full_matrices=False)
+    n = vh[-1]
+    ln = float(np.linalg.norm(n))
+    if ln <= EPS_POS:
+        raise ValueError("invalid wall normal for local frame")
+    n = n / ln
+
+    # Prefer the first edge as U; project it onto the fitted plane.
+    u_raw = verts[1] - origin
+    u = u_raw - n * float(np.dot(u_raw, n))
     lu = float(np.linalg.norm(u))
     if lu <= EPS_POS:
-        raise ValueError("invalid wall edge for local frame")
+        # Fallback to principal in-plane axis from SVD.
+        u = vh[0]
+        u = u - n * float(np.dot(u, n))
+        lu = float(np.linalg.norm(u))
+        if lu <= EPS_POS:
+            raise ValueError("invalid wall edge for local frame")
     u = u / lu
-
-    # Find a non-collinear edge to seed plane normal.
-    n = None
-    for i in range(2, verts.shape[0]):
-        c = np.cross(u, verts[i] - origin)
-        ln = float(np.linalg.norm(c))
-        if ln > EPS_POS:
-            n = c / ln
-            break
-    if n is None:
-        raise ValueError("invalid wall normal for local frame")
 
     v = np.cross(n, u)
     lv = float(np.linalg.norm(v))

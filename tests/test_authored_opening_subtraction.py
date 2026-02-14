@@ -70,3 +70,32 @@ def test_param_rebuild_opening_uses_same_subtraction_path() -> None:
     rebuild_surfaces_for_room("r1", p)
     wall_parts = [s for s in p.geometry.surfaces if s.kind == "wall" and s.room_id == "r1"]
     assert len(wall_parts) >= 2
+
+
+def test_param_rebuild_window_creates_glazing_and_opening_geometry() -> None:
+    p = Project(name="param-window")
+    p.param.footprints.append(FootprintParam(id="fp1", polygon2d=[(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (0.0, 3.0)]))
+    p.param.rooms.append(RoomParam(id="r1", footprint_id="fp1", height=3.0))
+    p.param.walls.append(WallParam(id="w01", room_id="r1", edge_ref=(0, 1)))
+    p.param.openings.append(
+        OpeningParam(
+            id="o1",
+            wall_id="w01",
+            anchor=0.5,
+            width=1.0,
+            height=1.2,
+            sill=0.8,
+            type="window",
+            glazing_material_id="glass",
+            visible_transmittance=0.65,
+        )
+    )
+
+    rebuild_surfaces_for_room("r1", p)
+    assert any(s.id == "o1:glazing" for s in p.geometry.surfaces)
+    op = next(o for o in p.geometry.openings if o.id == "o1")
+    assert op.host_surface_id is not None
+    assert len(op.vertices) == 4
+    assert op.vt == 0.65
+    glazing = next(s for s in p.geometry.surfaces if s.id == "o1:glazing")
+    assert glazing.material_id == "glass"

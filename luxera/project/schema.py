@@ -104,6 +104,7 @@ class LuminaireInstance:
     family_id: Optional[str] = None
     mounting_type: Optional[str] = None
     mounting_height_m: Optional[float] = None
+    layer_id: Optional[str] = None
     tags: List[str] = field(default_factory=list)
 
 
@@ -118,9 +119,12 @@ class CalcGrid:
     nx: int
     ny: int
     normal: Tuple[float, float, float] = (0.0, 0.0, 1.0)
+    layer_id: Optional[str] = None
     room_id: Optional[str] = None
     zone_id: Optional[str] = None
     evaluation_height_offset: float = 0.0
+    mask_near_openings: bool = False
+    opening_mask_margin: float = 0.0
     metric_set: List[str] = field(default_factory=lambda: ["E_avg", "E_min", "E_max", "U0", "U1"])
     sample_points: List[Tuple[float, float, float]] = field(default_factory=list)
     sample_mask: List[bool] = field(default_factory=list)
@@ -154,6 +158,7 @@ class RoomSpec:
     wall_reflectance: float = 0.5
     ceiling_reflectance: float = 0.7
     activity_type: Optional[str] = None
+    layer_id: Optional[str] = None
     level_id: Optional[str] = None
     coordinate_system_id: Optional[str] = None
     footprint: Optional[List[Tuple[float, float]]] = None
@@ -188,6 +193,7 @@ class SurfaceSpec:
     room_id: Optional[str] = None
     material_id: Optional[str] = None
     layer: Optional[str] = None
+    layer_id: Optional[str] = None
     tags: List[str] = field(default_factory=list)
     two_sided: bool = True
     wall_room_side_a: Optional[str] = None
@@ -202,6 +208,7 @@ class OpeningSpec:
     name: str
     opening_type: Literal["window", "door", "void"] = "window"
     kind: Literal["window", "door", "void", "custom"] = "custom"
+    layer_id: Optional[str] = None
     host_surface_id: Optional[str] = None
     vertices: List[Tuple[float, float, float]] = field(default_factory=list)
     is_daylight_aperture: bool = False
@@ -217,6 +224,7 @@ class ObstructionSpec:
     id: str
     name: str
     kind: Literal["partition", "furniture", "column", "custom"] = "custom"
+    layer_id: Optional[str] = None
     vertices: List[Tuple[float, float, float]] = field(default_factory=list)
     height: Optional[float] = None
 
@@ -372,8 +380,42 @@ class ComplianceProfile:
 class LayerSpec:
     id: str
     name: str
+    color: Optional[str] = None
+    style: Optional[str] = None
     visible: bool = True
     order: int = 0
+
+
+@dataclass
+class Symbol2DSpec:
+    id: str
+    name: str
+    anchor: Tuple[float, float] = (0.0, 0.0)
+    default_rotation_deg: float = 0.0
+    default_scale: float = 1.0
+    layer_id: str = "symbol"
+    tags: List[str] = field(default_factory=list)
+
+
+@dataclass
+class BlockInstanceSpec:
+    id: str
+    symbol_id: str
+    position: Tuple[float, float] = (0.0, 0.0)
+    rotation_deg: float = 0.0
+    scale: float = 1.0
+    layer_id: Optional[str] = None
+    room_id: Optional[str] = None
+    tags: List[str] = field(default_factory=list)
+
+
+@dataclass
+class SelectionSetSpec:
+    id: str
+    name: str
+    query: str = ""
+    object_ids: List[str] = field(default_factory=list)
+    tags: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -488,6 +530,9 @@ class Project:
     roadways: List[RoadwaySpec] = field(default_factory=list)
     roadway_grids: List[RoadwayGridSpec] = field(default_factory=list)
     compliance_profiles: List[ComplianceProfile] = field(default_factory=list)
+    symbols_2d: List[Symbol2DSpec] = field(default_factory=list)
+    block_instances: List[BlockInstanceSpec] = field(default_factory=list)
+    selection_sets: List[SelectionSetSpec] = field(default_factory=list)
     layers: List[LayerSpec] = field(
         default_factory=lambda: [
             LayerSpec(id="room", name="Rooms", visible=True, order=10),
@@ -496,6 +541,7 @@ class Project:
             LayerSpec(id="opening", name="Openings", visible=True, order=40),
             LayerSpec(id="luminaire", name="Luminaires", visible=True, order=50),
             LayerSpec(id="grid", name="Calc Grids", visible=True, order=60),
+            LayerSpec(id="symbol", name="Symbols", visible=True, order=70),
         ]
     )
     variants: List[ProjectVariant] = field(default_factory=list)

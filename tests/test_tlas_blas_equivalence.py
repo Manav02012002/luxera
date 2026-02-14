@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from luxera.geometry.accel import MeshInstance, Ray, build_two_level_bvh, ray_intersect
+from luxera.geometry.accel import MeshInstance, Ray, build_two_level_bvh, flatten_world_triangles, ray_intersect
 from luxera.geometry.bvh import Triangle, any_hit, build_bvh
 from luxera.geometry.core import Vector3
 
@@ -18,9 +18,9 @@ def test_tlas_blas_equivalence_with_flattened_bvh() -> None:
     ]
 
     two = build_two_level_bvh(mesh, instances)
-    assert two.tlas_world is not None
+    assert two.tlas.instance_tree is not None
 
-    flat_bvh = build_bvh(two.triangles_world)
+    flat_bvh = build_bvh(flatten_world_triangles(two))
     rays = [
         (Vector3(0.25, 0.25, 1.0), Vector3(0.0, 0.0, -1.0)),
         (Vector3(3.25, 0.25, 1.0), Vector3(0.0, 0.0, -1.0)),

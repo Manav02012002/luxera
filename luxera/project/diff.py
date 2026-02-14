@@ -21,6 +21,10 @@ DiffOpKind = Literal[
     "asset",
     "family",
     "variant",
+    "layer",
+    "symbol_2d",
+    "block_instance",
+    "selection_set",
 ]
 
 
@@ -101,6 +105,14 @@ def _get_collection(project: Project, kind: DiffOpKind):
         return project.luminaire_families
     if kind == "variant":
         return project.variants
+    if kind == "layer":
+        return project.layers
+    if kind == "symbol_2d":
+        return project.symbols_2d
+    if kind == "block_instance":
+        return project.block_instances
+    if kind == "selection_set":
+        return project.selection_sets
     raise ValueError(f"Unsupported diff kind: {kind}")
 
 

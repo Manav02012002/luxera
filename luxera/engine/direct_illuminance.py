@@ -20,6 +20,7 @@ from luxera.calculation.illuminance import (
 )
 from luxera.geometry.core import Material, Polygon, Room, Surface, Vector3
 from luxera.geometry.materials import material_from_spec
+from luxera.geometry.tolerance import EPS_POS
 from luxera.geometry.bvh import BVHNode, Triangle, build_bvh, refit_bvh, triangulate_surfaces
 from luxera.geometry.accel import MeshInstance, TwoLevelBVH, build_two_level_bvh, refit_two_level_bvh
 from luxera.parser.ies_parser import parse_ies_text
@@ -91,10 +92,12 @@ def update_occlusion_instance_transforms(
     if ctx.two_level is None:
         return ctx
     two = refit_two_level_bvh(ctx.two_level, transforms_by_instance_id)
+    tris = list(two.triangles_world) if two.triangles_world else list(ctx.triangles)
+    bvh = two.tlas_world if two.tlas_world is not None else (ctx.bvh if ctx.bvh is not None else (build_bvh(tris) if tris else None))
     return OcclusionContext(
         surfaces=ctx.surfaces,
-        triangles=list(two.triangles_world),
-        bvh=two.tlas_world,
+        triangles=tris,
+        bvh=bvh,
         epsilon=ctx.epsilon,
         two_level=two,
     )
@@ -210,9 +213,14 @@ def build_direct_occluders(project: Project, include_room_shell: bool = False) -
     for s in project.geometry.surfaces:
         if len(s.vertices) < 3:
             continue
+        m_spec = material_by_id.get(s.material_id) if s.material_id else None
+        # Opening-derived glazing/transmissive surfaces should not create hard occlusion hits.
+        if str(s.id).endswith(":glazing"):
+            continue
+        if m_spec is not None and float(getattr(m_spec, "transmittance", 0.0)) > EPS_POS:
+            continue
         verts = [Vector3(*(length_scale * float(x) for x in v)) for v in s.vertices]
         polygon = Polygon(verts)
-        m_spec = material_by_id.get(s.material_id) if s.material_id else None
         material = (
             material_from_spec(m_spec, name=f"occluder:{s.id}")
             if m_spec is not None
@@ -243,10 +251,16 @@ def build_direct_occlusion_context(
         if allow_refit:
             if ctx.two_level is not None:
                 refit_two_level_bvh(ctx.two_level, {})
+                tris = list(ctx.two_level.triangles_world) if ctx.two_level.triangles_world else list(ctx.triangles)
+                bvh = (
+                    ctx.two_level.tlas_world
+                    if ctx.two_level.tlas_world is not None
+                    else (ctx.bvh if ctx.bvh is not None else (build_bvh(tris) if tris else None))
+                )
                 ctx = OcclusionContext(
                     surfaces=ctx.surfaces,
-                    triangles=list(ctx.two_level.triangles_world),
-                    bvh=ctx.two_level.tlas_world,
+                    triangles=tris,
+                    bvh=bvh,
                     epsilon=ctx.epsilon,
                     two_level=ctx.two_level,
                 )

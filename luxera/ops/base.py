@@ -72,13 +72,33 @@ def execute_op(
     txm.begin(op_name=op_name, args=args)
     try:
         out = mutate()
+        stable_id_map = None
+        attachment_remap = None
+        derived_regen_summary = None
+        if hasattr(out, "stable_id_map"):
+            stable_id_map = getattr(out, "stable_id_map")
+            attachment_remap = getattr(out, "attachment_remap", None)
+            regen = getattr(out, "regenerated", None)
+            derived_regen_summary = {
+                "regenerated_ids": sorted(str(x) for x in (regen or [])),
+                "count": len(regen or []),
+            }
         after = project_hash(project)
-        rec = txm.commit(before_hash=before, after_hash=after)
+        rec = txm.commit(
+            before_hash=before,
+            after_hash=after,
+            stable_id_map=stable_id_map,
+            attachment_remap=attachment_remap,
+            derived_regen_summary=derived_regen_summary,
+        )
         evt_args = dict(args)
         evt_args["tx"] = {
             "created": len(rec.delta.created),
             "updated": len(rec.delta.updated),
             "deleted": len(rec.delta.deleted),
+            "param_changes": dict(rec.delta.param_changes),
+            "derived_regen_summary": dict(rec.delta.derived_regen_summary),
+            "stable_id_map_count": len(rec.delta.stable_id_map),
         }
         record_event(project, op_name=op_name, args=evt_args, ctx=context, before_hash=before, after_hash=after)
         return out
