@@ -6,7 +6,6 @@ Version: 0.2.0
 Status: Active development
 Platforms: macOS, Linux, Windows
 Python: 3.11+
-License: TBD (recommended MIT or Apache-2.0)
 
 
 ## Table of Contents
@@ -842,3 +841,4 @@ Detailed specifications are maintained in `docs/spec/`:
 | `feature_matrix.md` | Feature scope at contract level |
 
 The `docs/agent/` directory contains specifications for the agentic AI system.
+
