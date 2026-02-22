@@ -22,6 +22,9 @@ from luxera.project.schema import (
     RotationSpec,
     RoomSpec,
     RoadwaySpec,
+    RoadwaySegmentSpec,
+    RoadwayPoleRowSpec,
+    RoadwayObserverSpec,
     RoadwayGridSpec,
     ComplianceProfile,
     DaylightAnnualSpec,
@@ -33,8 +36,10 @@ from luxera.project.schema import (
 from luxera.project.presets import en12464_direct_job, en13032_radiosity_job, default_compliance_profiles
 from luxera.core.hashing import sha256_file
 from luxera.photometry.verify import verify_photometry_file
+from luxera.database.library_manager import index_folder, search_db
 from luxera.io.import_pipeline import run_import_pipeline
 from luxera.geometry.scene_prep import clean_scene_surfaces, detect_room_volumes_from_surfaces
+from luxera.agent.context import load_context_memory, reset_context_memory
 
 
 _DEMO_IES_TEXT = """IESNA:LM-63-2002
@@ -227,6 +232,13 @@ def _cmd_add_roadway_grid(args: argparse.Namespace) -> int:
     project_path = Path(args.project).expanduser().resolve()
     project = load_project_schema(project_path)
     rg_id = args.id or str(uuid.uuid4())
+    grid_observers: List[RoadwayObserverSpec] = []
+    if args.observers_json:
+        obs_payload = json.loads(args.observers_json)
+        if not isinstance(obs_payload, list):
+            print("[ERROR] --observers-json must be a JSON array")
+            return 2
+        grid_observers = [RoadwayObserverSpec(**x) for x in obs_payload if isinstance(x, dict)]
     rg = RoadwayGridSpec(
         id=rg_id,
         name=args.name or f"Roadway Grid {rg_id[:8]}",
@@ -243,6 +255,8 @@ def _cmd_add_roadway_grid(args: argparse.Namespace) -> int:
         mounting_height_m=args.mounting_height_m,
         setback_m=args.setback_m,
         observer_height_m=args.observer_height_m,
+        observer_method=args.observer_method,
+        observers=grid_observers,
     )
     project.roadway_grids.append(rg)
     save_project_schema(project, project_path)
@@ -254,6 +268,27 @@ def _cmd_add_roadway(args: argparse.Namespace) -> int:
     project_path = Path(args.project).expanduser().resolve()
     project = load_project_schema(project_path)
     rw_id = args.id or str(uuid.uuid4())
+    segment = None
+    if args.segment_json:
+        segment_payload = json.loads(args.segment_json)
+        if not isinstance(segment_payload, dict):
+            print("[ERROR] --segment-json must be a JSON object")
+            return 2
+        segment = RoadwaySegmentSpec(**segment_payload)
+    pole_rows: List[RoadwayPoleRowSpec] = []
+    if args.pole_rows_json:
+        rows_payload = json.loads(args.pole_rows_json)
+        if not isinstance(rows_payload, list):
+            print("[ERROR] --pole-rows-json must be a JSON array")
+            return 2
+        pole_rows = [RoadwayPoleRowSpec(**row) for row in rows_payload if isinstance(row, dict)]
+    observers: List[RoadwayObserverSpec] = []
+    if args.observers_json:
+        obs_payload = json.loads(args.observers_json)
+        if not isinstance(obs_payload, list):
+            print("[ERROR] --observers-json must be a JSON array")
+            return 2
+        observers = [RoadwayObserverSpec(**obs) for obs in obs_payload if isinstance(obs, dict)]
     roadway = RoadwaySpec(
         id=rw_id,
         name=args.name or f"Roadway {rw_id[:8]}",
@@ -266,6 +301,9 @@ def _cmd_add_roadway(args: argparse.Namespace) -> int:
         pole_spacing_m=args.pole_spacing_m,
         tilt_deg=args.tilt_deg,
         aim_deg=args.aim_deg,
+        segment=segment,
+        pole_rows=pole_rows,
+        observers=observers,
     )
     project.roadways.append(roadway)
     save_project_schema(project, project_path)
@@ -419,6 +457,8 @@ def _cmd_add_job(args: argparse.Namespace) -> int:
             settings = {
                 "road_class": args.road_class,
                 "compliance_profile_id": args.compliance_profile_id,
+                "road_surface_class": args.road_surface_class,
+                "glare_method": args.glare_method,
                 "road_surface_reflectance": args.road_surface_reflectance,
                 "observer_height_m": args.observer_height_m,
                 "observer_back_offset_m": args.observer_back_offset_m,
@@ -844,6 +884,55 @@ def _cmd_photometry_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_library_index(args: argparse.Namespace) -> int:
+    folder = Path(args.folder).expanduser().resolve()
+    db = Path(args.out).expanduser().resolve()
+    try:
+        stats = index_folder(folder, db)
+    except Exception as e:
+        print(f"[ERROR] Library indexing failed: {e}")
+        return 2
+    print("Library index completed")
+    print(f"  Folder: {folder}")
+    print(f"  DB: {stats.db_path}")
+    print(f"  Scanned files: {stats.scanned_files}")
+    print(f"  Indexed files: {stats.indexed_files}")
+    print(f"  Parse errors: {stats.parse_errors}")
+    return 0
+
+
+def _cmd_library_search(args: argparse.Namespace) -> int:
+    db = Path(args.db).expanduser().resolve()
+    try:
+        rows = search_db(db, str(args.query or ""), limit=int(args.limit))
+    except Exception as e:
+        print(f"[ERROR] Library search failed: {e}")
+        return 2
+
+    payload = [r.to_dict() for r in rows]
+    if bool(args.json):
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+
+    if not payload:
+        print("No library matches.")
+        return 0
+    print(f"Library matches: {len(payload)}")
+    for row in payload:
+        lumens = row["lumens"]
+        cct = row["cct"]
+        beam = row["beam_angle"]
+        print(
+            f"- id={row['id']} "
+            f"{row['manufacturer']} | {row['name'] or row['file_name']} | "
+            f"lumens={'' if lumens is None else f'{float(lumens):.2f}'} "
+            f"cct={'' if cct is None else f'{float(cct):.1f}'} "
+            f"beam={'' if beam is None else f'{float(beam):.1f}'} "
+            f"path={row['file_path']}"
+        )
+    return 0
+
+
 def _cmd_geometry_import(args: argparse.Namespace) -> int:
     project_path = Path(args.project).expanduser().resolve()
     project = load_project_schema(project_path)
@@ -991,6 +1080,249 @@ def _cmd_geometry_clean(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_parity_run(args: argparse.Namespace) -> int:
+    from luxera.parity.harness import run_pack
+
+    pack_dir = Path(args.pack_dir).expanduser().resolve()
+    out_dir = Path(args.out).expanduser().resolve()
+    try:
+        out = run_pack(pack_dir, out_dir)
+    except Exception as e:
+        print(f"[ERROR] Parity run failed: {e}")
+        return 2
+    print(f"Parity run completed: {pack_dir.name}")
+    print(f"  Results: {out.results_json}")
+    print(f"  Manifest: {out.manifest_json}")
+    print(f"  Grids dir: {out.out_dir / 'grids'}")
+    print(f"  Report: {out.report_pdf}")
+    return 0
+
+
+def _cmd_parity_test(args: argparse.Namespace) -> int:
+    from luxera.parity.harness import test_pack
+
+    pack_dir = Path(args.pack_dir).expanduser().resolve()
+    try:
+        _, cmp = test_pack(pack_dir)
+    except Exception as e:
+        print(f"[ERROR] Parity test failed: {e}")
+        return 2
+
+    if cmp.passed:
+        print(f"Parity test PASS: {pack_dir.name} ({cmp.checked_metrics} metrics checked)")
+        return 0
+
+    print(f"Parity test FAIL: {pack_dir.name}")
+    print(f"  Checked metrics: {cmp.checked_metrics}")
+    print(f"  Mismatches: {len(cmp.mismatches)}")
+    for m in cmp.mismatches:
+        if m.reason == "numeric_mismatch":
+            print(
+                "  - "
+                f"{m.path}: expected={m.expected} actual={m.actual} "
+                f"(abs_tol={m.abs_tol}, rel_tol={m.rel_tol})"
+            )
+        else:
+            print(f"  - {m.path}: expected={m.expected} actual={m.actual} ({m.reason})")
+    return 1
+
+
+def _cmd_validate_list(args: argparse.Namespace) -> int:
+    from luxera.validation.harness import discover_cases
+
+    root = Path(args.root).expanduser().resolve() if args.root else None
+    suites = discover_cases(root=root)
+    if not suites:
+        print("No validation suites found.")
+        return 0
+    for suite in sorted(suites.keys()):
+        print(f"{suite}:")
+        for case in suites[suite]:
+            print(f"  - {case.case_id}")
+    return 0
+
+
+def _cmd_validate_run(args: argparse.Namespace) -> int:
+    from luxera.validation.harness import discover_cases, parse_target, run_cases
+
+    root = Path(args.root).expanduser().resolve() if args.root else None
+    out = Path(args.out).expanduser().resolve()
+    suites = discover_cases(root=root)
+    try:
+        cases = parse_target(args.target, suites)
+    except ValueError as e:
+        print(f"[ERROR] {e}")
+        return 2
+
+    try:
+        results = run_cases(cases, out_root=out)
+    except Exception as e:
+        print(f"[ERROR] Validation run failed: {e}")
+        return 2
+
+    passed = sum(1 for r in results if r.passed)
+    failed = len(results) - passed
+    for r in results:
+        print(f"{r.suite}/{r.case_id}: {'PASS' if r.passed else 'FAIL'} -> {r.comparison_path}")
+    print(f"Validation summary: {passed} passed, {failed} failed")
+    return 1 if failed else 0
+
+
+def _cmd_validate_report(args: argparse.Namespace) -> int:
+    from luxera.validation.harness import discover_cases, parse_target, run_cases, write_suite_report
+
+    root = Path(args.root).expanduser().resolve() if args.root else None
+    out = Path(args.out).expanduser().resolve()
+    suites = discover_cases(root=root)
+    try:
+        cases = parse_target(args.suite, suites)
+    except ValueError as e:
+        print(f"[ERROR] {e}")
+        return 2
+    if not cases:
+        print(f"[ERROR] No cases found for suite: {args.suite}")
+        return 2
+
+    if "/" in args.suite:
+        suite_name = args.suite.split("/", 1)[0]
+    else:
+        suite_name = args.suite
+
+    try:
+        results = run_cases(cases, out_root=out)
+        md, js = write_suite_report(suite_name, results, out_root=out)
+    except Exception as e:
+        print(f"[ERROR] Validation report failed: {e}")
+        return 2
+
+    failed = sum(1 for r in results if not r.passed)
+    print(f"Validation report written:")
+    print(f"  Markdown: {md}")
+    print(f"  JSON: {js}")
+    print(f"  Cases: {len(results)} (failed: {failed})")
+    return 1 if failed else 0
+
+
+def _cmd_agent_context_show(args: argparse.Namespace) -> int:
+    project_path = Path(args.project).expanduser().resolve()
+    memory = load_context_memory(project_path)
+    print(json.dumps(memory.to_dict(), indent=2, sort_keys=True))
+    return 0
+
+
+def _cmd_agent_context_reset(args: argparse.Namespace) -> int:
+    project_path = Path(args.project).expanduser().resolve()
+    out = reset_context_memory(project_path)
+    print(f"Agent context reset: {out}")
+    return 0
+
+
+def _cmd_agent(args: argparse.Namespace) -> int:
+    from luxera.agent.runtime import AgentRuntime
+    from luxera.export.debug_bundle import export_debug_bundle
+    from luxera.export.pdf_report import build_project_pdf_report
+    from luxera.runner import run_job, RunnerError
+
+    project_arg = str(args.project or "").strip()
+    first = str(args.instruction or "").strip()
+    second = str(args.agent_mode or "").strip()
+    third = str(args.context_action or "").strip()
+    mode = ""
+    action = ""
+    if first.lower() == "context":
+        mode = "context"
+        action = second.lower()
+    elif second.lower() == "context":
+        mode = "context"
+        action = third.lower()
+
+    if mode == "context":
+        if not project_arg and first.lower() == "context" and third:
+            project_arg = third
+        if not project_arg:
+            print("[ERROR] agent context requires --project <file> (or positional project after action).")
+            return 2
+        project_path = Path(project_arg).expanduser().resolve()
+        if action == "show":
+            memory = load_context_memory(project_path)
+            print(json.dumps(memory.to_dict(), indent=2, sort_keys=True))
+            return 0
+        if action == "reset":
+            out = reset_context_memory(project_path)
+            print(f"Agent context reset: {out}")
+            return 0
+        print("[ERROR] agent context requires action: show | reset")
+        return 2
+
+    instruction = first
+    if not instruction:
+        print('[ERROR] Missing instruction. Usage: luxera agent "<instruction>" --project <file> --approve-all --out out/')
+        return 2
+    if not project_arg:
+        print('[ERROR] Missing --project <file>. Usage: luxera agent "<instruction>" --project <file> --approve-all --out out/')
+        return 2
+    project_path = Path(project_arg).expanduser().resolve()
+
+    approvals = {
+        "apply_diff": bool(args.approve_all),
+        "run_job": bool(args.approve_all),
+    }
+    if bool(args.approve_all):
+        approvals["selected_option_index"] = 0
+
+    rt = AgentRuntime()
+    try:
+        response = rt.execute(str(project_path), instruction, approvals=approvals)
+    except Exception as e:
+        print(f"[ERROR] Agent runtime failed: {e}")
+        return 2
+
+    project = load_project_schema(project_path)
+    if not project.results and project.jobs and bool(args.approve_all):
+        # Ensure batch mode can emit report/bundle even if instruction omitted explicit run.
+        try:
+            run_job(project_path, project.jobs[0].id)
+            project = load_project_schema(project_path)
+        except RunnerError as e:
+            print(f"[ERROR] Batch fallback run failed: {e}")
+            return 2
+
+    if not project.results:
+        print("[ERROR] No job results available; cannot generate batch artifacts.")
+        return 2
+
+    latest = project.results[-1]
+    out_dir = Path(args.out).expanduser().resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    report_path = out_dir / "report.pdf"
+    bundle_path = out_dir / "audit_bundle.zip"
+    session_path = out_dir / "agent_runtime.json"
+
+    try:
+        build_project_pdf_report(project, latest, report_path)
+        export_debug_bundle(project, latest, bundle_path)
+    except Exception as e:
+        print(f"[ERROR] Batch artifact generation failed: {e}")
+        return 2
+
+    session_payload = {
+        "plan": response.plan,
+        "warnings": response.warnings,
+        "actions": [a.kind for a in response.actions],
+        "run_manifest": response.run_manifest,
+        "produced_artifacts": response.produced_artifacts,
+    }
+    session_path.write_text(json.dumps(session_payload, indent=2, sort_keys=True), encoding="utf-8")
+
+    print("Agent batch completed")
+    print(f"  Project: {project_path}")
+    print(f"  Job: {latest.job_id}")
+    print(f"  Report: {report_path}")
+    print(f"  Audit bundle: {bundle_path}")
+    print(f"  Runtime log: {session_path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="luxera")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -1089,6 +1421,8 @@ def main(argv: list[str] | None = None) -> int:
     arg.add_argument("--mounting-height-m", type=float, default=None)
     arg.add_argument("--setback-m", type=float, default=None)
     arg.add_argument("--observer-height-m", type=float, default=1.5)
+    arg.add_argument("--observer-method", type=str, default="default")
+    arg.add_argument("--observers-json", type=str, default=None, help="JSON array of roadway observer definitions")
     arg.set_defaults(func=_cmd_add_roadway_grid)
 
     arw = sub.add_parser("add-roadway", help="Add a roadway layout object.")
@@ -1108,6 +1442,9 @@ def main(argv: list[str] | None = None) -> int:
     arw.add_argument("--pole-spacing-m", type=float, default=None)
     arw.add_argument("--tilt-deg", type=float, default=None)
     arw.add_argument("--aim-deg", type=float, default=None)
+    arw.add_argument("--segment-json", type=str, default=None, help="JSON object for roadway segment overrides")
+    arw.add_argument("--pole-rows-json", type=str, default=None, help="JSON array for roadway pole row definitions")
+    arw.add_argument("--observers-json", type=str, default=None, help="JSON array of roadway observer definitions")
     arw.set_defaults(func=_cmd_add_roadway)
 
     aer = sub.add_parser("add-escape-route", help="Add an emergency escape route polyline.")
@@ -1157,6 +1494,8 @@ def main(argv: list[str] | None = None) -> int:
     aj.add_argument("--occlusion-include-room-shell", action="store_true", default=False, help="Use room shell surfaces as occluders")
     aj.add_argument("--occlusion-epsilon", type=float, default=1e-6, help="Ray epsilon for occlusion tests")
     aj.add_argument("--road-class", default="M3", help="Roadway class label (e.g., M3, P2)")
+    aj.add_argument("--road-surface-class", default="R3", help="Road surface class preset id (R1-R4)")
+    aj.add_argument("--glare-method", default="rp8_veiling_ratio", choices=["rp8_veiling_ratio", "ti_proxy_percent"], help="Roadway disability glare output metric method")
     aj.add_argument("--road-surface-reflectance", type=float, default=0.07)
     aj.add_argument("--observer-height-m", type=float, default=1.5)
     aj.add_argument("--observer-back-offset-m", type=float, default=60.0)
@@ -1279,6 +1618,21 @@ def main(argv: list[str] | None = None) -> int:
     pv.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     pv.set_defaults(func=_cmd_photometry_verify)
 
+    library = sub.add_parser("library", help="Local photometry library manager.")
+    library_sub = library.add_subparsers(dest="library_cmd", required=True)
+
+    li = library_sub.add_parser("index", help="Index IES/LDT files from a folder into a local DB.")
+    li.add_argument("folder", help="Folder to scan recursively for IES/LDT files")
+    li.add_argument("--out", required=True, help="Output SQLite DB path")
+    li.set_defaults(func=_cmd_library_index)
+
+    ls = library_sub.add_parser("search", help='Search indexed photometry DB with query string filters.')
+    ls.add_argument("--db", required=True, help="Path to library SQLite DB")
+    ls.add_argument("--query", required=True, help='Query, e.g. \'manufacturer:acme lumens>=2000 cct=4000 beam<80\'')
+    ls.add_argument("--limit", type=int, default=100, help="Maximum rows to return")
+    ls.add_argument("--json", action="store_true", help="Print JSON payload")
+    ls.set_defaults(func=_cmd_library_search)
+
     geom = sub.add_parser("geometry", help="Geometry import/clean tooling.")
     geom_sub = geom.add_subparsers(dest="geom_cmd", required=True)
 
@@ -1314,6 +1668,46 @@ def main(argv: list[str] | None = None) -> int:
     gc.add_argument("--no-merge", action="store_true", help="Disable coplanar merge")
     gc.add_argument("--detect-rooms", action="store_true", help="Detect room volumes from cleaned surfaces")
     gc.set_defaults(func=_cmd_geometry_clean)
+
+    parity = sub.add_parser("parity", help="Parity harness for reference scene packs.")
+    parity_sub = parity.add_subparsers(dest="parity_cmd", required=True)
+
+    pr = parity_sub.add_parser("run", help="Run a reference pack and emit parity artifacts.")
+    pr.add_argument("pack_dir", help="Path to pack directory (expects scene.lux.json + expected/expected.json)")
+    pr.add_argument("--out", required=True, help="Output directory for parity artifacts")
+    pr.set_defaults(func=_cmd_parity_run)
+
+    pt = parity_sub.add_parser("test", help="Run and compare parity pack against expected tolerances.")
+    pt.add_argument("pack_dir", help="Path to pack directory (expects expected/expected.json)")
+    pt.set_defaults(func=_cmd_parity_test)
+
+    validate = sub.add_parser("validate", help="Validation harness for case suites in tests/validation.")
+    validate_sub = validate.add_subparsers(dest="validate_cmd", required=True)
+
+    vl = validate_sub.add_parser("list", help="List discovered validation suites/cases.")
+    vl.add_argument("--root", default=None, help="Validation root (default: tests/validation)")
+    vl.set_defaults(func=_cmd_validate_list)
+
+    vr = validate_sub.add_parser("run", help="Run validation suite or case target.")
+    vr.add_argument("target", help="Suite or suite/case_id")
+    vr.add_argument("--out", required=True, help="Output directory for run artifacts")
+    vr.add_argument("--root", default=None, help="Validation root (default: tests/validation)")
+    vr.set_defaults(func=_cmd_validate_run)
+
+    vrep = validate_sub.add_parser("report", help="Run suite and emit markdown/json summary.")
+    vrep.add_argument("suite", help="Suite or suite/case_id")
+    vrep.add_argument("--out", required=True, help="Output directory for report artifacts")
+    vrep.add_argument("--root", default=None, help="Validation root (default: tests/validation)")
+    vrep.set_defaults(func=_cmd_validate_report)
+
+    agent = sub.add_parser("agent", help='Agent batch/context. Example: luxera agent "<instruction>" --project p.json --approve-all --out out/')
+    agent.add_argument("instruction", nargs="?", default=None, help="Instruction for headless agent batch mode")
+    agent.add_argument("agent_mode", nargs="?", default=None, help='Optional mode: "context"')
+    agent.add_argument("context_action", nargs="?", default=None, help='Context action when mode=context: "show"|"reset"')
+    agent.add_argument("--project", required=False, default=None, help="Path to project JSON")
+    agent.add_argument("--approve-all", action="store_true", default=False, help="Approve all gated actions (diff apply + run job)")
+    agent.add_argument("--out", default="out", help="Output directory for batch artifacts")
+    agent.set_defaults(func=_cmd_agent)
 
     args = p.parse_args(argv)
     return int(args.func(args))

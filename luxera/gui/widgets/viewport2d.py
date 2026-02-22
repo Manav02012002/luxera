@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import json
 from dataclasses import dataclass
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -82,16 +83,44 @@ class _LuminaireItem(QtWidgets.QGraphicsEllipseItem):
 
 class _SceneView(QtWidgets.QGraphicsView):
     mouse_released = QtCore.Signal()
+    library_asset_dropped = QtCore.Signal(str, float, float)
+
+    def __init__(self, scene: QtWidgets.QGraphicsScene, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(scene, parent)
+        self.setAcceptDrops(True)
 
     def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
         super().mouseReleaseEvent(event)
         self.mouse_released.emit()
+
+    def dragEnterEvent(self, event: QtGui.QDragEnterEvent) -> None:  # type: ignore[override]
+        if event.mimeData().hasFormat("application/x-luxera-library-entry"):
+            event.acceptProposedAction()
+            return
+        super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event: QtGui.QDragMoveEvent) -> None:  # type: ignore[override]
+        if event.mimeData().hasFormat("application/x-luxera-library-entry"):
+            event.acceptProposedAction()
+            return
+        super().dragMoveEvent(event)
+
+    def dropEvent(self, event: QtGui.QDropEvent) -> None:  # type: ignore[override]
+        if not event.mimeData().hasFormat("application/x-luxera-library-entry"):
+            super().dropEvent(event)
+            return
+        data = bytes(event.mimeData().data("application/x-luxera-library-entry")).decode("utf-8", errors="replace")
+        pos = event.position().toPoint()
+        scene_pos = self.mapToScene(pos)
+        self.library_asset_dropped.emit(data, float(scene_pos.x()), float(scene_pos.y()))
+        event.acceptProposedAction()
 
 
 class Viewport2D(QtWidgets.QWidget):
     object_selected = QtCore.Signal(str, str)
     luminaire_moved = QtCore.Signal(str, float, float)
     layer_visibility_changed = QtCore.Signal(str, bool)
+    library_asset_dropped = QtCore.Signal(dict, float, float)
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -162,6 +191,7 @@ class Viewport2D(QtWidgets.QWidget):
         self.view.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing)
         self.view.setDragMode(QtWidgets.QGraphicsView.RubberBandDrag)
         self.view.mouse_released.connect(self._on_mouse_release)
+        self.view.library_asset_dropped.connect(self._on_library_asset_drop)
         layout.addWidget(self.view, 1)
 
         self._project: Project | None = None
@@ -310,3 +340,13 @@ class Viewport2D(QtWidgets.QWidget):
     def _on_layer_toggle(self, layer_id: str, visible: bool) -> None:
         self.layer_visibility_changed.emit(str(layer_id), bool(visible))
         self._rerender()
+
+    def _on_library_asset_drop(self, payload_json: str, sx: float, sy: float) -> None:
+        try:
+            payload = json.loads(payload_json)
+            if not isinstance(payload, dict):
+                return
+        except Exception:
+            return
+        wx, wy = self._to_world(sx, sy)
+        self.library_asset_dropped.emit(payload, float(wx), float(wy))

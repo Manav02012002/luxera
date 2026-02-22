@@ -23,6 +23,7 @@ from luxera.gui.widgets.assistant_panel import AssistantPanel
 from luxera.gui.widgets.inspector import PropertiesInspector
 from luxera.gui.widgets.job_manager import JobManagerWidget
 from luxera.gui.widgets.log_panel import LogPanel
+from luxera.gui.widgets.library_panel import PhotometryLibraryWidget
 from luxera.gui.widgets.project_tree import ProjectTreeWidget
 from luxera.gui.widgets.results_view import ResultsView
 from luxera.gui.widgets.viewer3d import Viewer3D
@@ -31,9 +32,10 @@ from luxera.gui.widgets.variants_panel import VariantsPanel
 from luxera.gui.recent_files import add_recent_path, coerce_recent_paths
 from luxera.gui.scene_node_binding import resolve_scene_node_update
 from luxera.gui.theme import set_theme
+from luxera.core.hashing import sha256_file
 from luxera.project.io import load_project_schema, save_project_schema
 from luxera.project.diff import DiffOp, ProjectDiff
-from luxera.project.schema import LuminaireInstance, Project, RotationSpec, TransformSpec
+from luxera.project.schema import LuminaireInstance, PhotometryAsset, Project, RotationSpec, TransformSpec
 from luxera.ops.scene_ops import create_room as op_create_room, extrude_room_to_surfaces
 from luxera.ops.calc_ops import create_calc_grid_from_room
 
@@ -99,10 +101,12 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
         self.results_view = ResultsView()
         self.log_panel = LogPanel()
         self.variants_panel = VariantsPanel()
+        self.library_panel = PhotometryLibraryWidget()
 
         bottom_tabs.addTab(self.job_manager, "Job Manager")
         bottom_tabs.addTab(self.results_view, "Results")
         bottom_tabs.addTab(self.variants_panel, "Variants")
+        bottom_tabs.addTab(self.library_panel, "Photometry Library")
         bottom_tabs.addTab(self.log_panel, "Logs")
 
         outer_split = QtWidgets.QSplitter(QtCore.Qt.Vertical)
@@ -235,6 +239,7 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
         self.viewer3d.object_selected.connect(self.on_viewport_selected)
         self.viewport.luminaire_moved.connect(self.on_luminaire_dragged)
         self.viewport.layer_visibility_changed.connect(self.on_layer_visibility_changed)
+        self.viewport.library_asset_dropped.connect(self.on_library_asset_dropped)
         self.inspector.apply_requested.connect(self.on_inspector_apply)
 
         self.job_manager.run_requested.connect(self.run_job_by_id)
@@ -258,6 +263,7 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
         self.assistant_panel.export_report.clicked.connect(self.copilot_export_report_action)
         self.assistant_panel.export_audit_bundle.clicked.connect(self.copilot_export_audit_bundle_action)
         self.copilot_design_iterate.clicked.connect(self.copilot_design_iterate_action)
+        self.library_panel.status_message.connect(lambda msg: self.status.showMessage(msg, 3000))
         self.mode_2d_btn.clicked.connect(lambda: self.center_stack.setCurrentIndex(0))
         self.mode_3d_btn.clicked.connect(lambda: self.center_stack.setCurrentIndex(1))
         self.btn_draw_room.clicked.connect(self.draw_room_polygon)
@@ -405,6 +411,64 @@ class LuxeraWorkspaceWindow(QtWidgets.QMainWindow):
             return
         layer.visible = bool(visible)
         save_project_schema(self.project, self.project_path)
+
+    def on_library_asset_dropped(self, payload: dict, x: float, y: float) -> None:
+        if not self.project_path:
+            return
+        self._reload_project()
+        if not self.project:
+            return
+        file_path = str(payload.get("file_path", "")).strip()
+        if not file_path:
+            return
+        p = Path(file_path).expanduser().resolve()
+        if not p.exists():
+            QtWidgets.QMessageBox.warning(self, "Place Luminaire", f"Photometry file not found:\n{p}")
+            return
+        ext = p.suffix.lower().lstrip(".")
+        if ext not in {"ies", "ldt"}:
+            QtWidgets.QMessageBox.warning(self, "Place Luminaire", f"Unsupported photometry format: {p.suffix}")
+            return
+
+        existing = next((a for a in self.project.photometry_assets if (a.path and Path(a.path).expanduser().resolve() == p)), None)
+        if existing is None:
+            aid = f"asset_{len(self.project.photometry_assets) + 1}"
+            while any(a.id == aid for a in self.project.photometry_assets):
+                aid = f"{aid}_x"
+            asset = PhotometryAsset(
+                id=aid,
+                format=ext.upper(),  # type: ignore[arg-type]
+                path=str(p),
+                content_hash=sha256_file(str(p)),
+                metadata={k: v for k, v in payload.items() if k != "metadata"},
+            )
+            self.project.photometry_assets.append(asset)
+            save_project_schema(self.project, self.project_path)
+            asset_id = aid
+        else:
+            asset_id = existing.id
+
+        mount_z = 2.7
+        if self.project.geometry.rooms:
+            room = self.project.geometry.rooms[0]
+            mount_z = float(room.origin[2]) + max(float(room.height) - 0.2, 2.5)
+
+        lum_id = f"lum_{len(self.project.luminaires) + 1}"
+        while any(l.id == lum_id for l in self.project.luminaires):
+            lum_id = f"{lum_id}_x"
+        payload_l = LuminaireInstance(
+            id=lum_id,
+            name=str(payload.get("name") or f"Luminaire {len(self.project.luminaires) + 1}"),
+            photometry_asset_id=asset_id,
+            transform=TransformSpec(
+                position=(float(x), float(y), float(mount_z)),
+                rotation=RotationSpec(type="euler_zyx", euler_deg=(0.0, 0.0, 0.0)),
+            ),
+        )
+        diff = ProjectDiff(ops=[DiffOp(op="add", kind="luminaire", id=lum_id, payload=payload_l)])
+        cmd_apply_diff(str(self.project_path), diff)
+        self.log_panel.append(f"Luminaire placed from library: {lum_id}")
+        self._reload_project()
 
     def on_inspector_apply(self, node_type: str, object_id: str, payload: dict) -> None:
         if not self.project_path:
