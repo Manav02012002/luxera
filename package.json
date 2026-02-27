@@ -1,0 +1,15 @@
+{
+  "name": "luxera-monorepo",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel --if-present run dev",
+    "build": "pnpm -r --if-present run build",
+    "lint": "pnpm -r --if-present run lint",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "pnpm run build && pnpm -r --if-present run test"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2"
+  }
+}
