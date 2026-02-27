@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import inspect
 from typing import Any, Callable, Dict
 
 
@@ -34,9 +35,46 @@ class AgentToolRegistry:
             for name, spec in self._tools.items()
         }
 
+    def json_schemas(self) -> Dict[str, Dict[str, Any]]:
+        out: Dict[str, Dict[str, Any]] = {}
+        for name, spec in self._tools.items():
+            props: Dict[str, Any] = {}
+            required: list[str] = []
+            sig = inspect.signature(spec.fn)
+            for param_name, param in sig.parameters.items():
+                if param_name == "self":
+                    continue
+                declared = spec.schema.get(param_name, "str")
+                if declared == "Project":
+                    prop: Dict[str, Any] = {}
+                else:
+                    prop = {"type": "string"}
+                if param.default is not inspect.Signature.empty:
+                    if isinstance(param.default, (str, int, float, bool)) or param.default is None:
+                        prop["default"] = param.default
+                else:
+                    required.append(param_name)
+                props[param_name] = prop
+            out[name] = {
+                "type": "object",
+                "title": name,
+                "additionalProperties": False,
+                "properties": props,
+                "required": sorted(required),
+            }
+        return out
+
 
 def build_default_registry(tools) -> AgentToolRegistry:
     r = AgentToolRegistry()
+    r.register("context.load", tools.load_context_memory, schema={"project_path": "str"}, permission_tag="project_edit")
+    r.register("context.reset", tools.reset_context_memory, schema={"project_path": "str"}, permission_tag="project_edit")
+    r.register(
+        "context.update",
+        tools.update_context_memory,
+        schema={"project": "Project", "project_path": "str", "intent": "str", "tool_calls": "list", "run_manifest": "dict"},
+        permission_tag="project_edit",
+    )
     r.register("project.open", tools.open_project, schema={"project_path": "str"}, permission_tag="project_edit")
     r.register("project.save", tools.save_project, schema={"project": "Project", "project_path": "Path"}, permission_tag="project_edit")
     r.register("session.save", tools.save_session_artifact, schema={"project": "Project", "runtime_id": "str", "payload": "dict"}, permission_tag="project_edit")

@@ -446,6 +446,8 @@ def run_job_in_memory(project: Project, job_id: str) -> JobResultRef:
                 write_points_csv(out_dir, f"points_{obj_id}.csv", points, values)
                 if job.type == "daylight":
                     write_daylight_target_artifacts(out_dir, obj_id, obj_type, points, values)
+            elif obj_type == "line_grid":
+                write_points_csv(out_dir, f"line_{obj_id}.csv", points, values)
             elif obj_type == "escape_route":
                 write_points_csv(out_dir, f"escape_route_{obj_id}.csv", points, values)
         write_named_json(out_dir, "summary.json", result["summary"])

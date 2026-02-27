@@ -278,6 +278,7 @@ class VerticalPlaneSpec:
     subrect_v1: Optional[float] = None
     room_id: Optional[str] = None
     zone_id: Optional[str] = None
+    offset_m: float = 0.0
     evaluation_height_offset: float = 0.0
     metric_set: List[str] = field(default_factory=lambda: ["E_avg", "E_min", "E_max", "U0", "U1"])
 
@@ -296,6 +297,21 @@ class ArbitraryPlaneSpec:
     room_id: Optional[str] = None
     zone_id: Optional[str] = None
     evaluation_height_offset: float = 0.0
+    metric_set: List[str] = field(default_factory=lambda: ["E_avg", "E_min", "E_max", "U0", "U1"])
+
+
+@dataclass
+class PolygonWorkplaneSpec:
+    id: str
+    name: str
+    origin: Tuple[float, float, float]
+    axis_u: Tuple[float, float, float]
+    axis_v: Tuple[float, float, float]
+    polygon_uv: List[Tuple[float, float]] = field(default_factory=list)
+    holes_uv: List[List[Tuple[float, float]]] = field(default_factory=list)
+    sample_count: int = 64
+    room_id: Optional[str] = None
+    zone_id: Optional[str] = None
     metric_set: List[str] = field(default_factory=lambda: ["E_avg", "E_min", "E_max", "U0", "U1"])
 
 
@@ -523,6 +539,7 @@ class Project:
     workplanes: List[WorkplaneSpec] = field(default_factory=list)
     vertical_planes: List[VerticalPlaneSpec] = field(default_factory=list)
     arbitrary_planes: List[ArbitraryPlaneSpec] = field(default_factory=list)
+    polygon_workplanes: List[PolygonWorkplaneSpec] = field(default_factory=list)
     point_sets: List[PointSetSpec] = field(default_factory=list)
     line_grids: List[LineGridSpec] = field(default_factory=list)
     glare_views: List[GlareViewSpec] = field(default_factory=list)

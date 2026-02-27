@@ -991,6 +991,22 @@ def _cmd_geometry_clean(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_agent_context_show(args: argparse.Namespace) -> int:
+    from luxera.agent.context import load_context_memory
+
+    mem = load_context_memory(args.project)
+    print(json.dumps(mem.to_dict(), indent=2, sort_keys=True))
+    return 0
+
+
+def _cmd_agent_context_reset(args: argparse.Namespace) -> int:
+    from luxera.agent.context import reset_context_memory
+
+    mem = reset_context_memory(args.project)
+    print(json.dumps(mem.to_dict(), indent=2, sort_keys=True))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="luxera")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -1314,6 +1330,19 @@ def main(argv: list[str] | None = None) -> int:
     gc.add_argument("--no-merge", action="store_true", help="Disable coplanar merge")
     gc.add_argument("--detect-rooms", action="store_true", help="Detect room volumes from cleaned surfaces")
     gc.set_defaults(func=_cmd_geometry_clean)
+
+    agent = sub.add_parser("agent", help="Agent tooling.")
+    agent_sub = agent.add_subparsers(dest="agent_cmd", required=True)
+    agent_ctx = agent_sub.add_parser("context", help="Inspect/reset persisted agent context memory.")
+    agent_ctx_sub = agent_ctx.add_subparsers(dest="agent_context_cmd", required=True)
+
+    agent_ctx_show = agent_ctx_sub.add_parser("show", help="Show agent context memory for project.")
+    agent_ctx_show.add_argument("project", help="Path to project JSON")
+    agent_ctx_show.set_defaults(func=_cmd_agent_context_show)
+
+    agent_ctx_reset = agent_ctx_sub.add_parser("reset", help="Reset agent context memory for project.")
+    agent_ctx_reset.add_argument("project", help="Path to project JSON")
+    agent_ctx_reset.set_defaults(func=_cmd_agent_context_reset)
 
     args = p.parse_args(argv)
     return int(args.func(args))

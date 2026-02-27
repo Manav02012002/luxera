@@ -19,6 +19,7 @@ from luxera.calculation.illuminance import (
     calculate_grid_illuminance,
 )
 from luxera.geometry.core import Material, Polygon, Room, Surface, Vector3
+from luxera.geometry.spatial import point_in_polygon
 from luxera.geometry.materials import material_from_spec
 from luxera.geometry.tolerance import EPS_POS
 from luxera.geometry.bvh import BVHNode, Triangle, build_bvh, refit_bvh, triangulate_surfaces
@@ -29,7 +30,7 @@ from luxera.photometry.canonical import canonical_from_photometry
 from luxera.photometry.interp import build_interpolation_lut
 from luxera.cache.photometry_cache import load_lut_from_cache, save_lut_to_cache
 from luxera.photometry.model import photometry_from_parsed_ies, photometry_from_parsed_ldt
-from luxera.project.schema import ArbitraryPlaneSpec, CalcGrid, LineGridSpec, PointSetSpec, Project, RoomSpec, VerticalPlaneSpec
+from luxera.project.schema import ArbitraryPlaneSpec, CalcGrid, LineGridSpec, PointSetSpec, PolygonWorkplaneSpec, Project, RoomSpec, VerticalPlaneSpec
 from luxera.core.units import project_scale_to_meters
 
 
@@ -294,11 +295,49 @@ def _orthonormal_basis(normal: Vector3, up_hint: Optional[Vector3] = None) -> tu
     return u, v
 
 
+def build_polygon_workplane_points(spec: PolygonWorkplaneSpec, seed: int = 0, length_scale: float = 1.0) -> tuple[np.ndarray, Vector3]:
+    u = Vector3(*spec.axis_u).normalize()
+    v = Vector3(*spec.axis_v).normalize()
+    n = u.cross(v).normalize()
+    origin = Vector3(*(length_scale * float(x) for x in spec.origin))
+
+    poly = [(float(a), float(b)) for a, b in spec.polygon_uv]
+    holes = [[(float(a), float(b)) for a, b in ring] for ring in spec.holes_uv]
+    if not poly:
+        return np.zeros((0, 3), dtype=float), n
+
+    us = [p[0] for p in poly]
+    vs = [p[1] for p in poly]
+    min_u, max_u = min(us), max(us)
+    min_v, max_v = min(vs), max(vs)
+
+    rng = np.random.default_rng(int(seed))
+    target = max(1, int(spec.sample_count))
+    out: List[tuple[float, float, float]] = []
+    attempts = 0
+    max_attempts = max(1000, target * 64)
+    while len(out) < target and attempts < max_attempts:
+        attempts += 1
+        uu = float(rng.uniform(min_u, max_u))
+        vv = float(rng.uniform(min_v, max_v))
+        uv = (uu, vv)
+        if not point_in_polygon(uv, poly):
+            continue
+        if any(point_in_polygon(uv, ring) for ring in holes):
+            continue
+        p = origin + (u * uu) + (v * vv)
+        out.append(p.to_tuple())
+    return np.asarray(out, dtype=float), n
+
+
 def build_vertical_plane_points(spec: VerticalPlaneSpec, length_scale: float = 1.0) -> tuple[np.ndarray, Vector3, int, int]:
     az = math.radians(float(spec.azimuth_deg))
     normal = Vector3(math.cos(az), math.sin(az), 0.0).normalize()
     u, v = _orthonormal_basis(normal, up_hint=Vector3.up())
     origin = Vector3(*(length_scale * float(v) for v in spec.origin))
+    offset = float(getattr(spec, "offset_m", 0.0) or 0.0)
+    if abs(offset) > 0.0:
+        origin = origin + (normal * (length_scale * offset))
 
     nx = max(1, int(spec.nx))
     ny = max(1, int(spec.ny))

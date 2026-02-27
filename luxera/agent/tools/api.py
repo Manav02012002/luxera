@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from luxera.agent.audit import append_audit_event
+from luxera.agent.context import load_context_memory, reset_context_memory, update_context_memory
 from luxera.agent.summarize import summarize_project
 from luxera.core.hashing import sha256_file
 from luxera.design.placement import place_array_rect
@@ -75,6 +76,24 @@ class AgentTools:
     def save_project(self, project, project_path: Path) -> ToolResult:
         save_project_schema(project, project_path)
         return ToolResult(ok=True, message="Project saved", data={"project_path": str(project_path)})
+
+    def load_context_memory(self, project_path: str) -> ToolResult:
+        mem = load_context_memory(project_path)
+        return ToolResult(ok=True, message="Context loaded", data={"memory": mem.to_dict()})
+
+    def reset_context_memory(self, project_path: str) -> ToolResult:
+        mem = reset_context_memory(project_path)
+        return ToolResult(ok=True, message="Context reset", data={"memory": mem.to_dict()})
+
+    def update_context_memory(self, project, project_path: str, intent: str, tool_calls: List[Dict[str, Any]], run_manifest: Dict[str, Any]) -> ToolResult:
+        mem = update_context_memory(
+            project_path,
+            project=project,
+            intent=intent,
+            tool_calls=list(tool_calls or []),
+            run_manifest=dict(run_manifest or {}),
+        )
+        return ToolResult(ok=True, message="Context updated", data={"memory": mem.to_dict()})
 
     def save_session_artifact(self, project, runtime_id: str, payload: Dict[str, Any]) -> ToolResult:
         if self._current_project_path is None:
