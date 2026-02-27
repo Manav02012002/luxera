@@ -104,3 +104,26 @@ def test_sample_world_rotation_invariance():
     world_val = sample_intensity_cd_world(phot, t, Vector3(0, 1, 0))
     local_val = sample_intensity_cd(phot, Vector3(1, 0, 0))
     assert world_val == pytest.approx(local_val, rel=1e-6)
+
+
+def test_sample_type_c_seam_interpolates_cyclically() -> None:
+    # Horizontal planes do not include 360 explicitly; seam should interpolate
+    # between C=270 and wrapped C=0 instead of clamping to C=270.
+    c_angles = np.array([0.0, 90.0, 180.0, 270.0], dtype=float)
+    g_angles = np.array([90.0], dtype=float)
+    # Encode strong seam contrast to expose interpolation behavior.
+    candela = np.array([[1000.0], [200.0], [200.0], [0.0]], dtype=float)
+    phot = Photometry(
+        system="C",
+        c_angles_deg=c_angles,
+        gamma_angles_deg=g_angles,
+        candela=candela,
+        luminous_flux_lm=None,
+        symmetry="NONE",
+        tilt=None,
+    )
+    # Direction at C=315, gamma=90.
+    d = Vector3(np.sqrt(0.5), -np.sqrt(0.5), 0.0).normalize()
+    got = sample_intensity_cd(phot, d)
+    # Midway between C=270(0) and C=360/0(1000) -> 500.
+    assert got == pytest.approx(500.0, rel=1e-6, abs=1e-6)

@@ -41,7 +41,18 @@ def main() -> int:
     _run([sys.executable, "-m", "pytest", "-q", "-m", "not radiance and not gui"])
 
     print("[gate] explicit gates")
-    _run([sys.executable, "-m", "pytest", "-q", "tests/gates/test_gate_determinism.py", "tests/gates/test_gate_agent_approvals.py", "tests/gates/test_gate_failure_recovery.py"])
+    _run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "tests/gates/test_gate_determinism.py",
+            "tests/gates/test_gate_agent_approvals.py",
+            "tests/gates/test_gate_failure_recovery.py",
+            "tests/gates/test_no_scaffold_policy.py",
+        ]
+    )
 
     print("[gate] artifact/report contracts")
     _run([sys.executable, "-m", "pytest", "-q", "tests/gates/test_report_contract.py", "tests/test_manifest.py"])

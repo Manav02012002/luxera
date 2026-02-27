@@ -35,6 +35,13 @@ from luxera.photometry.model import Photometry
 from luxera.photometry.sample import sample_intensity_cd
 from luxera.photometry.interp import sample_lut_intensity_cd
 
+try:
+    from luxera.calculation._illuminance_jit import _compute_direct_grid_jit
+
+    _HAS_NUMBA = True
+except Exception:
+    _HAS_NUMBA = False
+
 
 @dataclass
 class Luminaire:
@@ -371,6 +378,22 @@ def calculate_grid_illuminance(
     else:
         triangles = []
         bvh = None
+
+    # Numba JIT fast path for no-occlusion direct calculations with compatible photometry.
+    if _can_use_jit(grid, luminaires, cfg):
+        flat_points = np.array([[p.x, p.y, p.z] for p in grid.get_points()], dtype=np.float64)
+        lum_pos = np.array(
+            [[lum.transform.position.x, lum.transform.position.y, lum.transform.position.z] for lum in luminaires],
+            dtype=np.float64,
+        )
+        lum_rot = np.array([lum.transform.get_rotation_matrix() for lum in luminaires], dtype=np.float64)
+        candela_tables = np.array([_scaled_candela(lum) for lum in luminaires], dtype=np.float64)
+        h_angles = np.asarray(luminaires[0].photometry.c_angles_deg, dtype=np.float64)
+        v_angles = np.asarray(luminaires[0].photometry.gamma_angles_deg, dtype=np.float64)
+        n = np.array([grid.normal.x, grid.normal.y, grid.normal.z], dtype=np.float64)
+        out = _compute_direct_grid_jit(flat_points, lum_pos, lum_rot, candela_tables, v_angles, h_angles, n)
+        values = out.reshape((grid.ny, grid.nx))
+        return IlluminanceResult(grid=grid, values=values)
     
     for j in range(grid.ny):
         for i in range(grid.nx):
@@ -390,6 +413,56 @@ def calculate_grid_illuminance(
             values[j, i] = total_illuminance
     
     return IlluminanceResult(grid=grid, values=values)
+
+
+def _scaled_candela(luminaire: Luminaire) -> np.ndarray:
+    return np.asarray(luminaire.photometry.candela, dtype=np.float64) * float(luminaire.flux_multiplier)
+
+
+def _has_active_tilt(luminaire: Luminaire) -> bool:
+    tilt_data = luminaire.photometry.tilt
+    tilt_from_data = bool(
+        tilt_data is not None and str(getattr(tilt_data, "type", "")).upper() in {"INCLUDE", "FILE"}
+    )
+    return tilt_from_data or abs(float(luminaire.tilt_deg)) > 1e-12
+
+
+def _can_use_jit(grid: CalculationGrid, luminaires: List[Luminaire], cfg: DirectCalcSettings) -> bool:
+    if not _HAS_NUMBA:
+        return False
+    if cfg.use_occlusion:
+        return False
+    if not luminaires:
+        return False
+    first = luminaires[0].photometry
+    if first.system != "C":
+        return False
+    if str(first.symmetry) not in {"FULL", "NONE"}:
+        return False
+    if str(first.symmetry) == "FULL":
+        base_h_first = np.asarray(first.c_angles_deg, dtype=np.float64)
+        if base_h_first.size != 1 or abs(float(base_h_first[0])) > 1e-9:
+            return False
+    if _has_active_tilt(luminaires[0]):
+        return False
+    base_h = np.asarray(first.c_angles_deg, dtype=np.float64)
+    base_v = np.asarray(first.gamma_angles_deg, dtype=np.float64)
+    base_shape = tuple(np.asarray(first.candela).shape)
+    for lum in luminaires:
+        phot = lum.photometry
+        if phot.system != "C":
+            return False
+        if str(phot.symmetry) != str(first.symmetry):
+            return False
+        if _has_active_tilt(lum):
+            return False
+        if tuple(np.asarray(phot.candela).shape) != base_shape:
+            return False
+        if not np.array_equal(np.asarray(phot.c_angles_deg, dtype=np.float64), base_h):
+            return False
+        if not np.array_equal(np.asarray(phot.gamma_angles_deg, dtype=np.float64), base_v):
+            return False
+    return True
 
 
 def create_room_luminaire_layout(

@@ -112,10 +112,31 @@ def _assert_reference(case_id: str, actual: dict[str, float], expected: dict) ->
         raise AssertionError(f"Reference mismatch for {case_id}: {', '.join(failures)}\n{table}")
 
 
+def _assert_case1_lumen_method_sanity(case: dict, actual_avg_lux: float) -> None:
+    """
+    Independent ballpark check for case 1 using lumen method.
+
+    E_avg ~= (Phi * UF * MF) / A
+    For a small enclosed room with one broad downlight, UF in [0.45, 0.60]
+    and MF ~= 1.0 is a practical sanity range.
+    """
+    if str(case.get("id", "")) != "case_01_single_downlight_4x4":
+        return
+    room = case["room"]
+    area = float(room["width"]) * float(room["length"])
+    phi = 10000.0
+    e_low = (phi * 0.45 * 1.0) / max(area, 1e-9)
+    e_high = (phi * 0.60 * 1.0) / max(area, 1e-9)
+    assert e_low <= actual_avg_lux <= e_high, (
+        f"Case 1 lumen-method sanity failed: avg_lux={actual_avg_lux:.2f}, "
+        f"expected range=[{e_low:.2f}, {e_high:.2f}]"
+    )
+
+
 @pytest.mark.validation
-def test_agi32_reference_cases(tmp_path: Path) -> None:
+def test_synthetic_reference_cases(tmp_path: Path) -> None:
     case_files = _reference_case_files()
-    assert case_files, "No AGi32/DIALux reference case files found"
+    assert case_files, "No synthetic reference case files found"
 
     for case_file in case_files:
         case = _load_case(case_file)
@@ -129,7 +150,19 @@ def test_agi32_reference_cases(tmp_path: Path) -> None:
             "avg_lux": float(summary.get("mean_lux", 0.0)),
             "uniformity_u0": float(summary.get("uniformity_ratio", 0.0)),
         }
+        prov = case.get("expected", {}).get("provenance", {})
+        if not isinstance(prov, dict) or "source" not in prov:
+            raise AssertionError(
+                f"Reference case {case.get('id', case_file.stem)} missing provenance metadata. "
+                "Expected expected.provenance.source."
+            )
+        if str(prov.get("source", "")).strip().lower() != "synthetic_regression_baseline":
+            raise AssertionError(
+                f"Case {case.get('id', case_file.stem)} is not a synthetic regression case. "
+                "Use tests/validation/test_agi32_export_parity_cases.py for AGI32 export parity."
+            )
         _assert_reference(str(case.get("id", case_file.stem)), actual, case["expected"])
+        _assert_case1_lumen_method_sanity(case, actual["avg_lux"])
 
 
 def path_safe(s: str) -> str:

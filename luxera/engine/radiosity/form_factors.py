@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import List, Literal, Optional
+import warnings
 
 import numpy as np
 
 from luxera.geometry.bvh import (
     BVHNode,
-    any_hit,
     build_bvh,
     query_triangles,
     ray_intersects_triangle,
@@ -64,6 +64,7 @@ def build_form_factor_matrix(
         visibility_bvh: Optional[BVHNode] = bvh if (bvh is not None and hasattr(bvh, "triangles")) else build_bvh(triangles)
         samples = max(1, int(config.monte_carlo_samples))
         eps = max(10.0 * EPS_POS, 1e-6)
+        unknown_payloads: set[str] = set()
 
         for i in range(n):
             n_i = normals[i]
@@ -78,8 +79,6 @@ def build_form_factor_matrix(
                     continue
                 origin_v = _vec3(origins[s])
                 dir_v = _vec3(dirs_world[s])
-                if not any_hit(visibility_bvh, origin_v, dir_v, t_min=eps, t_max=float("inf"), two_sided=True):
-                    continue
 
                 hit_index = -1
                 nearest_t = float("inf")
@@ -87,8 +86,12 @@ def build_form_factor_matrix(
                     t = ray_intersects_triangle(origin_v, dir_v, tri, t_min=eps, t_max=nearest_t, two_sided=True)
                     if t is None:
                         continue
-                    j = id_to_index.get(str(tri.payload))
-                    if j is None or j == i:
+                    payload_key = str(tri.payload)
+                    j = id_to_index.get(payload_key)
+                    if j is None:
+                        unknown_payloads.add(payload_key)
+                        continue
+                    if j == i:
                         continue
                     nearest_t = t
                     hit_index = j
@@ -96,17 +99,17 @@ def build_form_factor_matrix(
                 if hit_index < 0:
                     continue
 
-                j = hit_index
-                r_vec = centroids[j] - c_i
-                r2 = float(np.dot(r_vec, r_vec))
-                if r2 <= 1e-12:
-                    continue
-                cos_j = max(0.0, float((-dirs_world[s]) @ normals[j]))
-                if cos_j <= 0.0:
-                    continue
-                F[i, j] += (cos_i_batch[s] * cos_j) / (np.pi * r2)
+                # Cosine-weighted hemisphere MC estimator: each hit on receiver j contributes 1/N.
+                F[i, hit_index] += 1.0
 
             F[i, :] /= float(samples)
+
+        if unknown_payloads:
+            preview = ", ".join(sorted(list(unknown_payloads))[:5])
+            warnings.warn(
+                f"BVH triangle payloads missing from patch lookup (showing up to 5): {preview}",
+                RuntimeWarning,
+            )
 
     # Enforce reciprocity: F_ij * A_i == F_ji * A_j
     for i in range(n):

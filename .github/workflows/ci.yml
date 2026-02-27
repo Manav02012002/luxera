@@ -40,5 +40,8 @@ jobs:
       - name: Run gate tests
         run: pytest -q tests/gates/ -x --timeout=120
 
+      - name: Enforce no-scaffold policy
+        run: python scripts/no_scaffold_guard.py
+
       - name: Run release gates
         run: python scripts/release_gates.py

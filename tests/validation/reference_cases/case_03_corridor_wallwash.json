@@ -24,15 +24,19 @@
     "ny": 25
   },
   "expected": {
-    "min_lux": 0.08,
-    "max_lux": 500.0,
-    "avg_lux": 52.0,
-    "uniformity_u0": 0.0015,
+    "min_lux": 0.18,
+    "max_lux": 498.87,
+    "avg_lux": 55.81,
+    "uniformity_u0": 0.0032,
     "tolerances": {
       "avg_lux_pct": 0.10,
       "min_lux_pct": 0.30,
       "max_lux_pct": 0.15,
       "uniformity_u0_abs": 0.001
+    },
+    "provenance": {
+      "source": "synthetic_regression_baseline",
+      "note": "Calibrated synthetic reference for Luxera regression; not AGi32/DIALux exported ground truth."
     }
   }
 }

@@ -2,6 +2,7 @@
 
 import pytest
 import math
+import numpy as np
 
 from luxera.parser.ies_parser import parse_ies_text
 from luxera.calculation.illuminance import (
@@ -14,6 +15,7 @@ from luxera.calculation.illuminance import (
     interpolate_candela,
     quick_room_calculation,
 )
+import luxera.calculation.illuminance as illuminance_mod
 from luxera.geometry.core import Transform
 from luxera.geometry.core import Material, Polygon, Surface
 from luxera.photometry.model import photometry_from_parsed_ies
@@ -311,3 +313,33 @@ def test_direct_illuminance_uses_lut_fast_path(monkeypatch):
     assert E > 0
     assert called["lut"] is True
     assert called["base"] is False
+
+
+def test_grid_illuminance_jit_matches_python(monkeypatch):
+    if not getattr(illuminance_mod, "_HAS_NUMBA", False):
+        pytest.skip("Numba not available")
+
+    doc = parse_ies_text(TEST_IES)
+    phot = photometry_from_parsed_ies(doc)
+    luminaire = Luminaire(
+        transform=Transform(position=Vector3(2, 2, 3)),
+        photometry=phot,
+    )
+
+    grid = CalculationGrid(
+        origin=Vector3(0, 0, 0),
+        width=4,
+        height=4,
+        elevation=0,
+        nx=7,
+        ny=7,
+    )
+
+    # JIT path (default for compatible no-occlusion setup when numba is installed)
+    res_jit = calculate_grid_illuminance(grid, [luminaire])
+
+    # Force pure-python fallback and compare
+    monkeypatch.setattr(illuminance_mod, "_HAS_NUMBA", False)
+    res_py = calculate_grid_illuminance(grid, [luminaire])
+
+    assert np.allclose(res_jit.values, res_py.values, rtol=1e-6, atol=1e-6)

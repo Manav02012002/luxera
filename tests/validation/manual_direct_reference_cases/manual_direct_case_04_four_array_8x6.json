@@ -1,0 +1,102 @@
+{
+  "expected": {
+    "avg_lux": 181.31575541746284,
+    "max_lux": 259.98706459802526,
+    "min_lux": 85.3967471386319,
+    "provenance": {
+      "method": "E = I * cos(alpha) / d^2 with constant-intensity synthetic Type C IES",
+      "references": [
+        "IES Lighting Handbook (inverse-square law and cosine law)",
+        "CIE photometric fundamentals for direct illuminance"
+      ],
+      "source": "Independent first-principles point-by-point calculation"
+    },
+    "tolerances": {
+      "avg_lux_pct": 0.005,
+      "max_lux_pct": 0.005,
+      "min_lux_pct": 0.005,
+      "uniformity_u0_abs": 0.002
+    },
+    "uniformity_u0": 0.4709835995333872
+  },
+  "grid": {
+    "elevation": 0.8,
+    "height": 6.0,
+    "nx": 9,
+    "ny": 7,
+    "origin": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "width": 8.0
+  },
+  "id": "manual_direct_case_04_four_array_8x6",
+  "luminaires": [
+    {
+      "ies_file": "assets/constant_1000cd_type_c.ies",
+      "intensity_cd": 1000.0,
+      "position": [
+        2.0,
+        1.5,
+        3.2
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "ies_file": "assets/constant_1000cd_type_c.ies",
+      "intensity_cd": 1000.0,
+      "position": [
+        6.0,
+        1.5,
+        3.2
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "ies_file": "assets/constant_1000cd_type_c.ies",
+      "intensity_cd": 1000.0,
+      "position": [
+        2.0,
+        4.5,
+        3.2
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "ies_file": "assets/constant_1000cd_type_c.ies",
+      "intensity_cd": 1000.0,
+      "position": [
+        6.0,
+        4.5,
+        3.2
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "notes": "Reference values are computed independently from Luxera runtime using closed-form direct illuminance.",
+  "room": {
+    "ceiling_reflectance": 0.7,
+    "floor_reflectance": 0.2,
+    "height": 3.2,
+    "length": 6.0,
+    "wall_reflectance": 0.5,
+    "width": 8.0
+  }
+}

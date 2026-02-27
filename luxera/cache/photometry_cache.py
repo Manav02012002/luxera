@@ -21,6 +21,7 @@ def save_lut_to_cache(cache_dir: str | Path, lut: "PhotometryLUT") -> Path:
         out,
         content_hash=lut.content_hash,
         system=lut.system,
+        symmetry=getattr(lut, "symmetry", "UNKNOWN"),
         angles_h_deg=np.asarray(lut.angles_h_deg, dtype=float),
         angles_v_deg=np.asarray(lut.angles_v_deg, dtype=float),
         intensity_cd=np.asarray(lut.intensity_cd, dtype=float),
@@ -38,6 +39,7 @@ def load_lut_from_cache(cache_dir: str | Path, content_hash: str) -> Optional["P
     return PhotometryLUT(
         content_hash=str(data["content_hash"]),
         system=str(data["system"]),
+        symmetry=(str(data["symmetry"]) if "symmetry" in data else "UNKNOWN"),
         angles_h_deg=np.asarray(data["angles_h_deg"], dtype=float),
         angles_v_deg=np.asarray(data["angles_v_deg"], dtype=float),
         intensity_cd=np.asarray(data["intensity_cd"], dtype=float),

@@ -86,6 +86,12 @@ def solve_radiosity(
 
     Progressive refinement tracks unshot radiosity and repeatedly shoots the
     patch with highest unshot flux until residual unshot energy falls below tolerance.
+
+    Note on `emission` in this implementation:
+    `direct_illuminance` is treated as precomputed direct incident irradiance per
+    parent surface. For interreflection solving we initialize emitted radiosity as
+    the reflected direct component, `rho * E_direct`, per patch. This is a
+    workflow-specific approximation (not a full luminaire-emitter radiosity setup).
     """
     if not surfaces:
         empty = np.zeros((0, 0), dtype=float)
@@ -123,7 +129,7 @@ def solve_radiosity(
         for i, p in enumerate(patches):
             pid = str(p.id).split("__patch_", 1)[0]
             E = float(direct_illuminance.get(pid, 0.0))
-            # diffuse-only radiosity for inter-reflections
+            # Treat direct incident irradiance as source for secondary diffuse bounce.
             emission[i] = E * reflectance[i]
 
     # Progressive radiosity state.
@@ -183,6 +189,7 @@ def solve_radiosity(
         warnings.append("max iterations reached before convergence.")
 
     # Ambient catch-up: distribute residual unshot flux as uniform irradiance.
+    # TODO: replace with geometry-aware residual redistribution for non-convex scenes.
     remaining_unshot_flux = float(np.sum(unshot * areas))
     total_area = float(np.sum(areas))
     if remaining_unshot_flux > 0.0 and total_area > 1e-12:

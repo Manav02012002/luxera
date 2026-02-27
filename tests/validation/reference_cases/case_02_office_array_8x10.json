@@ -34,6 +34,10 @@
       "min_lux_pct": 0.15,
       "max_lux_pct": 0.15,
       "uniformity_u0_abs": 0.04
+    },
+    "provenance": {
+      "source": "synthetic_regression_baseline",
+      "note": "Calibrated synthetic reference for Luxera regression; not AGi32/DIALux exported ground truth."
     }
   }
 }

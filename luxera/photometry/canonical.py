@@ -8,6 +8,7 @@ from typing import Dict, Literal, Optional
 import numpy as np
 
 from luxera.photometry.model import Photometry
+from luxera.models.derived import Symmetry
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,7 @@ class CanonicalPhotometry:
     multiplier: float
     orientation: Dict[str, str]
     tilt_mode: str
+    symmetry: Symmetry = "UNKNOWN"
     source_format: Literal["IES", "LDT", "UNKNOWN"] = "UNKNOWN"
     content_hash: str = ""
 
@@ -33,6 +35,7 @@ def _stable_hash_payload(
     multiplier: float,
     orientation: Dict[str, str],
     tilt_mode: str,
+    symmetry: str,
     source_format: str,
 ) -> str:
     payload = {
@@ -44,6 +47,7 @@ def _stable_hash_payload(
         "multiplier": float(f"{float(multiplier):.12g}"),
         "orientation": {str(k): str(v) for k, v in orientation.items()},
         "tilt_mode": str(tilt_mode),
+        "symmetry": str(symmetry),
         "source_format": str(source_format),
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
@@ -76,6 +80,7 @@ def canonical_from_photometry(phot: Photometry, *, source_format: str = "UNKNOWN
         multiplier=1.0,
         orientation=orientation,
         tilt_mode=tilt_mode,
+        symmetry=str(phot.symmetry),
         source_format=source_format,
     )
     return CanonicalPhotometry(
@@ -87,6 +92,7 @@ def canonical_from_photometry(phot: Photometry, *, source_format: str = "UNKNOWN
         multiplier=1.0,
         orientation=orientation,
         tilt_mode=tilt_mode,
+        symmetry=phot.symmetry,
         source_format=(source_format if source_format in {"IES", "LDT"} else "UNKNOWN"),  # type: ignore[arg-type]
         content_hash=h,
     )
