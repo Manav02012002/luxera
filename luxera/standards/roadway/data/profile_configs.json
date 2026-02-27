@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "profiles": [
+    {
+      "id": "en13201_m3_common",
+      "name": "EN 13201 M3 (common-practice proxy)",
+      "standard_ref": "EN 13201",
+      "domain": "roadway",
+      "class": "M3",
+      "notes": "Common-practice proxy profile for deterministic regression runs."
+    },
+    {
+      "id": "en13201_p2_common",
+      "name": "EN 13201 P2 (common-practice proxy)",
+      "standard_ref": "EN 13201",
+      "domain": "roadway",
+      "class": "P2",
+      "notes": "Common-practice proxy profile for deterministic regression runs."
+    }
+  ]
+}

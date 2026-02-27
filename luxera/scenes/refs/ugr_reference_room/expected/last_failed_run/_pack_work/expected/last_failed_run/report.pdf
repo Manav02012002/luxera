@@ -1,0 +1,807 @@
+%PDF-1.4
+%“Œ‹ž ReportLab Generated PDF document (opensource)
+1 0 obj
+<<
+/F1 2 0 R /F2 3 0 R
+>>
+endobj
+2 0 obj
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
+endobj
+3 0 obj
+<<
+/BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding /Name /F2 /Subtype /Type1 /Type /Font
+>>
+endobj
+4 0 obj
+<<
+/Contents 10 0 R /MediaBox [ 0 0 595.2756 841.8898 ] /Parent 9 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
+endobj
+5 0 obj
+<<
+/Contents 11 0 R /MediaBox [ 0 0 595.2756 841.8898 ] /Parent 9 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
+endobj
+6 0 obj
+<<
+/Contents 12 0 R /MediaBox [ 0 0 595.2756 841.8898 ] /Parent 9 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
+endobj
+7 0 obj
+<<
+/PageMode /UseNone /Pages 9 0 R /Type /Catalog
+>>
+endobj
+8 0 obj
+<<
+/Author (Luxera) /CreationDate (D:20260225215456+00'00') /Creator (\(unspecified\)) /Keywords () /ModDate (D:20260225215456+00'00') /Producer (ReportLab PDF Library - \(opensource\)) 
+  /Subject (\(unspecified\)) /Title (EN 12464 Report) /Trapped /False
+>>
+endobj
+9 0 obj
+<<
+/Count 3 /Kids [ 4 0 R 5 0 R 6 0 R ] /Type /Pages
+>>
+endobj
+10 0 obj
+<<
+/Length 8159
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+1 0 0 1 51.35433 768.5354 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 4 Tm /F2 18 Tf 22 TL 174.7605 0 Td (EN 12464 Report) Tj T* -174.7605 0 Td ET
+Q
+Q
+q
+1 0 0 1 51.35433 755.4488 cm
+Q
+q
+1 0 0 1 51.35433 725.4488 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 4 Tm /F2 14 Tf 18 TL (Audit Header) Tj T* ET
+Q
+Q
+q
+1 0 0 1 46.77165 539.4488 cm
+q
+.960784 .960784 .960784 rg
+n 0 180 501.7323 -20 re f*
+1 1 1 rg
+n 0 160 501.7323 -20 re f*
+.960784 .960784 .960784 rg
+n 0 140 501.7323 -20 re f*
+1 1 1 rg
+n 0 120 501.7323 -20 re f*
+.960784 .960784 .960784 rg
+n 0 100 501.7323 -20 re f*
+1 1 1 rg
+n 0 80 501.7323 -20 re f*
+.960784 .960784 .960784 rg
+n 0 60 501.7323 -20 re f*
+1 1 1 rg
+n 0 40 501.7323 -20 re f*
+.960784 .960784 .960784 rg
+n 0 20 501.7323 -20 re f*
+0 0 0 rg
+BT /F1 9 Tf 12 TL ET
+BT 1 0 0 1 6 167 Tm (Project) Tj T* ET
+BT 1 0 0 1 153.4016 167 Tm (ugr_reference_room) Tj T* ET
+BT 1 0 0 1 6 147 Tm (Project Revision) Tj T* ET
+BT 1 0 0 1 153.4016 147 Tm (5) Tj T* ET
+BT 1 0 0 1 6 127 Tm (Job ID) Tj T* ET
+BT 1 0 0 1 153.4016 127 Tm (job_direct_ugr) Tj T* ET
+BT 1 0 0 1 6 107 Tm (Job Hash) Tj T* ET
+BT 1 0 0 1 153.4016 107 Tm (2b48838ff88c268773a9d7996d6c7d4423dfb60472b6c1254a1ecdcb1c5bd7cb) Tj T* ET
+BT 1 0 0 1 6 87 Tm (Solver Version) Tj T* ET
+BT 1 0 0 1 153.4016 87 Tm (0.2.0) Tj T* ET
+BT 1 0 0 1 6 67 Tm (Git Commit) Tj T* ET
+BT 1 0 0 1 153.4016 67 Tm (unknown) Tj T* ET
+BT 1 0 0 1 6 47 Tm (Photometry Hashes) Tj T* ET
+BT 1 0 0 1 153.4016 47 Tm ({'asset_1': '245f0cc1b86391d18aabaa1a3e8ffb98667b0c568deef18406298e763fc7ee57'}) Tj T* ET
+BT 1 0 0 1 6 27 Tm (Coordinate Convention) Tj T* ET
+BT 1 0 0 1 153.4016 27 Tm (Local luminaire frame: +Z up, nadir is -Z; C=0 toward +X, C=90 toward +Y) Tj T* ET
+BT 1 0 0 1 6 7 Tm (Units) Tj T* ET
+BT 1 0 0 1 153.4016 7 Tm ({'angles': 'deg', 'illuminance': 'lux', 'length': 'm', 'luminous_flux': 'lm', 'luminous_intensity': 'cd'}) Tj T* ET
+q
+1 J
+1 j
+.827451 .827451 .827451 RG
+.5 w
+n 0 180 m 501.7323 180 l S
+n 0 0 m 501.7323 0 l S
+n 0 0 m 0 180 l S
+n 501.7323 0 m 501.7323 180 l S
+.25 w
+n 0 160 m 501.7323 160 l S
+n 0 140 m 501.7323 140 l S
+n 0 120 m 501.7323 120 l S
+n 0 100 m 501.7323 100 l S
+n 0 80 m 501.7323 80 l S
+n 0 60 m 501.7323 60 l S
+n 0 40 m 501.7323 40 l S
+n 0 20 m 501.7323 20 l S
+n 147.4016 0 m 147.4016 180 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.35433 529.5276 cm
+Q
+q
+1 0 0 1 51.35433 499.5276 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 4 Tm /F2 14 Tf 18 TL (Inputs) Tj T* ET
+Q
+Q
+q
+1 0 0 1 46.77165 453.5276 cm
+q
+.960784 .960784 .960784 rg
+n 0 40 501.7323 -20 re f*
+1 1 1 rg
+n 0 20 501.7323 -20 re f*
+0 0 0 rg
+BT /F1 9 Tf 12 TL ET
+BT 1 0 0 1 6 27 Tm (Room) Tj T* ET
+BT 1 0 0 1 153.4016 27 Tm (UGR Reference Room) Tj T* ET
+BT 1 0 0 1 6 7 Tm (Dimensions) Tj T* ET
+BT 1 0 0 1 153.4016 7 Tm (6.0 x 8.0 x 3.0 m) Tj T* ET
+q
+1 J
+1 j
+.827451 .827451 .827451 RG
+.5 w
+n 0 40 m 501.7323 40 l S
+n 0 0 m 501.7323 0 l S
+n 0 0 m 0 40 l S
+n 501.7323 0 m 501.7323 40 l S
+.25 w
+n 0 20 m 501.7323 20 l S
+n 147.4016 0 m 147.4016 40 l S
+Q
+Q
+Q
+q
+1 0 0 1 46.77165 393.5276 cm
+q
+.960784 .960784 .960784 rg
+n 0 60 501.7323 -20 re f*
+1 1 1 rg
+n 0 40 501.7323 -20 re f*
+.960784 .960784 .960784 rg
+n 0 20 501.7323 -20 re f*
+0 0 0 rg
+BT /F1 9 Tf 12 TL ET
+BT 1 0 0 1 6 47 Tm (Floor reflectance) Tj T* ET
+BT 1 0 0 1 153.4016 47 Tm (0.2) Tj T* ET
+BT 1 0 0 1 6 27 Tm (Wall reflectance) Tj T* ET
+BT 1 0 0 1 153.4016 27 Tm (0.5) Tj T* ET
+BT 1 0 0 1 6 7 Tm (Ceiling reflectance) Tj T* ET
+BT 1 0 0 1 153.4016 7 Tm (0.7) Tj T* ET
+q
+1 J
+1 j
+.827451 .827451 .827451 RG
+.5 w
+n 0 60 m 501.7323 60 l S
+n 0 0 m 501.7323 0 l S
+n 0 0 m 0 60 l S
+n 501.7323 0 m 501.7323 60 l S
+.25 w
+n 0 40 m 501.7323 40 l S
+n 0 20 m 501.7323 20 l S
+n 147.4016 0 m 147.4016 60 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.35433 383.6063 cm
+Q
+q
+1 0 0 1 51.35433 353.6063 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 4 Tm /F2 14 Tf 18 TL (Luminaire Schedule) Tj T* ET
+Q
+Q
+q
+1 0 0 1 -839.0551 307.6063 cm
+q
+.960784 .960784 .960784 rg
+n 0 40 2273.386 -20 re f*
+1 1 1 rg
+n 0 20 2273.386 -20 re f*
+0 0 0 rg
+BT /F1 9 Tf 12 TL ET
+BT 1 0 0 1 6 27 Tm (Count) Tj T* ET
+BT 1 0 0 1 153.4016 27 Tm (Asset) Tj T* ET
+BT 1 0 0 1 507.7323 27 Tm (Mounting H \(m\)) Tj T* ET
+BT 1 0 0 1 862.063 27 Tm (Rotation/Aim) Tj T* ET
+BT 1 0 0 1 1216.394 27 Tm (LLF) Tj T* ET
+BT 1 0 0 1 1570.724 27 Tm (Flux Mult) Tj T* ET
+BT 1 0 0 1 1925.055 27 Tm (Tilt) Tj T* ET
+BT 1 0 0 1 6 7 Tm (2) Tj T* ET
+BT 1 0 0 1 153.4016 7 Tm (asset_1) Tj T* ET
+BT 1 0 0 1 507.7323 7 Tm (None) Tj T* ET
+BT 1 0 0 1 862.063 7 Tm ({'type': 'euler_zyx', 'euler_deg': \(0.0, 0.0, 0.0\), 'aim': None, 'up': None, 'matrix': None}) Tj T* ET
+BT 1 0 0 1 1216.394 7 Tm (1.0) Tj T* ET
+BT 1 0 0 1 1570.724 7 Tm (1.0) Tj T* ET
+BT 1 0 0 1 1925.055 7 Tm (0.0) Tj T* ET
+q
+1 J
+1 j
+.827451 .827451 .827451 RG
+.5 w
+n 0 40 m 2273.386 40 l S
+n 0 0 m 2273.386 0 l S
+n 0 0 m 0 40 l S
+n 2273.386 0 m 2273.386 40 l S
+.25 w
+n 0 20 m 2273.386 20 l S
+n 147.4016 0 m 147.4016 40 l S
+n 501.7323 0 m 501.7323 40 l S
+n 856.063 0 m 856.063 40 l S
+n 1210.394 0 m 1210.394 40 l S
+n 1564.724 0 m 1564.724 40 l S
+n 1919.055 0 m 1919.055 40 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.35433 297.685 cm
+Q
+q
+1 0 0 1 51.35433 267.685 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 4 Tm /F2 14 Tf 18 TL (Per-Grid Statistics) Tj T* ET
+Q
+Q
+q
+1 0 0 1 -661.8898 221.685 cm
+q
+.960784 .960784 .960784 rg
+n 0 40 1919.055 -20 re f*
+1 1 1 rg
+n 0 20 1919.055 -20 re f*
+0 0 0 rg
+BT /F1 9 Tf 12 TL ET
+BT 1 0 0 1 6 27 Tm (Type) Tj T* ET
+BT 1 0 0 1 153.4016 27 Tm (ID) Tj T* ET
+BT 1 0 0 1 507.7323 27 Tm (min) Tj T* ET
+BT 1 0 0 1 862.063 27 Tm (mean) Tj T* ET
+BT 1 0 0 1 1216.394 27 Tm (max) Tj T* ET
+BT 1 0 0 1 1570.724 27 Tm (uniformity) Tj T* ET
+BT 1 0 0 1 6 7 Tm (grid) Tj T* ET
+BT 1 0 0 1 153.4016 7 Tm (g1) Tj T* ET
+BT 1 0 0 1 507.7323 7 Tm (23.72147344210874) Tj T* ET
+BT 1 0 0 1 862.063 7 Tm (124.99699518765158) Tj T* ET
+BT 1 0 0 1 1216.394 7 Tm (444.8774148689408) Tj T* ET
+BT 1 0 0 1 1570.724 7 Tm (0.18977634947541663) Tj T* ET
+q
+1 J
+1 j
+.827451 .827451 .827451 RG
+.5 w
+n 0 40 m 1919.055 40 l S
+n 0 0 m 1919.055 0 l S
+n 0 0 m 0 40 l S
+n 1919.055 0 m 1919.055 40 l S
+.25 w
+n 0 20 m 1919.055 20 l S
+n 147.4016 0 m 147.4016 40 l S
+n 501.7323 0 m 501.7323 40 l S
+n 856.063 0 m 856.063 40 l S
+n 1210.394 0 m 1210.394 40 l S
+n 1564.724 0 m 1564.724 40 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.35433 211.7638 cm
+Q
+q
+1 0 0 1 51.35433 181.7638 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 4 Tm /F2 14 Tf 18 TL (Calculation Tables) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.35433 172.3622 cm
+Q
+q
+1 0 0 1 51.35433 154.3622 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 2 Tm /F1 10 Tf 12 TL (Grid Tables) Tj T* ET
+Q
+Q
+q
+1 0 0 1 -1370.551 114.3622 cm
+q
+.960784 .960784 .960784 rg
+n 0 40 3336.378 -20 re f*
+1 1 1 rg
+n 0 20 3336.378 -20 re f*
+0 0 0 rg
+BT /F1 9 Tf 12 TL ET
+BT 1 0 0 1 6 27 Tm (Type) Tj T* ET
+BT 1 0 0 1 153.4016 27 Tm (ID) Tj T* ET
+BT 1 0 0 1 507.7323 27 Tm (Name) Tj T* ET
+BT 1 0 0 1 862.063 27 Tm (Points) Tj T* ET
+BT 1 0 0 1 1216.394 27 Tm (Spacing) Tj T* ET
+BT 1 0 0 1 1570.724 27 Tm (Area) Tj T* ET
+BT 1 0 0 1 1925.055 27 Tm (Min) Tj T* ET
+BT 1 0 0 1 2279.386 27 Tm (Mean) Tj T* ET
+BT 1 0 0 1 2633.717 27 Tm (Max) Tj T* ET
+BT 1 0 0 1 2988.047 27 Tm (U0) Tj T* ET
+BT 1 0 0 1 6 7 Tm (grid) Tj T* ET
+BT 1 0 0 1 153.4016 7 Tm (g1) Tj T* ET
+BT 1 0 0 1 507.7323 7 Tm (WG) Tj T* ET
+BT 1 0 0 1 862.063 7 Tm (48) Tj T* ET
+BT 1 0 0 1 1216.394 7 Tm (1.0) Tj T* ET
+BT 1 0 0 1 1570.724 7 Tm (None) Tj T* ET
+BT 1 0 0 1 1925.055 7 Tm (23.72147344210874) Tj T* ET
+BT 1 0 0 1 2279.386 7 Tm (124.99699518765158) Tj T* ET
+BT 1 0 0 1 2633.717 7 Tm (444.8774148689408) Tj T* ET
+BT 1 0 0 1 2988.047 7 Tm (0.18977634947541663) Tj T* ET
+q
+1 J
+1 j
+.827451 .827451 .827451 RG
+.5 w
+n 0 40 m 3336.378 40 l S
+n 0 0 m 3336.378 0 l S
+n 0 0 m 0 40 l S
+n 3336.378 0 m 3336.378 40 l S
+.25 w
+n 0 20 m 3336.378 20 l S
+n 147.4016 0 m 147.4016 40 l S
+n 501.7323 0 m 501.7323 40 l S
+n 856.063 0 m 856.063 40 l S
+n 1210.394 0 m 1210.394 40 l S
+n 1564.724 0 m 1564.724 40 l S
+n 1919.055 0 m 1919.055 40 l S
+n 2273.386 0 m 2273.386 40 l S
+n 2627.717 0 m 2627.717 40 l S
+n 2982.047 0 m 2982.047 40 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.35433 108.6929 cm
+Q
+q
+1 0 0 1 51.35433 78.69291 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 4 Tm /F2 14 Tf 18 TL (Zone Compliance Tables) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.35433 60.69291 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 2 Tm /F1 10 Tf 12 TL (No zone compliance data available.) Tj T* ET
+Q
+Q
+ 
+endstream
+endobj
+11 0 obj
+<<
+/Length 6804
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+1 0 0 1 51.35433 780.6142 cm
+Q
+q
+1 0 0 1 51.35433 750.6142 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 4 Tm /F2 14 Tf 18 TL (Worst-Case Summary) Tj T* ET
+Q
+Q
+q
+1 0 0 1 46.77165 684.6142 cm
+q
+.960784 .960784 .960784 rg
+n 0 60 501.7323 -20 re f*
+1 1 1 rg
+n 0 40 501.7323 -20 re f*
+.960784 .960784 .960784 rg
+n 0 20 501.7323 -20 re f*
+0 0 0 rg
+BT /F1 9 Tf 12 TL ET
+BT 1 0 0 1 6 47 Tm (global_worst_min_lux) Tj T* ET
+BT 1 0 0 1 153.4016 47 Tm (23.72147344210874) Tj T* ET
+BT 1 0 0 1 6 27 Tm (global_worst_uniformity_ratio) Tj T* ET
+BT 1 0 0 1 153.4016 27 Tm (0.18977634947541663) Tj T* ET
+BT 1 0 0 1 6 7 Tm (global_highest_ugr) Tj T* ET
+BT 1 0 0 1 153.4016 7 Tm (0.0) Tj T* ET
+q
+1 J
+1 j
+.827451 .827451 .827451 RG
+.5 w
+n 0 60 m 501.7323 60 l S
+n 0 0 m 501.7323 0 l S
+n 0 0 m 0 60 l S
+n 501.7323 0 m 501.7323 60 l S
+.25 w
+n 0 40 m 501.7323 40 l S
+n 0 20 m 501.7323 20 l S
+n 147.4016 0 m 147.4016 60 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.35433 674.6929 cm
+Q
+q
+1 0 0 1 51.35433 644.6929 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 4 Tm /F2 14 Tf 18 TL (Compliance) Tj T* ET
+Q
+Q
+q
+1 0 0 1 46.77165 618.6929 cm
+q
+.960784 .960784 .960784 rg
+n 0 20 501.7323 -20 re f*
+0 0 0 rg
+BT /F1 9 Tf 12 TL ET
+BT 1 0 0 1 6 7 Tm (pass_fail_reasons) Tj T* ET
+BT 1 0 0 1 153.4016 7 Tm ([]) Tj T* ET
+q
+1 J
+1 j
+.827451 .827451 .827451 RG
+.5 w
+n 0 20 m 501.7323 20 l S
+n 0 0 m 501.7323 0 l S
+n 0 0 m 0 20 l S
+n 501.7323 0 m 501.7323 20 l S
+.25 w
+n 147.4016 0 m 147.4016 20 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.35433 608.7717 cm
+Q
+q
+1 0 0 1 51.35433 578.7717 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 4 Tm /F2 14 Tf 18 TL (UGR Summary) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.35433 560.7717 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 2 Tm /F1 10 Tf 12 TL (No UGR results available for this job.) Tj T* ET
+Q
+Q
+q
+1 0 0 1 51.35433 550.8504 cm
+Q
+q
+1 0 0 1 51.35433 520.8504 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 4 Tm /F2 14 Tf 18 TL (Assumptions) Tj T* ET
+Q
+Q
+q
+1 0 0 1 46.77165 374.8504 cm
+q
+.960784 .960784 .960784 rg
+n 0 140 501.7323 -20 re f*
+1 1 1 rg
+n 0 120 501.7323 -20 re f*
+.960784 .960784 .960784 rg
+n 0 100 501.7323 -20 re f*
+1 1 1 rg
+n 0 80 501.7323 -20 re f*
+.960784 .960784 .960784 rg
+n 0 60 501.7323 -20 re f*
+1 1 1 rg
+n 0 40 501.7323 -20 re f*
+.960784 .960784 .960784 rg
+n 0 20 501.7323 -20 re f*
+0 0 0 rg
+BT /F1 9 Tf 12 TL ET
+BT 1 0 0 1 6 127 Tm (A1) Tj T* ET
+BT 1 0 0 1 153.4016 127 Tm (Coordinate convention: local luminaire frame +Z up, nadir -Z; Type C C=0 toward +X, C=90 toward +Y.) Tj T* ET
+BT 1 0 0 1 6 107 Tm (A2) Tj T* ET
+BT 1 0 0 1 153.4016 107 Tm (Supported photometric types: Type C only.) Tj T* ET
+BT 1 0 0 1 6 87 Tm (A3) Tj T* ET
+BT 1 0 0 1 153.4016 87 Tm (TILT ordering: base photometry interpolation -> TILT factor in local gamma frame -> luminaire/world orientation transforms.) Tj T* ET
+BT 1 0 0 1 6 67 Tm (A4) Tj T* ET
+BT 1 0 0 1 153.4016 67 Tm (TILT factor lookup uses gamma + luminaire tilt_deg offset; out-of-range angles are clamped.) Tj T* ET
+BT 1 0 0 1 6 47 Tm (A5) Tj T* ET
+BT 1 0 0 1 153.4016 47 Tm (Direct calculation excludes geometry occlusion unless enabled.) Tj T* ET
+BT 1 0 0 1 6 27 Tm (A6) Tj T* ET
+BT 1 0 0 1 153.4016 27 Tm (Luminaire tilt is applied when photometry includes tilt data; otherwise tilt has no effect.) Tj T* ET
+BT 1 0 0 1 6 7 Tm (A7) Tj T* ET
+BT 1 0 0 1 153.4016 7 Tm (Direct solver uses no inter-reflection reflectance model \(direct-only irradiance\).) Tj T* ET
+q
+1 J
+1 j
+.827451 .827451 .827451 RG
+.5 w
+n 0 140 m 501.7323 140 l S
+n 0 0 m 501.7323 0 l S
+n 0 0 m 0 140 l S
+n 501.7323 0 m 501.7323 140 l S
+.25 w
+n 0 120 m 501.7323 120 l S
+n 0 100 m 501.7323 100 l S
+n 0 80 m 501.7323 80 l S
+n 0 60 m 501.7323 60 l S
+n 0 40 m 501.7323 40 l S
+n 0 20 m 501.7323 20 l S
+n 147.4016 0 m 147.4016 140 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.35433 367.7638 cm
+Q
+q
+1 0 0 1 46.77165 107.7638 cm
+q
+.960784 .960784 .960784 rg
+n 0 260 501.7323 -20 re f*
+1 1 1 rg
+n 0 240 501.7323 -20 re f*
+.960784 .960784 .960784 rg
+n 0 220 501.7323 -20 re f*
+1 1 1 rg
+n 0 200 501.7323 -20 re f*
+.960784 .960784 .960784 rg
+n 0 180 501.7323 -20 re f*
+1 1 1 rg
+n 0 160 501.7323 -20 re f*
+.960784 .960784 .960784 rg
+n 0 140 501.7323 -20 re f*
+1 1 1 rg
+n 0 120 501.7323 -20 re f*
+.960784 .960784 .960784 rg
+n 0 100 501.7323 -20 re f*
+1 1 1 rg
+n 0 80 501.7323 -20 re f*
+.960784 .960784 .960784 rg
+n 0 60 501.7323 -20 re f*
+1 1 1 rg
+n 0 40 501.7323 -20 re f*
+.960784 .960784 .960784 rg
+n 0 20 501.7323 -20 re f*
+0 0 0 rg
+BT /F1 9 Tf 12 TL ET
+BT 1 0 0 1 6 247 Tm (M1) Tj T* ET
+BT 1 0 0 1 153.4016 247 Tm (Coordinate convention: local luminaire frame +Z up, nadir -Z; Type C C=0 toward +X, C=90 toward +Y.) Tj T* ET
+BT 1 0 0 1 6 227 Tm (M2) Tj T* ET
+BT 1 0 0 1 153.4016 227 Tm (Supported photometric types: Type C only.) Tj T* ET
+BT 1 0 0 1 6 207 Tm (M3) Tj T* ET
+BT 1 0 0 1 153.4016 207 Tm (TILT ordering: base photometry interpolation -> TILT factor in local gamma frame -> luminaire/world orientation transforms.) Tj T* ET
+BT 1 0 0 1 6 187 Tm (M4) Tj T* ET
+BT 1 0 0 1 153.4016 187 Tm (TILT factor lookup uses gamma + luminaire tilt_deg offset; out-of-range angles are clamped.) Tj T* ET
+BT 1 0 0 1 6 167 Tm (M5) Tj T* ET
+BT 1 0 0 1 153.4016 167 Tm (Direct calculation excludes geometry occlusion unless enabled.) Tj T* ET
+BT 1 0 0 1 6 147 Tm (M6) Tj T* ET
+BT 1 0 0 1 153.4016 147 Tm (Luminaire tilt is applied when photometry includes tilt data; otherwise tilt has no effect.) Tj T* ET
+BT 1 0 0 1 6 127 Tm (M7) Tj T* ET
+BT 1 0 0 1 153.4016 127 Tm (Direct solver uses no inter-reflection reflectance model \(direct-only irradiance\).) Tj T* ET
+BT 1 0 0 1 6 107 Tm (M8) Tj T* ET
+BT 1 0 0 1 153.4016 107 Tm (TILT applied: no) Tj T* ET
+BT 1 0 0 1 6 87 Tm (M9) Tj T* ET
+BT 1 0 0 1 153.4016 87 Tm (TILT application angle: gamma \(vertical angle\)) Tj T* ET
+BT 1 0 0 1 6 67 Tm (M10) Tj T* ET
+BT 1 0 0 1 153.4016 67 Tm (Units contract: {'angles': 'deg', 'illuminance': 'lux', 'length': 'm', 'luminous_flux': 'lm', 'luminous_intensity': 'cd'}) Tj T* ET
+BT 1 0 0 1 6 47 Tm (M11) Tj T* ET
+BT 1 0 0 1 153.4016 47 Tm (Occlusion mode: disabled) Tj T* ET
+BT 1 0 0 1 6 27 Tm (M12) Tj T* ET
+BT 1 0 0 1 153.4016 27 Tm (Supported photometric types: Type C only.) Tj T* ET
+BT 1 0 0 1 6 7 Tm (M13) Tj T* ET
+BT 1 0 0 1 153.4016 7 Tm (Backend version: cpu@0.2.0) Tj T* ET
+q
+1 J
+1 j
+.827451 .827451 .827451 RG
+.5 w
+n 0 260 m 501.7323 260 l S
+n 0 0 m 501.7323 0 l S
+n 0 0 m 0 260 l S
+n 501.7323 0 m 501.7323 260 l S
+.25 w
+n 0 240 m 501.7323 240 l S
+n 0 220 m 501.7323 220 l S
+n 0 200 m 501.7323 200 l S
+n 0 180 m 501.7323 180 l S
+n 0 160 m 501.7323 160 l S
+n 0 140 m 501.7323 140 l S
+n 0 120 m 501.7323 120 l S
+n 0 100 m 501.7323 100 l S
+n 0 80 m 501.7323 80 l S
+n 0 60 m 501.7323 60 l S
+n 0 40 m 501.7323 40 l S
+n 0 20 m 501.7323 20 l S
+n 147.4016 0 m 147.4016 260 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.35433 97.84252 cm
+Q
+q
+1 0 0 1 51.35433 67.84252 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 4 Tm /F2 14 Tf 18 TL (Photometry Warnings) Tj T* ET
+Q
+Q
+ 
+endstream
+endobj
+12 0 obj
+<<
+/Length 2845
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+1 0 0 1 -484.7244 690.5354 cm
+q
+.960784 .960784 .960784 rg
+n 0 100 1564.724 -20 re f*
+1 1 1 rg
+n 0 80 1564.724 -20 re f*
+.960784 .960784 .960784 rg
+n 0 60 1564.724 -20 re f*
+1 1 1 rg
+n 0 40 1564.724 -20 re f*
+.960784 .960784 .960784 rg
+n 0 20 1564.724 -20 re f*
+0 0 0 rg
+BT /F1 9 Tf 12 TL ET
+BT 1 0 0 1 6 87 Tm (code) Tj T* ET
+BT 1 0 0 1 153.4016 87 Tm (severity) Tj T* ET
+BT 1 0 0 1 507.7323 87 Tm (asset/luminaire) Tj T* ET
+BT 1 0 0 1 862.063 87 Tm (message) Tj T* ET
+BT 1 0 0 1 1216.394 87 Tm (mitigation) Tj T* ET
+BT 1 0 0 1 6 67 Tm (missing_keyword) Tj T* ET
+BT 1 0 0 1 153.4016 67 Tm (warning) Tj T* ET
+BT 1 0 0 1 507.7323 67 Tm (asset_1) Tj T* ET
+BT 1 0 0 1 862.063 67 Tm (Missing recommended [MANUFAC] keyword.) Tj T* ET
+BT 1 0 0 1 1216.394 67 Tm (-) Tj T* ET
+BT 1 0 0 1 6 47 Tm (missing_keyword) Tj T* ET
+BT 1 0 0 1 153.4016 47 Tm (warning) Tj T* ET
+BT 1 0 0 1 507.7323 47 Tm (asset_1) Tj T* ET
+BT 1 0 0 1 862.063 47 Tm (Missing recommended [LUMCAT] keyword.) Tj T* ET
+BT 1 0 0 1 1216.394 47 Tm (-) Tj T* ET
+BT 1 0 0 1 6 27 Tm (near_field_photometry_risk) Tj T* ET
+BT 1 0 0 1 153.4016 27 Tm (warning) Tj T* ET
+BT 1 0 0 1 507.7323 27 Tm (lum_a) Tj T* ET
+BT 1 0 0 1 862.063 27 Tm (Luminaire lum_a has calc points in potential near-field regime \(min_distance_m=2.0616, threshold_m=3.0000\).) Tj T* ET
+BT 1 0 0 1 1216.394 27 Tm (Increase mounting height/clearance or use near-field photometry data if available.) Tj T* ET
+BT 1 0 0 1 6 7 Tm (near_field_photometry_risk) Tj T* ET
+BT 1 0 0 1 153.4016 7 Tm (warning) Tj T* ET
+BT 1 0 0 1 507.7323 7 Tm (lum_b) Tj T* ET
+BT 1 0 0 1 862.063 7 Tm (Luminaire lum_b has calc points in potential near-field regime \(min_distance_m=2.0616, threshold_m=3.0000\).) Tj T* ET
+BT 1 0 0 1 1216.394 7 Tm (Increase mounting height/clearance or use near-field photometry data if available.) Tj T* ET
+q
+1 J
+1 j
+.827451 .827451 .827451 RG
+.5 w
+n 0 100 m 1564.724 100 l S
+n 0 0 m 1564.724 0 l S
+n 0 0 m 0 100 l S
+n 1564.724 0 m 1564.724 100 l S
+.25 w
+n 0 80 m 1564.724 80 l S
+n 0 60 m 1564.724 60 l S
+n 0 40 m 1564.724 40 l S
+n 0 20 m 1564.724 20 l S
+n 147.4016 0 m 147.4016 100 l S
+n 501.7323 0 m 501.7323 100 l S
+n 856.063 0 m 856.063 100 l S
+n 1210.394 0 m 1210.394 100 l S
+Q
+Q
+Q
+q
+1 0 0 1 51.35433 680.6142 cm
+Q
+q
+1 0 0 1 51.35433 650.6142 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 4 Tm /F2 14 Tf 18 TL (Unsupported Features) Tj T* ET
+Q
+Q
+q
+1 0 0 1 46.77165 624.6142 cm
+q
+.960784 .960784 .960784 rg
+n 0 20 501.7323 -20 re f*
+0 0 0 rg
+BT /F1 9 Tf 12 TL ET
+BT 1 0 0 1 6 7 Tm (U1) Tj T* ET
+BT 1 0 0 1 153.4016 7 Tm (Penumbra/area-light soft shadowing is not implemented in CPU direct backend.) Tj T* ET
+q
+1 J
+1 j
+.827451 .827451 .827451 RG
+.5 w
+n 0 20 m 501.7323 20 l S
+n 0 0 m 501.7323 0 l S
+n 0 0 m 0 20 l S
+n 501.7323 0 m 501.7323 20 l S
+.25 w
+n 147.4016 0 m 147.4016 20 l S
+Q
+Q
+Q
+ 
+endstream
+endobj
+xref
+0 13
+0000000000 65535 f 
+0000000061 00000 n 
+0000000102 00000 n 
+0000000209 00000 n 
+0000000321 00000 n 
+0000000525 00000 n 
+0000000729 00000 n 
+0000000933 00000 n 
+0000001001 00000 n 
+0000001276 00000 n 
+0000001347 00000 n 
+0000009558 00000 n 
+0000016414 00000 n 
+trailer
+<<
+/ID 
+[<1438aef871c4425f589583ed6a98fdcd><1438aef871c4425f589583ed6a98fdcd>]
+% ReportLab generated PDF document -- digest (opensource)
+
+/Info 8 0 R
+/Root 7 0 R
+/Size 13
+>>
+startxref
+19311
+%%EOF

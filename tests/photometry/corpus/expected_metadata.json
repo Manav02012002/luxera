@@ -1,0 +1,110 @@
+{
+  "extreme_candela.ies": {
+    "metadata": {
+      "cct_k": 2700.0,
+      "coordinate_system": "Type C (C-gamma)",
+      "cri": 95.0,
+      "distribution_type": "Direct",
+      "luminous_dimensions_source_unit": "m",
+      "luminous_height_m": 0.1,
+      "luminous_length_m": 0.6,
+      "luminous_width_m": 0.6,
+      "lumens": 2000.0
+    },
+    "warning_codes": [
+      "extreme_candela_values"
+    ]
+  },
+  "missing_keywords.ies": {
+    "metadata": {
+      "cct_k": null,
+      "coordinate_system": "Type C (C-gamma)",
+      "cri": null,
+      "distribution_type": null,
+      "luminous_dimensions_source_unit": "m",
+      "luminous_height_m": 0.08,
+      "luminous_length_m": 0.3,
+      "luminous_width_m": 0.3,
+      "lumens": 800.0
+    },
+    "warning_codes": [
+      "missing_keyword",
+      "missing_keyword"
+    ]
+  },
+  "odd_angle_ordering.ies": {
+    "metadata": {
+      "cct_k": 3500.0,
+      "coordinate_system": "Type C (C-gamma)",
+      "cri": 82.0,
+      "distribution_type": "Direct",
+      "luminous_dimensions_source_unit": "m",
+      "luminous_height_m": 0.1,
+      "luminous_length_m": 0.2,
+      "luminous_width_m": 0.4,
+      "lumens": 1200.0
+    },
+    "warning_codes": [
+      "vertical_angles_reordered",
+      "horizontal_angles_reordered"
+    ]
+  },
+  "tilt_file_missing.ies": {
+    "metadata": {
+      "cct_k": null,
+      "coordinate_system": "Type C (C-gamma)",
+      "cri": null,
+      "distribution_type": "TILT-FILE-MISSING-1",
+      "luminous_dimensions_source_unit": "m",
+      "luminous_height_m": 0.07,
+      "luminous_length_m": 0.25,
+      "luminous_width_m": 0.25,
+      "lumens": 700.0
+    },
+    "warning_codes": [
+      "tilt_file_unresolved"
+    ]
+  },
+  "tilt_file_variant.ies": {
+    "metadata": {
+      "cct_k": 5000.0,
+      "coordinate_system": "Type C (C-gamma)",
+      "cri": 70.0,
+      "distribution_type": "Direct",
+      "luminous_dimensions_source_unit": "m",
+      "luminous_height_m": 0.09,
+      "luminous_length_m": 0.35,
+      "luminous_width_m": 0.35,
+      "lumens": 900.0
+    },
+    "warning_codes": []
+  },
+  "tilt_include_variant.ies": {
+    "metadata": {
+      "cct_k": 4000.0,
+      "coordinate_system": "Type C (C-gamma)",
+      "cri": 90.0,
+      "distribution_type": "Direct/Indirect",
+      "luminous_dimensions_source_unit": "m",
+      "luminous_height_m": 0.1,
+      "luminous_length_m": 0.25,
+      "luminous_width_m": 0.5,
+      "lumens": 1000.0
+    },
+    "warning_codes": []
+  },
+  "type_b_beam_real.ies": {
+    "metadata": {
+      "cct_k": 4000.0,
+      "coordinate_system": "Type B (B-beta)",
+      "cri": 80.0,
+      "distribution_type": "Asymmetric",
+      "luminous_dimensions_source_unit": "m",
+      "luminous_height_m": 0.1,
+      "luminous_length_m": 0.2,
+      "luminous_width_m": 0.4,
+      "lumens": 1500.0
+    },
+    "warning_codes": []
+  }
+}

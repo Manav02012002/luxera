@@ -1,0 +1,26 @@
+{
+  "engines": [
+    {
+      "engine_id": "radiosity_ugr",
+      "grid_csv": [
+        "radiosity_ugr__UGR Area Room_ceiling_grid.csv",
+        "radiosity_ugr__UGR Area Room_floor_grid.csv",
+        "radiosity_ugr__UGR Area Room_wall_0_grid.csv",
+        "radiosity_ugr__UGR Area Room_wall_1_grid.csv",
+        "radiosity_ugr__UGR Area Room_wall_2_grid.csv",
+        "radiosity_ugr__UGR Area Room_wall_3_grid.csv"
+      ],
+      "job_id": "job_radiosity_ugr",
+      "result_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_2ghn_cz9/_pack_work/.luxera/results/a4287426637dd12bacd8a15a5c1086fefe710cd83b813a04cf7530e74a27dc3e"
+    }
+  ],
+  "expected_json": "/Users/manavmadanrawal/Dev/luxera/luxera/scenes/refs/ugr_luminous_area_pack/expected/expected.json",
+  "out_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_2ghn_cz9",
+  "pack_dir": "/Users/manavmadanrawal/Dev/luxera/luxera/scenes/refs/ugr_luminous_area_pack",
+  "pack_name": "ugr_luminous_area_pack",
+  "report_pdf": "report.pdf",
+  "results_json": "results.json",
+  "scene_path": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_2ghn_cz9/_pack_work/scene.lux.json",
+  "schema_version": "parity_manifest_v1",
+  "work_pack_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_2ghn_cz9/_pack_work"
+}

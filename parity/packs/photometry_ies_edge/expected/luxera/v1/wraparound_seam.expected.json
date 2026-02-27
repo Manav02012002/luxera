@@ -1,0 +1,41 @@
+{
+  "baseline": "luxera",
+  "baseline_version": "v1",
+  "generated_by": {
+    "job_id": "direct_cpu",
+    "seed": 42,
+    "tool": "luxera parity run"
+  },
+  "results": {
+    "max_lux": 33.33923424440514,
+    "mean_lux": 28.613283069340106,
+    "min_lux": 23.88733189427508,
+    "parity_arrays": {
+      "grid_1": {
+        "grid_values_lux": {
+          "hash": "sha256:069c846069e2bc5d733a08e31789d4790a4db9a0b6e3823123e2923ab65d4c82",
+          "shape": [
+            2,
+            2
+          ],
+          "sidecar": "arrays/wraparound_seam_grid_1.csv",
+          "summary": {
+            "max": 33.33923424440514,
+            "mean": 28.613283069340106,
+            "min": 23.88733189427508,
+            "p95": 33.33923424440514,
+            "p99": 33.33923424440514
+          }
+        }
+      }
+    }
+  },
+  "scene_id": "wraparound_seam",
+  "schema_version": "parity_expected_v2",
+  "tags": [
+    "photometry",
+    "ies",
+    "edge",
+    "seam"
+  ]
+}

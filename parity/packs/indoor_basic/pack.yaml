@@ -1,0 +1,14 @@
+id: indoor_basic
+title: Indoor Basic Parity Pack
+version: 1
+engines:
+  - direct_cpu
+scenes:
+  - id: office_01
+    path: scenes/office_01.lux.json
+    tags:
+      - indoor
+      - fast
+global:
+  random_seed: 42
+  deterministic: true

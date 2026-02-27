@@ -1,0 +1,1011 @@
+{
+  "aim_luminaire": {
+    "additionalProperties": false,
+    "properties": {
+      "approved": {
+        "default": false,
+        "type": "string"
+      },
+      "luminaire_id": {
+        "type": "string"
+      },
+      "project": {},
+      "yaw_deg": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "luminaire_id",
+      "project",
+      "yaw_deg"
+    ],
+    "title": "aim_luminaire",
+    "type": "object"
+  },
+  "array_luminaires": {
+    "additionalProperties": false,
+    "properties": {
+      "approved": {
+        "default": false,
+        "type": "string"
+      },
+      "asset_id": {
+        "type": "string"
+      },
+      "cols": {
+        "type": "string"
+      },
+      "margin_m": {
+        "default": 0.5,
+        "type": "string"
+      },
+      "mount_height_m": {
+        "default": 2.8,
+        "type": "string"
+      },
+      "project": {},
+      "room_id": {
+        "type": "string"
+      },
+      "rows": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "asset_id",
+      "cols",
+      "project",
+      "room_id",
+      "rows"
+    ],
+    "title": "array_luminaires",
+    "type": "object"
+  },
+  "assign_material": {
+    "additionalProperties": false,
+    "properties": {
+      "approved": {
+        "default": false,
+        "type": "string"
+      },
+      "material_id": {
+        "type": "string"
+      },
+      "project": {},
+      "surface_ids": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "material_id",
+      "project",
+      "surface_ids"
+    ],
+    "title": "assign_material",
+    "type": "object"
+  },
+  "bundle.audit": {
+    "additionalProperties": false,
+    "properties": {
+      "job_id": {
+        "type": "string"
+      },
+      "out_zip": {
+        "type": "string"
+      },
+      "project": {}
+    },
+    "required": [
+      "job_id",
+      "out_zip",
+      "project"
+    ],
+    "title": "bundle.audit",
+    "type": "object"
+  },
+  "bundle.client": {
+    "additionalProperties": false,
+    "properties": {
+      "job_id": {
+        "type": "string"
+      },
+      "out_zip": {
+        "type": "string"
+      },
+      "project": {}
+    },
+    "required": [
+      "job_id",
+      "out_zip",
+      "project"
+    ],
+    "title": "bundle.client",
+    "type": "object"
+  },
+  "compare_to_target": {
+    "additionalProperties": false,
+    "properties": {
+      "job_id": {
+        "type": "string"
+      },
+      "project": {},
+      "thresholds": {
+        "default": null,
+        "type": "string"
+      }
+    },
+    "required": [
+      "job_id",
+      "project"
+    ],
+    "title": "compare_to_target",
+    "type": "object"
+  },
+  "context.load": {
+    "additionalProperties": false,
+    "properties": {
+      "project_path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project_path"
+    ],
+    "title": "context.load",
+    "type": "object"
+  },
+  "context.reset": {
+    "additionalProperties": false,
+    "properties": {
+      "project_path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project_path"
+    ],
+    "title": "context.reset",
+    "type": "object"
+  },
+  "context.update": {
+    "additionalProperties": false,
+    "properties": {
+      "intent": {
+        "type": "string"
+      },
+      "project": {},
+      "project_path": {
+        "type": "string"
+      },
+      "run_manifest": {
+        "type": "string"
+      },
+      "tool_calls": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "intent",
+      "project",
+      "project_path",
+      "run_manifest",
+      "tool_calls"
+    ],
+    "title": "context.update",
+    "type": "object"
+  },
+  "create_grid": {
+    "additionalProperties": false,
+    "properties": {
+      "approved": {
+        "default": false,
+        "type": "string"
+      },
+      "elevation_m": {
+        "default": 0.8,
+        "type": "string"
+      },
+      "grid_id": {
+        "type": "string"
+      },
+      "margin_m": {
+        "default": 0.0,
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "project": {},
+      "room_id": {
+        "type": "string"
+      },
+      "spacing_m": {
+        "default": 0.25,
+        "type": "string"
+      }
+    },
+    "required": [
+      "grid_id",
+      "name",
+      "project",
+      "room_id"
+    ],
+    "title": "create_grid",
+    "type": "object"
+  },
+  "create_room": {
+    "additionalProperties": false,
+    "properties": {
+      "approved": {
+        "default": false,
+        "type": "string"
+      },
+      "height": {
+        "type": "string"
+      },
+      "length": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "origin": {
+        "type": "string"
+      },
+      "project": {},
+      "room_id": {
+        "type": "string"
+      },
+      "width": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "height",
+      "length",
+      "name",
+      "project",
+      "room_id",
+      "width"
+    ],
+    "title": "create_room",
+    "type": "object"
+  },
+  "edit_room": {
+    "additionalProperties": false,
+    "properties": {
+      "approved": {
+        "default": false,
+        "type": "string"
+      },
+      "project": {},
+      "room_id": {
+        "type": "string"
+      },
+      "updates": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "room_id",
+      "updates"
+    ],
+    "title": "edit_room",
+    "type": "object"
+  },
+  "generate_report": {
+    "additionalProperties": false,
+    "properties": {
+      "job_id": {
+        "type": "string"
+      },
+      "out_path": {
+        "type": "string"
+      },
+      "project": {},
+      "report_type": {
+        "default": "auto",
+        "type": "string"
+      }
+    },
+    "required": [
+      "job_id",
+      "out_path",
+      "project"
+    ],
+    "title": "generate_report",
+    "type": "object"
+  },
+  "geom.aperture.set": {
+    "additionalProperties": false,
+    "properties": {
+      "opening_id": {
+        "type": "string"
+      },
+      "project": {},
+      "vt": {
+        "default": null,
+        "type": "string"
+      }
+    },
+    "required": [
+      "opening_id",
+      "project"
+    ],
+    "title": "geom.aperture.set",
+    "type": "object"
+  },
+  "geom.clean": {
+    "additionalProperties": false,
+    "properties": {
+      "detect_rooms": {
+        "default": true,
+        "type": "string"
+      },
+      "project": {}
+    },
+    "required": [
+      "project"
+    ],
+    "title": "geom.clean",
+    "type": "object"
+  },
+  "geom.escape_route.add": {
+    "additionalProperties": false,
+    "properties": {
+      "end_margin_m": {
+        "default": 0.0,
+        "type": "string"
+      },
+      "height_m": {
+        "default": 0.0,
+        "type": "string"
+      },
+      "polyline": {
+        "type": "string"
+      },
+      "project": {},
+      "route_id": {
+        "type": "string"
+      },
+      "spacing_m": {
+        "default": 0.5,
+        "type": "string"
+      },
+      "width_m": {
+        "default": 1.0,
+        "type": "string"
+      }
+    },
+    "required": [
+      "polyline",
+      "project",
+      "route_id"
+    ],
+    "title": "geom.escape_route.add",
+    "type": "object"
+  },
+  "geom.import": {
+    "additionalProperties": false,
+    "properties": {
+      "file_path": {
+        "type": "string"
+      },
+      "fmt": {
+        "default": null,
+        "type": "string"
+      },
+      "project": {}
+    },
+    "required": [
+      "file_path",
+      "project"
+    ],
+    "title": "geom.import",
+    "type": "object"
+  },
+  "geom.import_ifc": {
+    "additionalProperties": false,
+    "properties": {
+      "file_path": {
+        "type": "string"
+      },
+      "options": {
+        "default": null,
+        "type": "string"
+      },
+      "project": {}
+    },
+    "required": [
+      "file_path",
+      "project"
+    ],
+    "title": "geom.import_ifc",
+    "type": "object"
+  },
+  "job.daylight.add": {
+    "additionalProperties": false,
+    "properties": {
+      "e0": {
+        "default": 10000.0,
+        "type": "string"
+      },
+      "mode": {
+        "default": "df",
+        "type": "string"
+      },
+      "project": {},
+      "sky": {
+        "default": "CIE_overcast",
+        "type": "string"
+      },
+      "targets": {
+        "type": "string"
+      },
+      "vt": {
+        "default": 0.7,
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "targets"
+    ],
+    "title": "job.daylight.add",
+    "type": "object"
+  },
+  "job.emergency.add": {
+    "additionalProperties": false,
+    "properties": {
+      "emergency_factor": {
+        "default": 1.0,
+        "type": "string"
+      },
+      "open_area_min_lux": {
+        "default": 0.5,
+        "type": "string"
+      },
+      "open_area_targets": {
+        "type": "string"
+      },
+      "open_area_u0_min": {
+        "default": 0.1,
+        "type": "string"
+      },
+      "project": {},
+      "route_min_lux": {
+        "default": 1.0,
+        "type": "string"
+      },
+      "route_u0_min": {
+        "default": 0.1,
+        "type": "string"
+      },
+      "routes": {
+        "type": "string"
+      },
+      "standard": {
+        "default": "EN1838",
+        "type": "string"
+      }
+    },
+    "required": [
+      "open_area_targets",
+      "project",
+      "routes"
+    ],
+    "title": "job.emergency.add",
+    "type": "object"
+  },
+  "job.run": {
+    "additionalProperties": false,
+    "properties": {
+      "approved": {
+        "default": false,
+        "type": "string"
+      },
+      "job_id": {
+        "type": "string"
+      },
+      "project": {}
+    },
+    "required": [
+      "job_id",
+      "project"
+    ],
+    "title": "job.run",
+    "type": "object"
+  },
+  "optim.optimizer": {
+    "additionalProperties": false,
+    "properties": {
+      "candidate_limit": {
+        "default": 12,
+        "type": "string"
+      },
+      "constraints": {
+        "default": null,
+        "type": "string"
+      },
+      "job_id": {
+        "type": "string"
+      },
+      "project": {}
+    },
+    "required": [
+      "job_id",
+      "project"
+    ],
+    "title": "optim.optimizer",
+    "type": "object"
+  },
+  "optim.option_diff": {
+    "additionalProperties": false,
+    "properties": {
+      "option": {
+        "type": "string"
+      },
+      "project": {}
+    },
+    "required": [
+      "option",
+      "project"
+    ],
+    "title": "optim.option_diff",
+    "type": "object"
+  },
+  "optim.search": {
+    "additionalProperties": false,
+    "properties": {
+      "constraints": {
+        "default": null,
+        "type": "string"
+      },
+      "job_id": {
+        "type": "string"
+      },
+      "max_cols": {
+        "default": 6,
+        "type": "string"
+      },
+      "max_rows": {
+        "default": 6,
+        "type": "string"
+      },
+      "project": {},
+      "top_n": {
+        "default": 8,
+        "type": "string"
+      }
+    },
+    "required": [
+      "job_id",
+      "project"
+    ],
+    "title": "optim.search",
+    "type": "object"
+  },
+  "place_luminaire": {
+    "additionalProperties": false,
+    "properties": {
+      "approved": {
+        "default": false,
+        "type": "string"
+      },
+      "asset_id": {
+        "type": "string"
+      },
+      "luminaire_id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "position": {
+        "type": "string"
+      },
+      "project": {},
+      "yaw_deg": {
+        "default": 0.0,
+        "type": "string"
+      }
+    },
+    "required": [
+      "asset_id",
+      "luminaire_id",
+      "name",
+      "position",
+      "project"
+    ],
+    "title": "place_luminaire",
+    "type": "object"
+  },
+  "project.diff.apply": {
+    "additionalProperties": false,
+    "properties": {
+      "approved": {
+        "default": false,
+        "type": "string"
+      },
+      "diff": {
+        "type": "string"
+      },
+      "project": {}
+    },
+    "required": [
+      "diff",
+      "project"
+    ],
+    "title": "project.diff.apply",
+    "type": "object"
+  },
+  "project.diff.preview": {
+    "additionalProperties": false,
+    "properties": {
+      "diff": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "diff"
+    ],
+    "title": "project.diff.preview",
+    "type": "object"
+  },
+  "project.diff.propose_layout": {
+    "additionalProperties": false,
+    "properties": {
+      "constraints": {
+        "default": null,
+        "type": "string"
+      },
+      "project": {},
+      "target_lux": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "target_lux"
+    ],
+    "title": "project.diff.propose_layout",
+    "type": "object"
+  },
+  "project.diff.redo": {
+    "additionalProperties": false,
+    "properties": {
+      "project": {}
+    },
+    "required": [
+      "project"
+    ],
+    "title": "project.diff.redo",
+    "type": "object"
+  },
+  "project.diff.undo": {
+    "additionalProperties": false,
+    "properties": {
+      "project": {}
+    },
+    "required": [
+      "project"
+    ],
+    "title": "project.diff.undo",
+    "type": "object"
+  },
+  "project.grid.add": {
+    "additionalProperties": false,
+    "properties": {
+      "elevation": {
+        "type": "string"
+      },
+      "height": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "nx": {
+        "type": "string"
+      },
+      "ny": {
+        "type": "string"
+      },
+      "project": {},
+      "width": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "elevation",
+      "height",
+      "name",
+      "nx",
+      "ny",
+      "project",
+      "width"
+    ],
+    "title": "project.grid.add",
+    "type": "object"
+  },
+  "project.open": {
+    "additionalProperties": false,
+    "properties": {
+      "project_path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project_path"
+    ],
+    "title": "project.open",
+    "type": "object"
+  },
+  "project.save": {
+    "additionalProperties": false,
+    "properties": {
+      "project": {},
+      "project_path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "project_path"
+    ],
+    "title": "project.save",
+    "type": "object"
+  },
+  "project.summarize": {
+    "additionalProperties": false,
+    "properties": {
+      "project": {}
+    },
+    "required": [
+      "project"
+    ],
+    "title": "project.summarize",
+    "type": "object"
+  },
+  "project.validate": {
+    "additionalProperties": false,
+    "properties": {
+      "job_id": {
+        "default": null,
+        "type": "string"
+      },
+      "project": {}
+    },
+    "required": [
+      "project"
+    ],
+    "title": "project.validate",
+    "type": "object"
+  },
+  "propose_optimizations": {
+    "additionalProperties": false,
+    "properties": {
+      "constraints": {
+        "default": null,
+        "type": "string"
+      },
+      "job_id": {
+        "type": "string"
+      },
+      "project": {},
+      "top_n": {
+        "default": 5,
+        "type": "string"
+      }
+    },
+    "required": [
+      "job_id",
+      "project"
+    ],
+    "title": "propose_optimizations",
+    "type": "object"
+  },
+  "report.backend_compare": {
+    "additionalProperties": false,
+    "properties": {
+      "job_id": {
+        "type": "string"
+      },
+      "out_html": {
+        "type": "string"
+      },
+      "project": {}
+    },
+    "required": [
+      "job_id",
+      "out_html",
+      "project"
+    ],
+    "title": "report.backend_compare",
+    "type": "object"
+  },
+  "report.pdf": {
+    "additionalProperties": false,
+    "properties": {
+      "job_id": {
+        "type": "string"
+      },
+      "out_path": {
+        "type": "string"
+      },
+      "project": {},
+      "report_type": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "job_id",
+      "out_path",
+      "project",
+      "report_type"
+    ],
+    "title": "report.pdf",
+    "type": "object"
+  },
+  "report.roadway.html": {
+    "additionalProperties": false,
+    "properties": {
+      "job_id": {
+        "type": "string"
+      },
+      "out_html": {
+        "type": "string"
+      },
+      "project": {}
+    },
+    "required": [
+      "job_id",
+      "out_html",
+      "project"
+    ],
+    "title": "report.roadway.html",
+    "type": "object"
+  },
+  "results.heatmap": {
+    "additionalProperties": false,
+    "properties": {
+      "job_id": {
+        "type": "string"
+      },
+      "project": {}
+    },
+    "required": [
+      "job_id",
+      "project"
+    ],
+    "title": "results.heatmap",
+    "type": "object"
+  },
+  "results.summarize": {
+    "additionalProperties": false,
+    "properties": {
+      "job_id": {
+        "type": "string"
+      },
+      "project": {}
+    },
+    "required": [
+      "job_id",
+      "project"
+    ],
+    "title": "results.summarize",
+    "type": "object"
+  },
+  "run_calc": {
+    "additionalProperties": false,
+    "properties": {
+      "approved": {
+        "default": false,
+        "type": "string"
+      },
+      "job_id": {
+        "type": "string"
+      },
+      "project": {}
+    },
+    "required": [
+      "job_id",
+      "project"
+    ],
+    "title": "run_calc",
+    "type": "object"
+  },
+  "session.save": {
+    "additionalProperties": false,
+    "properties": {
+      "payload": {
+        "type": "string"
+      },
+      "project": {},
+      "runtime_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "payload",
+      "project",
+      "runtime_id"
+    ],
+    "title": "session.save",
+    "type": "object"
+  },
+  "update_grid": {
+    "additionalProperties": false,
+    "properties": {
+      "approved": {
+        "default": false,
+        "type": "string"
+      },
+      "grid_id": {
+        "type": "string"
+      },
+      "project": {},
+      "updates": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "grid_id",
+      "project",
+      "updates"
+    ],
+    "title": "update_grid",
+    "type": "object"
+  },
+  "variant.add": {
+    "additionalProperties": false,
+    "properties": {
+      "description": {
+        "default": "",
+        "type": "string"
+      },
+      "diff_ops": {
+        "default": null,
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "project": {},
+      "variant_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "project",
+      "variant_id"
+    ],
+    "title": "variant.add",
+    "type": "object"
+  },
+  "variant.compare": {
+    "additionalProperties": false,
+    "properties": {
+      "baseline_variant_id": {
+        "default": null,
+        "type": "string"
+      },
+      "job_id": {
+        "type": "string"
+      },
+      "project": {},
+      "variant_ids": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "job_id",
+      "project",
+      "variant_ids"
+    ],
+    "title": "variant.compare",
+    "type": "object"
+  }
+}

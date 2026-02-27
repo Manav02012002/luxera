@@ -1,0 +1,123 @@
+{
+  "schema_version": 5,
+  "name": "cie171_case_emergency_route",
+  "geometry": {
+    "rooms": [
+      {
+        "id": "room_1",
+        "name": "Emergency Room",
+        "width": 6.0,
+        "length": 4.0,
+        "height": 3.0,
+        "origin": [0.0, 0.0, 0.0],
+        "floor_reflectance": 0.2,
+        "wall_reflectance": 0.5,
+        "ceiling_reflectance": 0.7
+      }
+    ],
+    "surfaces": [],
+    "openings": [],
+    "obstructions": [],
+    "levels": [],
+    "coordinate_systems": [],
+    "zones": [],
+    "no_go_zones": [],
+    "length_unit": "m",
+    "scale_to_meters": 1.0
+  },
+  "photometry_assets": [
+    {
+      "id": "asset_1",
+      "format": "IES",
+      "path": "assets/fixture.ies"
+    }
+  ],
+  "luminaires": [
+    {
+      "id": "lum_1",
+      "name": "Emergency Luminaire",
+      "photometry_asset_id": "asset_1",
+      "maintenance_factor": 1.0,
+      "flux_multiplier": 1.0,
+      "tilt_deg": 0.0,
+      "tags": [
+        "emergency"
+      ],
+      "transform": {
+        "position": [3.0, 2.0, 2.8],
+        "rotation": {
+          "type": "euler_zyx",
+          "euler_deg": [0.0, 0.0, 0.0]
+        }
+      }
+    }
+  ],
+  "grids": [
+    {
+      "id": "grid_1",
+      "name": "Open Area Grid",
+      "origin": [0.0, 0.0, 0.0],
+      "width": 6.0,
+      "height": 4.0,
+      "elevation": 0.0,
+      "nx": 4,
+      "ny": 3,
+      "normal": [0.0, 0.0, 1.0],
+      "room_id": "room_1"
+    }
+  ],
+  "escape_routes": [
+    {
+      "id": "route_1",
+      "name": "Main Route",
+      "polyline": [
+        [0.5, 2.0, 0.0],
+        [5.5, 2.0, 0.0]
+      ],
+      "width_m": 1.0,
+      "height_m": 0.0,
+      "spacing_m": 0.5,
+      "end_margin_m": 0.0
+    }
+  ],
+  "jobs": [
+    {
+      "id": "job_emergency",
+      "type": "emergency",
+      "backend": "cpu",
+      "seed": 0,
+      "settings": {
+        "use_occlusion": false,
+        "mode": "escape_route",
+        "target_min_lux": 1.0,
+        "target_uniformity": 0.1
+      },
+      "mode": {
+        "emergency_factor": 1.0,
+        "include_luminaires": [
+          "lum_1"
+        ],
+        "include_luminaire_ids": [
+          "lum_1"
+        ],
+        "include_tags": [],
+        "exclude_luminaires": []
+      },
+      "emergency": {
+        "standard": "EN1838",
+        "route_min_lux": 1.0,
+        "route_u0_min": 0.1,
+        "open_area_min_lux": 0.5,
+        "open_area_u0_min": 0.1,
+        "high_risk_min_lux": null
+      },
+      "routes": [
+        "route_1"
+      ],
+      "open_area_targets": [
+        "grid_1"
+      ]
+    }
+  ],
+  "results": []
+}

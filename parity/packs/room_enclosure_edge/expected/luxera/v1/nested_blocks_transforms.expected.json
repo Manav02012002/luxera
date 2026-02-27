@@ -1,0 +1,40 @@
+{
+  "expected": {
+    "results": {
+      "calc_object_count": 1,
+      "max_lux": 277.77777777777777,
+      "mean_lux": 47.69732830587256,
+      "min_lux": 11.07298513213488,
+      "occluder_count": 14,
+      "uniformity_ratio": 0.23215105594858987
+    }
+  },
+  "ignore": [
+    "results.calc_objects"
+  ],
+  "schema_version": "parity_expected_v1",
+  "tolerances": {
+    "default": {
+      "abs": 1e-06,
+      "rel": 1e-06
+    },
+    "metrics": {
+      "results.max_lux": {
+        "abs": 1e-06,
+        "rel": 1e-06
+      },
+      "results.mean_lux": {
+        "abs": 1e-06,
+        "rel": 1e-06
+      },
+      "results.min_lux": {
+        "abs": 1e-06,
+        "rel": 1e-06
+      },
+      "results.uniformity_ratio": {
+        "abs": 1e-06,
+        "rel": 1e-06
+      }
+    }
+  }
+}

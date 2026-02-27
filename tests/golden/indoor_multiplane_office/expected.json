@@ -1,0 +1,17 @@
+{
+  "cylindrical": {
+    "Eavg_range": [
+      10.0,
+      300.0
+    ],
+    "U0_min": 0.03
+  },
+  "vertical_min_count": 5,
+  "workplane": {
+    "Eavg_range": [
+      20.0,
+      400.0
+    ],
+    "U0_min": 0.05
+  }
+}

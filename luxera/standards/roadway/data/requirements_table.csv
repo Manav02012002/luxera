@@ -1,0 +1,13 @@
+profile_id,metric,comparator,target,units
+en13201_m3_common,mean_lux,>=,1.0,lux
+en13201_m3_common,uniformity_ratio,>=,0.35,ratio
+en13201_m3_common,ul_longitudinal,>=,0.40,ratio
+en13201_m3_common,road_luminance_mean_cd_m2,>=,0.50,cd/m2
+en13201_m3_common,threshold_increment_ti_proxy_percent,<=,15.0,percent
+en13201_m3_common,surround_ratio_proxy,>=,0.50,ratio
+en13201_p2_common,mean_lux,>=,5.0,lux
+en13201_p2_common,uniformity_ratio,>=,0.40,ratio
+en13201_p2_common,ul_longitudinal,>=,0.40,ratio
+en13201_p2_common,road_luminance_mean_cd_m2,>=,1.00,cd/m2
+en13201_p2_common,threshold_increment_ti_proxy_percent,<=,20.0,percent
+en13201_p2_common,surround_ratio_proxy,>=,0.50,ratio

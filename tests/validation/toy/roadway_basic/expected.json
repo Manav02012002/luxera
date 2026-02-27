@@ -1,0 +1,54 @@
+{
+  "schema_version": "validation_case_v1",
+  "run": {
+    "jobs": [
+      "job_roadway"
+    ]
+  },
+  "scalars": [
+    {
+      "id": "mean_lux",
+      "job_id": "job_roadway",
+      "path": "mean_lux",
+      "expected": 6.359732743299395,
+      "tolerance": {
+        "abs": 1e-06,
+        "rel": 1e-06
+      }
+    },
+    {
+      "id": "uniformity_ratio",
+      "job_id": "job_roadway",
+      "path": "uniformity_ratio",
+      "expected": 0.24821026152997597,
+      "tolerance": {
+        "abs": 1e-06,
+        "rel": 1e-06
+      }
+    },
+    {
+      "id": "road_luminance_mean_cd_m2",
+      "job_id": "job_roadway",
+      "path": "road_luminance_mean_cd_m2",
+      "expected": 0.3962668387508388,
+      "tolerance": {
+        "abs": 1e-06,
+        "rel": 1e-06
+      }
+    }
+  ],
+  "grids": [
+    {
+      "id": "grid_regression",
+      "job_id": "job_roadway",
+      "actual": "grid.csv",
+      "reference": "assets/reference_grid.csv",
+      "tolerance": {
+        "max_abs": 1e-12,
+        "mean_abs": 1e-12,
+        "p95_abs": 1e-12
+      }
+    }
+  ],
+  "notes": "Toy roadway validation case"
+}

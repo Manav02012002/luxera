@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "default_surface_class": "R3",
+  "surfaces": [
+    {"id": "R1", "name": "Road Surface R1", "description": "Bright dry surface", "table": "road_r1.csv"},
+    {"id": "R2", "name": "Road Surface R2", "description": "Medium-bright asphalt", "table": "road_r2.csv"},
+    {"id": "R3", "name": "Road Surface R3", "description": "Typical asphalt", "table": "road_r3.csv"},
+    {"id": "R4", "name": "Road Surface R4", "description": "Dark asphalt", "table": "road_r4.csv"}
+  ]
+}

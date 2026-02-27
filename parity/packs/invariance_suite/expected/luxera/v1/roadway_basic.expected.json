@@ -1,0 +1,49 @@
+{
+  "expected": {
+    "results": {
+      "max_lux": 14.0625,
+      "mean_lux": 4.649105453725654,
+      "min_lux": 0.4584332757191221,
+      "uniformity_ratio": 0.09860677076097454
+    }
+  },
+  "ignore": [
+    "results.calc_objects",
+    "results.indoor_planes",
+    "results.compliance",
+    "results.zone_metrics",
+    "results.zone_compliance",
+    "results.compliance_profile",
+    "results.roadway_worst_case",
+    "results.roadway_metrics",
+    "results.lane_metrics",
+    "results.route_results",
+    "results.open_area_results",
+    "results.battery_profile"
+  ],
+  "schema_version": "parity_expected_v1",
+  "tolerances": {
+    "default": {
+      "abs": 1e-06,
+      "rel": 1e-06
+    },
+    "metrics": {
+      "results.max_lux": {
+        "abs": 1e-05,
+        "rel": 1e-06
+      },
+      "results.mean_lux": {
+        "abs": 1e-05,
+        "rel": 1e-06
+      },
+      "results.min_lux": {
+        "abs": 1e-05,
+        "rel": 1e-06
+      },
+      "results.uniformity_ratio": {
+        "abs": 1e-06,
+        "rel": 1e-06
+      }
+    }
+  }
+}

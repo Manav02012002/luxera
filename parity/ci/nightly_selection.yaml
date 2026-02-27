@@ -1,0 +1,6 @@
+version: 1
+name: nightly_selection
+selectors:
+  - kind: pack
+    value: indoor_basic
+    enabled: false

@@ -1,0 +1,431 @@
+{
+  "active_variant_id": null,
+  "agent_history": [
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_3fr2gop6/_pack_work/.luxera/results/da0f1b1a1ee54119d4a10dfc3f92ccb011aeaded1d39eed3061c35aa6cd852bc"
+      ],
+      "created_at": 1771877137.680806,
+      "diffs": [],
+      "id": "4f5728d0-d559-4f25-bfd1-3e59f0631758",
+      "job_hashes": [
+        "da0f1b1a1ee54119d4a10dfc3f92ccb011aeaded1d39eed3061c35aa6cd852bc"
+      ],
+      "metadata": {
+        "job_id": "job_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_3fr2gop6/_pack_work/.luxera/results/935b8b5701d5dfbb33fc4a52ee246261894b632fe43d8fb51be1a3dd40b7834d"
+      ],
+      "created_at": 1771877137.923369,
+      "diffs": [],
+      "id": "15f1b2b2-21d0-4879-8c0e-0eb6f93053a3",
+      "job_hashes": [
+        "935b8b5701d5dfbb33fc4a52ee246261894b632fe43d8fb51be1a3dd40b7834d"
+      ],
+      "metadata": {
+        "job_id": "job_radiosity",
+        "job_type": "radiosity"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    }
+  ],
+  "arbitrary_planes": [],
+  "asset_bundle_path": null,
+  "assistant_redo_stack": [],
+  "assistant_undo_stack": [],
+  "block_instances": [],
+  "compliance_profiles": [],
+  "escape_routes": [],
+  "geometry": {
+    "axis_transform_applied": null,
+    "coordinate_systems": [],
+    "length_unit": "m",
+    "levels": [],
+    "no_go_zones": [],
+    "obstructions": [],
+    "openings": [],
+    "rooms": [
+      {
+        "activity_type": null,
+        "ceiling_reflectance": 0.7,
+        "coordinate_system_id": null,
+        "floor_reflectance": 0.2,
+        "footprint": null,
+        "height": 3.0,
+        "id": "room_1",
+        "layer_id": null,
+        "length": 6.0,
+        "level_id": null,
+        "name": "Box",
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "wall_reflectance": 0.5,
+        "width": 6.0
+      }
+    ],
+    "scale_to_meters": 1.0,
+    "source_length_unit": null,
+    "surfaces": [],
+    "zones": []
+  },
+  "glare_views": [],
+  "grids": [
+    {
+      "elevation": 0.8,
+      "evaluation_height_offset": 0.0,
+      "height": 6.0,
+      "id": "grid_1",
+      "layer_id": null,
+      "mask_near_openings": false,
+      "metric_set": [
+        "E_avg",
+        "E_min",
+        "E_max",
+        "U0",
+        "U1"
+      ],
+      "name": "Workplane",
+      "normal": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "nx": 5,
+      "ny": 5,
+      "opening_mask_margin": 0.0,
+      "origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "room_id": "room_1",
+      "sample_mask": [],
+      "sample_points": [],
+      "width": 6.0,
+      "zone_id": null
+    }
+  ],
+  "jobs": [
+    {
+      "backend": "cpu",
+      "daylight": null,
+      "emergency": null,
+      "id": "job_direct",
+      "mode": null,
+      "open_area_targets": [],
+      "routes": [],
+      "seed": 0,
+      "settings": {
+        "use_occlusion": false
+      },
+      "targets": [],
+      "type": "direct"
+    },
+    {
+      "backend": "cpu",
+      "daylight": null,
+      "emergency": null,
+      "id": "job_radiosity",
+      "mode": null,
+      "open_area_targets": [],
+      "routes": [],
+      "seed": 0,
+      "settings": {
+        "ambient_light": 0.0,
+        "convergence_threshold": 0.0005,
+        "damping": 1.0,
+        "max_iterations": 40,
+        "method": "GATHERING",
+        "monte_carlo_samples": 16,
+        "patch_max_area": 4.0,
+        "use_visibility": false
+      },
+      "targets": [],
+      "type": "radiosity"
+    }
+  ],
+  "layers": [
+    {
+      "color": null,
+      "id": "room",
+      "name": "Rooms",
+      "order": 10,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "wall",
+      "name": "Walls",
+      "order": 20,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "ceiling_grid",
+      "name": "Ceiling Grid",
+      "order": 30,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "opening",
+      "name": "Openings",
+      "order": 40,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "luminaire",
+      "name": "Luminaires",
+      "order": 50,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "grid",
+      "name": "Calc Grids",
+      "order": 60,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "symbol",
+      "name": "Symbols",
+      "order": 70,
+      "style": null,
+      "visible": true
+    }
+  ],
+  "line_grids": [],
+  "luminaire_families": [],
+  "luminaires": [
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "lum_1",
+      "layer_id": null,
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L1",
+      "photometry_asset_id": "asset_1",
+      "tags": [],
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          3.0,
+          3.0,
+          2.8
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    }
+  ],
+  "material_library": [],
+  "materials": [],
+  "name": "box_room_diffuse",
+  "param": {
+    "footprints": [],
+    "instances": [],
+    "openings": [],
+    "rooms": [],
+    "shared_walls": [],
+    "slabs": [],
+    "walls": [],
+    "zones": []
+  },
+  "photometry_assets": [
+    {
+      "content_hash": null,
+      "embedded_b64": null,
+      "format": "IES",
+      "id": "asset_1",
+      "metadata": {},
+      "path": "photometry/fixture.ies"
+    }
+  ],
+  "point_sets": [],
+  "results": [
+    {
+      "job_hash": "da0f1b1a1ee54119d4a10dfc3f92ccb011aeaded1d39eed3061c35aa6cd852bc",
+      "job_id": "job_direct",
+      "result_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_3fr2gop6/_pack_work/.luxera/results/da0f1b1a1ee54119d4a10dfc3f92ccb011aeaded1d39eed3061c35aa6cd852bc",
+      "summary": {
+        "calc_object_count": 1,
+        "calc_objects": [
+          {
+            "id": "grid_1",
+            "name": "Workplane",
+            "summary": {
+              "E_avg": 46.19722454445375,
+              "E_max": 225.00000000000006,
+              "E_min": 11.86510672265132,
+              "Eavg": 46.19722454445375,
+              "Emin": 11.86510672265132,
+              "P50": 27.72364415139845,
+              "P90": 94.22512489480874,
+              "U0": 0.2568359211976901,
+              "U1": 0.05273380765622807,
+              "max_lux": 225.00000000000006,
+              "mean_lux": 46.19722454445375,
+              "min_lux": 11.86510672265132,
+              "p50_lux": 27.72364415139845,
+              "p90_lux": 94.22512489480874,
+              "uniformity_diversity": 0.05273380765622807,
+              "uniformity_ratio": 0.2568359211976901
+            },
+            "type": "grid"
+          }
+        ],
+        "compliance": null,
+        "global_highest_ugr": 0.0,
+        "global_worst_min_lux": 11.86510672265132,
+        "global_worst_uniformity_ratio": 0.2568359211976901,
+        "highest_ugr": 0.0,
+        "indoor_planes": {
+          "cylindrical": [],
+          "maintenance_factor": 1.0,
+          "per_plane": [
+            {
+              "Eavg": 46.19722454445375,
+              "Emin": 11.86510672265132,
+              "U0": 0.2568359211976901,
+              "id": "grid_1",
+              "source": "workplane",
+              "type": "grid"
+            }
+          ]
+        },
+        "max_lux": 225.00000000000006,
+        "mean_lux": 46.19722454445375,
+        "mean_of_means_lux": 46.19722454445375,
+        "min_lux": 11.86510672265132,
+        "occluder_count": 0,
+        "occlusion_enabled": false,
+        "p50_lux": 27.72364415139845,
+        "p90_lux": 94.22512489480874,
+        "uniformity_diversity": 0.05273380765622807,
+        "uniformity_ratio": 0.2568359211976901,
+        "worst_min_lux": 11.86510672265132,
+        "worst_uniformity_ratio": 0.2568359211976901,
+        "zone_compliance": {
+          "status": "PASS",
+          "zone_count": 0
+        },
+        "zone_metrics": []
+      }
+    },
+    {
+      "job_hash": "935b8b5701d5dfbb33fc4a52ee246261894b632fe43d8fb51be1a3dd40b7834d",
+      "job_id": "job_radiosity",
+      "result_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_3fr2gop6/_pack_work/.luxera/results/935b8b5701d5dfbb33fc4a52ee246261894b632fe43d8fb51be1a3dd40b7834d",
+      "summary": {
+        "avg_illuminance": 3.1400511698717755,
+        "bounce_delta_lux": -44.64171695527914,
+        "bounce_ratio": -0.9342834873408767,
+        "compliance": null,
+        "converged": true,
+        "direct_floor_baseline_lux": 47.78176812515092,
+        "energy": {
+          "total_absorbed": 200.0832971650674,
+          "total_emitted": 826.5306122448982,
+          "total_exitance": 1104.9833668608371,
+          "total_reflected": 278.45795652618403
+        },
+        "energy_balance_history": [
+          0.020444650843139827,
+          0.006222355009329767,
+          0.0005491028192419523,
+          0.00017057813647384064,
+          1.5145962220580705e-05,
+          4.707681944349811e-06
+        ],
+        "iterations": 6,
+        "radiosity_diagnostics": {
+          "final_energy_balance_rel": 4.707681944349811e-06,
+          "final_residual": 0.0006034310011955313,
+          "iterations_used": 6,
+          "max_energy_balance_rel": 0.020444650843139827,
+          "max_residual": 8.618682265490278
+        },
+        "residual_below_threshold": true,
+        "residual_nonincreasing": true,
+        "residual_threshold": 0.001,
+        "residuals": [
+          8.618682265490278,
+          0.7876581927423416,
+          0.24594465696216794,
+          0.02185762605898489,
+          0.006794704225338677,
+          0.0006034310011955313
+        ],
+        "solver_status": {
+          "converged": true,
+          "energy_balance_history": [
+            0.020444650843139827,
+            0.006222355009329767,
+            0.0005491028192419523,
+            0.00017057813647384064,
+            1.5145962220580705e-05,
+            4.707681944349811e-06
+          ],
+          "iterations": 6,
+          "residual": 0.0006034310011955313,
+          "residual_history": [
+            8.618682265490278,
+            0.7876581927423416,
+            0.24594465696216794,
+            0.02185762605898489,
+            0.006794704225338677,
+            0.0006034310011955313
+          ],
+          "warnings": []
+        },
+        "stop_reason": "converged",
+        "total_flux": 1104.9833668608371,
+        "ugr_debug": null,
+        "ugr_views": null,
+        "ugr_worst_case": 27.729222240133502
+      }
+    }
+  ],
+  "roadway_grids": [],
+  "roadways": [],
+  "root_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_3fr2gop6/_pack_work",
+  "schema_version": 5,
+  "selection_sets": [],
+  "symbols_2d": [],
+  "variants": [],
+  "vertical_planes": [],
+  "workplanes": []
+}

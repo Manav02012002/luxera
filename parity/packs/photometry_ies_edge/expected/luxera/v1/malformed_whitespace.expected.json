@@ -1,0 +1,41 @@
+{
+  "baseline": "luxera",
+  "baseline_version": "v1",
+  "generated_by": {
+    "job_id": "direct_cpu",
+    "seed": 42,
+    "tool": "luxera parity run"
+  },
+  "results": {
+    "max_lux": 11.888293555419974,
+    "mean_lux": 11.888293555419974,
+    "min_lux": 11.888293555419974,
+    "parity_arrays": {
+      "grid_1": {
+        "grid_values_lux": {
+          "hash": "sha256:c2903fbcfada5fcccf34b22ca458343bc6de0371524e551cd8383f05f707b34f",
+          "shape": [
+            2,
+            2
+          ],
+          "sidecar": "arrays/malformed_whitespace_grid_1.csv",
+          "summary": {
+            "max": 11.888293555419974,
+            "mean": 11.888293555419974,
+            "min": 11.888293555419974,
+            "p95": 11.888293555419974,
+            "p99": 11.888293555419974
+          }
+        }
+      }
+    }
+  },
+  "scene_id": "malformed_whitespace",
+  "schema_version": "parity_expected_v2",
+  "tags": [
+    "photometry",
+    "ies",
+    "edge",
+    "whitespace"
+  ]
+}

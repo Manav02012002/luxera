@@ -1,0 +1,90 @@
+{
+  "engines": {
+    "radiosity_ugr": {
+      "backend": "cpu",
+      "job_id": "job_radiosity",
+      "job_type": "radiosity",
+      "summary": {
+        "avg_illuminance": 0.6276475158711324,
+        "compliance": null,
+        "converged": true,
+        "energy": {
+          "total_absorbed": 129.9258037751335,
+          "total_emitted": 2955.483275798401,
+          "total_exitance": 3208.4305564366364,
+          "total_reflected": 252.9484075389542
+        },
+        "iterations": 4,
+        "residuals": [
+          0.0003934421790532383
+        ],
+        "solver_status": {
+          "converged": true,
+          "iterations": 4,
+          "residual": 0.0003934421790532383,
+          "warnings": []
+        },
+        "stop_reason": "converged",
+        "total_flux": 3208.4305564366364,
+        "ugr_debug": {
+          "max_ugr": 28.140360137665862,
+          "mode": "default_grid",
+          "observer": "(2.0, 2.0) +X",
+          "top_contributors": [
+            {
+              "contribution": 78836.14018191074,
+              "luminaire_id": "lum_a",
+              "luminance_est": 3525.4730965484905,
+              "omega": 0.032411700380166227,
+              "position_index": 2.260505854210948
+            },
+            {
+              "contribution": 52869.69253747004,
+              "luminaire_id": "lum_b",
+              "luminance_est": 3742.1155068710145,
+              "omega": 0.022027165801635894,
+              "position_index": 2.415422495192089
+            }
+          ],
+          "top_n": 2
+        },
+        "ugr_views": [
+          {
+            "name": "Reference View",
+            "observer": [
+              1.0,
+              1.0,
+              1.2
+            ],
+            "top_contributors": [
+              {
+                "contribution": 44091.14057187068,
+                "luminaire_id": "lum_a",
+                "luminance_est": 4090.6106033605156,
+                "omega": 0.011223594447885352,
+                "position_index": 2.063851549548941
+              },
+              {
+                "contribution": 38330.16932722227,
+                "luminaire_id": "lum_b",
+                "luminance_est": 4299.100860608975,
+                "omega": 0.007663490162269522,
+                "position_index": 1.9222973505848773
+              }
+            ],
+            "ugr": 26.51183616830076,
+            "view_dir": [
+              1.0,
+              0.0,
+              0.0
+            ]
+          }
+        ],
+        "ugr_worst_case": 28.140360137665862
+      }
+    }
+  },
+  "pack_name": "ugr_reference_room",
+  "scene_file": "scene.lux.json",
+  "schema_version": "parity_results_v1"
+}

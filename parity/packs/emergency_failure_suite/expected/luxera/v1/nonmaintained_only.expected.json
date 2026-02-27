@@ -1,0 +1,84 @@
+{
+  "expected": {
+    "results": {
+      "battery_output_factor": 1.0,
+      "compliance": {
+        "open_area_pass": true,
+        "reasons": [],
+        "route_pass": true,
+        "status": "PASS",
+        "thresholds": {
+          "open_area_min_lux": 0.1,
+          "open_area_u0_min": 0.01,
+          "route_min_lux": 0.1,
+          "route_u0_min": 0.01
+        }
+      },
+      "emergency_factor": 1.0,
+      "luminaire_count": 2,
+      "luminaire_operation_counts": {
+        "maintained": 0,
+        "non_maintained": 0,
+        "none": 2
+      },
+      "open_area_results": [
+        {
+          "grid_id": "g1",
+          "max_lux": 127.89732920816662,
+          "mean_lux": 69.02540541229233,
+          "min_lux": 8.87336129379608,
+          "pass": true,
+          "u0": 0.12855210687709884
+        }
+      ],
+      "route_failure_analysis": [
+        {
+          "baseline_min_lux": 9.731270011324106,
+          "drop_lux": 8.221581474345763,
+          "ranking": [
+            {
+              "drop_lux": 8.221581474345763,
+              "luminaire_id": "l2",
+              "route_min_lux": 1.5096885369783426
+            },
+            {
+              "drop_lux": 1.5096885369783433,
+              "luminaire_id": "l1",
+              "route_min_lux": 8.221581474345763
+            }
+          ],
+          "route_id": "r1",
+          "worst_failed_luminaire_id": "l2",
+          "worst_min_lux": 1.5096885369783426
+        }
+      ],
+      "route_results": [
+        {
+          "max_lux": 142.24936494930301,
+          "mean_lux": 84.03732119856653,
+          "min_lux": 9.731270011324106,
+          "pass": true,
+          "route_id": "r1",
+          "u0": 0.11579700390890253
+        }
+      ],
+      "standard": "EN1838",
+      "worst_single_failure": {
+        "baseline_min_lux": 9.731270011324106,
+        "drop_lux": 8.221581474345763,
+        "luminaire_id": "l2",
+        "route_id": "r1",
+        "worst_min_lux": 1.5096885369783426
+      }
+    }
+  },
+  "ignore": [],
+  "schema_version": "parity_expected_v1",
+  "tolerances": {
+    "default": {
+      "abs": 1e-08,
+      "rel": 1e-08
+    },
+    "metrics": {}
+  }
+}

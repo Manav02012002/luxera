@@ -1,0 +1,41 @@
+{
+  "baseline": "luxera",
+  "baseline_version": "v1",
+  "generated_by": {
+    "job_id": "direct_cpu",
+    "seed": 42,
+    "tool": "luxera parity run"
+  },
+  "results": {
+    "max_lux": 29.3664471359989,
+    "mean_lux": 29.3664471359989,
+    "min_lux": 29.3664471359989,
+    "parity_arrays": {
+      "grid_1": {
+        "grid_values_lux": {
+          "hash": "sha256:fc10b4764c51faf1bdebb89f47a5189dd715a4fcdcb61ed265ff71ae84bb8500",
+          "shape": [
+            2,
+            2
+          ],
+          "sidecar": "arrays/partial_symmetry_grid_1.csv",
+          "summary": {
+            "max": 29.3664471359989,
+            "mean": 29.3664471359989,
+            "min": 29.3664471359989,
+            "p95": 29.3664471359989,
+            "p99": 29.3664471359989
+          }
+        }
+      }
+    }
+  },
+  "scene_id": "partial_symmetry",
+  "schema_version": "parity_expected_v2",
+  "tags": [
+    "photometry",
+    "ies",
+    "edge",
+    "symmetry"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "schema_version": "parity_expected_v1",
+  "tolerances": {
+    "default": {
+      "abs": 1e-06,
+      "rel": 1e-06
+    },
+    "metrics": {
+      "engines.radiosity_ugr.summary.ugr_worst_case": {
+        "abs": 0.05,
+        "rel": 0.01
+      }
+    }
+  },
+  "ignore": [],
+  "expected": {
+    "engines": {
+      "radiosity_ugr": {
+        "job_type": "radiosity",
+        "summary": {
+          "ugr_worst_case": 28.140360137665862,
+          "ugr_debug": {
+            "mode": "default_grid",
+            "observer": "(2.0, 2.0) +X",
+            "top_n": 2,
+            "top_contributors": [
+              {
+                "luminaire_id": "lum_a"
+              },
+              {
+                "luminaire_id": "lum_b"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

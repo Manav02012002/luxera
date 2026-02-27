@@ -1,0 +1,18 @@
+id: geometry_healing_edge
+title: Geometry Healing Edge Cases
+version: 1
+engines:
+  - direct_cpu
+scenes:
+  - id: dirty_degenerate_duplicate
+    path: scenes/dirty_degenerate_duplicate.lux.json
+    tags: [geometry, healing, dirty]
+  - id: dirty_nonmanifold
+    path: scenes/dirty_nonmanifold.lux.json
+    tags: [geometry, healing, nonmanifold]
+  - id: dirty_sliver_open
+    path: scenes/dirty_sliver_open.lux.json
+    tags: [geometry, healing, sliver]
+global:
+  random_seed: 42
+  deterministic: true

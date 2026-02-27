@@ -1,0 +1,349 @@
+{
+  "active_variant_id": null,
+  "agent_history": [
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/parity/packs/calc_objects_core/scenes/.luxera/results/dddf8c280847cc7a5afe08a5a7b69f3a949ded94c059f78aebc607fab50e1ac6"
+      ],
+      "created_at": 1772045073.663409,
+      "diffs": [],
+      "id": "cacbee24-0122-40fc-b2f3-8864aa3830ad",
+      "job_hashes": [
+        "dddf8c280847cc7a5afe08a5a7b69f3a949ded94c059f78aebc607fab50e1ac6"
+      ],
+      "metadata": {
+        "job_id": "direct_cpu",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/parity/packs/calc_objects_core/scenes/.luxera/results/dddf8c280847cc7a5afe08a5a7b69f3a949ded94c059f78aebc607fab50e1ac6"
+      ],
+      "created_at": 1772045265.938994,
+      "diffs": [],
+      "id": "e5986fcc-a8eb-4718-83be-40292b5d8a02",
+      "job_hashes": [
+        "dddf8c280847cc7a5afe08a5a7b69f3a949ded94c059f78aebc607fab50e1ac6"
+      ],
+      "metadata": {
+        "job_id": "direct_cpu",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/parity/packs/calc_objects_core/scenes/.luxera/results/dddf8c280847cc7a5afe08a5a7b69f3a949ded94c059f78aebc607fab50e1ac6"
+      ],
+      "created_at": 1772045917.722081,
+      "diffs": [],
+      "id": "1dfea9fe-c5bf-440e-bde5-7096a615be9f",
+      "job_hashes": [
+        "dddf8c280847cc7a5afe08a5a7b69f3a949ded94c059f78aebc607fab50e1ac6"
+      ],
+      "metadata": {
+        "job_id": "direct_cpu",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    }
+  ],
+  "arbitrary_planes": [],
+  "asset_bundle_path": null,
+  "assistant_redo_stack": [],
+  "assistant_undo_stack": [],
+  "block_instances": [],
+  "compliance_profiles": [],
+  "escape_routes": [],
+  "geometry": {
+    "axis_transform_applied": null,
+    "coordinate_systems": [],
+    "length_unit": "m",
+    "levels": [],
+    "no_go_zones": [],
+    "obstructions": [],
+    "openings": [],
+    "rooms": [
+      {
+        "activity_type": null,
+        "ceiling_reflectance": 0.7,
+        "coordinate_system_id": null,
+        "floor_reflectance": 0.2,
+        "footprint": null,
+        "height": 3.0,
+        "id": "room_1",
+        "layer_id": null,
+        "length": 6.0,
+        "level_id": null,
+        "name": "Room",
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "wall_reflectance": 0.5,
+        "width": 6.0
+      }
+    ],
+    "scale_to_meters": 1.0,
+    "source_length_unit": null,
+    "surfaces": [],
+    "zones": []
+  },
+  "glare_views": [],
+  "grids": [],
+  "jobs": [
+    {
+      "backend": "cpu",
+      "daylight": null,
+      "emergency": null,
+      "id": "direct_cpu",
+      "mode": null,
+      "open_area_targets": [],
+      "routes": [],
+      "seed": 42,
+      "settings": {
+        "occlusion_epsilon": 1e-06,
+        "occlusion_include_room_shell": false,
+        "use_occlusion": false
+      },
+      "targets": [],
+      "type": "direct"
+    }
+  ],
+  "layers": [
+    {
+      "color": null,
+      "id": "room",
+      "name": "Rooms",
+      "order": 10,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "wall",
+      "name": "Walls",
+      "order": 20,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "ceiling_grid",
+      "name": "Ceiling Grid",
+      "order": 30,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "opening",
+      "name": "Openings",
+      "order": 40,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "luminaire",
+      "name": "Luminaires",
+      "order": 50,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "grid",
+      "name": "Calc Grids",
+      "order": 60,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "symbol",
+      "name": "Symbols",
+      "order": 70,
+      "style": null,
+      "visible": true
+    }
+  ],
+  "line_grids": [],
+  "luminaire_families": [],
+  "luminaires": [
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "lum_1",
+      "layer_id": null,
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L1",
+      "photometry_asset_id": "asset_1",
+      "tags": [],
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          3.0,
+          3.0,
+          2.6
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    }
+  ],
+  "material_library": [],
+  "materials": [],
+  "name": "vertical_offset_pos",
+  "param": {
+    "footprints": [],
+    "instances": [],
+    "openings": [],
+    "rooms": [],
+    "shared_walls": [],
+    "slabs": [],
+    "walls": [],
+    "zones": []
+  },
+  "photometry_assets": [
+    {
+      "content_hash": null,
+      "embedded_b64": null,
+      "format": "IES",
+      "id": "asset_1",
+      "metadata": {},
+      "path": "../assets/fixture.ies"
+    }
+  ],
+  "point_sets": [],
+  "polygon_workplanes": [],
+  "results": [
+    {
+      "job_hash": "dddf8c280847cc7a5afe08a5a7b69f3a949ded94c059f78aebc607fab50e1ac6",
+      "job_id": "direct_cpu",
+      "result_dir": "/Users/manavmadanrawal/Dev/luxera/parity/packs/calc_objects_core/scenes/.luxera/results/dddf8c280847cc7a5afe08a5a7b69f3a949ded94c059f78aebc607fab50e1ac6",
+      "summary": {
+        "calc_object_count": 1,
+        "calc_objects": [
+          {
+            "id": "vp1",
+            "name": "VP1",
+            "summary": {
+              "Eavg": 15.555038597394134,
+              "Emin": 3.5369854507740115,
+              "U0": 0.22738519281890737,
+              "max_lux": 48.06936461989787,
+              "mean_lux": 15.555038597394134,
+              "min_lux": 3.5369854507740115,
+              "p50_lux": 10.59755497151067,
+              "p90_lux": 36.32803043412361,
+              "uniformity_diversity": 0.07358086545853591,
+              "uniformity_ratio": 0.22738519281890737
+            },
+            "type": "vertical_plane"
+          }
+        ],
+        "compliance": null,
+        "global_highest_ugr": 0.0,
+        "global_worst_min_lux": 3.5369854507740115,
+        "global_worst_uniformity_ratio": 0.22738519281890737,
+        "highest_ugr": 0.0,
+        "indoor_planes": {
+          "cylindrical": [],
+          "maintenance_factor": 1.0,
+          "per_plane": [
+            {
+              "Eavg": 15.555038597394134,
+              "Emin": 3.5369854507740115,
+              "U0": 0.22738519281890737,
+              "id": "vp1",
+              "source": "user_defined",
+              "type": "vertical_plane"
+            }
+          ]
+        },
+        "max_lux": 48.06936461989787,
+        "mean_lux": 15.555038597394134,
+        "mean_of_means_lux": 15.555038597394134,
+        "min_lux": 3.5369854507740115,
+        "occluder_count": 0,
+        "occlusion_enabled": false,
+        "p50_lux": 10.59755497151067,
+        "p90_lux": 36.32803043412361,
+        "uniformity_diversity": 0.07358086545853591,
+        "uniformity_ratio": 0.22738519281890737,
+        "worst_min_lux": 3.5369854507740115,
+        "worst_uniformity_ratio": 0.22738519281890737,
+        "zone_compliance": {
+          "status": "PASS",
+          "zone_count": 0
+        },
+        "zone_metrics": []
+      }
+    }
+  ],
+  "roadway_grids": [],
+  "roadways": [],
+  "root_dir": "/Users/manavmadanrawal/Dev/luxera/parity/packs/calc_objects_core/scenes",
+  "schema_version": 5,
+  "selection_sets": [],
+  "symbols_2d": [],
+  "variants": [],
+  "vertical_planes": [
+    {
+      "azimuth_deg": 90.0,
+      "evaluation_height_offset": 0.0,
+      "height": 2.0,
+      "host_surface_id": null,
+      "id": "vp1",
+      "mask_openings": true,
+      "metric_set": [
+        "E_avg",
+        "E_min",
+        "E_max",
+        "U0",
+        "U1"
+      ],
+      "name": "VP1",
+      "nx": 5,
+      "ny": 4,
+      "offset_m": 0.2,
+      "origin": [
+        1.0,
+        1.0,
+        0.2
+      ],
+      "room_id": "room_1",
+      "subrect_u0": null,
+      "subrect_u1": null,
+      "subrect_v0": null,
+      "subrect_v1": null,
+      "width": 4.0,
+      "zone_id": null
+    }
+  ],
+  "workplanes": []
+}

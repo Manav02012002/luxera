@@ -1,0 +1,293 @@
+{
+  "active_variant_id": null,
+  "agent_history": [],
+  "arbitrary_planes": [],
+  "asset_bundle_path": null,
+  "assistant_redo_stack": [],
+  "assistant_undo_stack": [],
+  "block_instances": [],
+  "compliance_profiles": [],
+  "escape_routes": [],
+  "geometry": {
+    "axis_transform_applied": null,
+    "coordinate_systems": [],
+    "length_unit": "m",
+    "levels": [],
+    "no_go_zones": [],
+    "obstructions": [],
+    "openings": [],
+    "rooms": [
+      {
+        "activity_type": null,
+        "ceiling_reflectance": 0.7,
+        "coordinate_system_id": null,
+        "floor_reflectance": 0.2,
+        "footprint": null,
+        "height": 3.0,
+        "id": "r1",
+        "layer_id": null,
+        "length": 6.0,
+        "level_id": null,
+        "name": "Office",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "wall_reflectance": 0.5,
+        "width": 8.0
+      }
+    ],
+    "scale_to_meters": 1.0,
+    "source_length_unit": null,
+    "surfaces": [],
+    "zones": []
+  },
+  "glare_views": [],
+  "grids": [
+    {
+      "elevation": 0.8,
+      "evaluation_height_offset": 0.0,
+      "height": 5.0,
+      "id": "g1",
+      "layer_id": null,
+      "mask_near_openings": false,
+      "metric_set": [
+        "E_avg",
+        "E_min",
+        "E_max",
+        "U0",
+        "U1"
+      ],
+      "name": "Workplane",
+      "normal": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "nx": 7,
+      "ny": 5,
+      "opening_mask_margin": 0.0,
+      "origin": [
+        0.5,
+        0.5,
+        0.0
+      ],
+      "room_id": "r1",
+      "sample_mask": [],
+      "sample_points": [],
+      "width": 7.0,
+      "zone_id": null
+    }
+  ],
+  "jobs": [
+    {
+      "backend": "cpu",
+      "daylight": null,
+      "emergency": null,
+      "id": "j1",
+      "mode": null,
+      "open_area_targets": [],
+      "routes": [],
+      "seed": 42,
+      "settings": {
+        "auto_vertical_plane_nx": 5,
+        "auto_vertical_plane_ny": 4,
+        "auto_vertical_planes": true,
+        "compute_cylindrical_illuminance": true,
+        "maintenance_factor": 0.8
+      },
+      "targets": [],
+      "type": "direct"
+    }
+  ],
+  "layers": [
+    {
+      "color": null,
+      "id": "room",
+      "name": "Rooms",
+      "order": 10,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "wall",
+      "name": "Walls",
+      "order": 20,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "ceiling_grid",
+      "name": "Ceiling Grid",
+      "order": 30,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "opening",
+      "name": "Openings",
+      "order": 40,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "luminaire",
+      "name": "Luminaires",
+      "order": 50,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "grid",
+      "name": "Calc Grids",
+      "order": 60,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "symbol",
+      "name": "Symbols",
+      "order": 70,
+      "style": null,
+      "visible": true
+    }
+  ],
+  "line_grids": [],
+  "luminaire_families": [],
+  "luminaires": [
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "l1",
+      "layer_id": null,
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L1",
+      "photometry_asset_id": "a1",
+      "tags": [],
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          2.0,
+          2.0,
+          2.8
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0,
+            0,
+            0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    },
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "l2",
+      "layer_id": null,
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L2",
+      "photometry_asset_id": "a1",
+      "tags": [],
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          6.0,
+          4.0,
+          2.8
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0,
+            0,
+            0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    }
+  ],
+  "material_library": [],
+  "materials": [],
+  "name": "indoor_multiplane_office",
+  "param": {
+    "footprints": [],
+    "instances": [],
+    "openings": [],
+    "rooms": [],
+    "shared_walls": [],
+    "slabs": [],
+    "walls": [],
+    "zones": []
+  },
+  "photometry_assets": [
+    {
+      "content_hash": null,
+      "embedded_b64": null,
+      "format": "IES",
+      "id": "a1",
+      "metadata": {},
+      "path": "../projects/box_room/fixture.ies"
+    }
+  ],
+  "point_sets": [],
+  "results": [],
+  "roadway_grids": [],
+  "roadways": [],
+  "root_dir": null,
+  "schema_version": 5,
+  "selection_sets": [],
+  "symbols_2d": [],
+  "variants": [],
+  "vertical_planes": [
+    {
+      "azimuth_deg": 0.0,
+      "evaluation_height_offset": 0.0,
+      "height": 2.0,
+      "host_surface_id": null,
+      "id": "vp_user",
+      "mask_openings": true,
+      "metric_set": [
+        "E_avg",
+        "E_min",
+        "E_max",
+        "U0",
+        "U1"
+      ],
+      "name": "User Vertical",
+      "nx": 5,
+      "ny": 4,
+      "origin": [
+        1.0,
+        1.0,
+        0.0
+      ],
+      "room_id": "r1",
+      "subrect_u0": null,
+      "subrect_u1": null,
+      "subrect_v0": null,
+      "subrect_v1": null,
+      "width": 4.0,
+      "zone_id": null
+    }
+  ],
+  "workplanes": []
+}

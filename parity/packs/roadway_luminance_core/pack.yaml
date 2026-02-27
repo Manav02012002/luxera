@@ -1,0 +1,33 @@
+id: roadway_luminance_core
+title: Roadway Luminance Core
+version: 1
+engines:
+  - roadway_cpu
+scenes:
+  - id: straight_single_side
+    path: scenes/straight_single_side.lux.json
+    tags: [roadway, luminance, straight]
+  - id: straight_setback_narrow
+    path: scenes/straight_setback_narrow.lux.json
+    tags: [roadway, luminance, setback]
+  - id: straight_setback_wide
+    path: scenes/straight_setback_wide.lux.json
+    tags: [roadway, luminance, setback]
+  - id: mounting_height_low
+    path: scenes/mounting_height_low.lux.json
+    tags: [roadway, luminance, mounting]
+  - id: mounting_height_high
+    path: scenes/mounting_height_high.lux.json
+    tags: [roadway, luminance, mounting]
+  - id: opposite_layout
+    path: scenes/opposite_layout.lux.json
+    tags: [roadway, luminance, opposite]
+  - id: staggered_layout
+    path: scenes/staggered_layout.lux.json
+    tags: [roadway, luminance, staggered]
+  - id: multilane_three_lane
+    path: scenes/multilane_three_lane.lux.json
+    tags: [roadway, luminance, multilane]
+global:
+  random_seed: 42
+  deterministic: true

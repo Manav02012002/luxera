@@ -1,0 +1,45 @@
+{
+  "baseline": "luxera",
+  "baseline_version": "v1",
+  "generated_by": {
+    "job_id": "direct_cpu",
+    "seed": 42,
+    "tool": "luxera parity run"
+  },
+  "results": {
+    "geometry_heal_degenerate_triangles": 0,
+    "geometry_heal_duplicate_coplanar_faces": 0,
+    "geometry_heal_non_manifold_edges": 0,
+    "geometry_heal_open_shell_edges": 15,
+    "geometry_heal_sliver_triangles": 1,
+    "max_lux": 351.56250000000006,
+    "mean_lux": 100.05953878317693,
+    "min_lux": 0.0,
+    "parity_arrays": {
+      "grid_1": {
+        "grid_values_lux": {
+          "hash": "sha256:f9f83dd5515220a828a7b87db5cc623c382fc6e7014afe16599147fedd106505",
+          "shape": [
+            3,
+            3
+          ],
+          "sidecar": "arrays/dirty_sliver_open_grid_1.csv",
+          "summary": {
+            "max": 351.56250000000006,
+            "mean": 100.05953878317693,
+            "min": 0.0,
+            "p95": 253.90354669156204,
+            "p99": 332.0307093383125
+          }
+        }
+      }
+    }
+  },
+  "scene_id": "dirty_sliver_open",
+  "schema_version": "parity_expected_v2",
+  "tags": [
+    "geometry",
+    "healing",
+    "sliver"
+  ]
+}

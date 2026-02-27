@@ -1,0 +1,149 @@
+{
+  "engines": {
+    "job_direct": {
+      "backend": "cpu",
+      "job_id": "job_direct",
+      "job_type": "direct",
+      "summary": {
+        "calc_object_count": 1,
+        "calc_objects": [
+          {
+            "id": "grid_1",
+            "name": "Workplane",
+            "summary": {
+              "E_avg": 34.03250574440702,
+              "E_max": 181.41166940533785,
+              "E_min": 0.0,
+              "Eavg": 34.03250574440702,
+              "Emin": 0.0,
+              "P50": 17.27588999358802,
+              "P90": 85.55548880285967,
+              "U0": 0.0,
+              "U1": 0.0,
+              "max_lux": 181.41166940533785,
+              "mean_lux": 34.03250574440702,
+              "min_lux": 0.0,
+              "p50_lux": 17.27588999358802,
+              "p90_lux": 85.55548880285967,
+              "uniformity_diversity": 0.0,
+              "uniformity_ratio": 0.0
+            },
+            "type": "grid"
+          }
+        ],
+        "compliance": null,
+        "global_highest_ugr": 0.0,
+        "global_worst_min_lux": 0.0,
+        "global_worst_uniformity_ratio": 0.0,
+        "highest_ugr": 0.0,
+        "indoor_planes": {
+          "cylindrical": [],
+          "maintenance_factor": 1.0,
+          "per_plane": [
+            {
+              "Eavg": 34.03250574440702,
+              "Emin": 0.0,
+              "U0": 0.0,
+              "id": "grid_1",
+              "source": "workplane",
+              "type": "grid"
+            }
+          ]
+        },
+        "max_lux": 181.41166940533785,
+        "mean_lux": 34.03250574440702,
+        "mean_of_means_lux": 34.03250574440702,
+        "min_lux": 0.0,
+        "occluder_count": 2,
+        "occlusion_enabled": true,
+        "p50_lux": 17.27588999358802,
+        "p90_lux": 85.55548880285967,
+        "uniformity_diversity": 0.0,
+        "uniformity_ratio": 0.0,
+        "worst_min_lux": 0.0,
+        "worst_uniformity_ratio": 0.0,
+        "zone_compliance": {
+          "status": "PASS",
+          "zone_count": 0
+        },
+        "zone_metrics": []
+      }
+    },
+    "job_radiosity": {
+      "backend": "cpu",
+      "job_id": "job_radiosity",
+      "job_type": "radiosity",
+      "summary": {
+        "avg_illuminance": 2.0992765347838955,
+        "bounce_delta_lux": -38.75732067954128,
+        "bounce_ratio": -0.9486184195964356,
+        "compliance": null,
+        "converged": true,
+        "direct_floor_baseline_lux": 40.85659721432518,
+        "energy": {
+          "total_absorbed": 150.97392444879483,
+          "total_emitted": 568.5501516520582,
+          "total_exitance": 773.8677610058256,
+          "total_reflected": 205.32313294564858
+        },
+        "energy_balance_history": [
+          0.02276563434982677,
+          0.007356245395505369,
+          0.0006902218281076453,
+          0.00022822190919851904,
+          2.1571257441770515e-05,
+          7.137643095424636e-06
+        ],
+        "iterations": 6,
+        "radiosity_diagnostics": {
+          "final_energy_balance_rel": 7.137643095424636e-06,
+          "final_residual": 0.0005218764037557833,
+          "iterations_used": 6,
+          "max_energy_balance_rel": 0.02276563434982677,
+          "max_residual": 5.411675040626919
+        },
+        "residual_below_threshold": true,
+        "residual_nonincreasing": true,
+        "residual_threshold": 0.001,
+        "residuals": [
+          5.411675040626919,
+          0.5290493314396478,
+          0.1761814663035679,
+          0.0166772965528299,
+          0.005519808214176081,
+          0.0005218764037557833
+        ],
+        "solver_status": {
+          "converged": true,
+          "energy_balance_history": [
+            0.02276563434982677,
+            0.007356245395505369,
+            0.0006902218281076453,
+            0.00022822190919851904,
+            2.1571257441770515e-05,
+            7.137643095424636e-06
+          ],
+          "iterations": 6,
+          "residual": 0.0005218764037557833,
+          "residual_history": [
+            5.411675040626919,
+            0.5290493314396478,
+            0.1761814663035679,
+            0.0166772965528299,
+            0.005519808214176081,
+            0.0005218764037557833
+          ],
+          "warnings": []
+        },
+        "stop_reason": "converged",
+        "total_flux": 773.8677610058256,
+        "ugr_debug": null,
+        "ugr_views": null,
+        "ugr_worst_case": 28.00824317827027
+      }
+    }
+  },
+  "pack_name": "occluder_room_diffuse",
+  "scene_file": "scene.lux.json",
+  "schema_version": "parity_results_v1"
+}

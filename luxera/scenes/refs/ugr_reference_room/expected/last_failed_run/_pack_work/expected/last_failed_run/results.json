@@ -1,0 +1,76 @@
+{
+  "engines": {
+    "radiosity_ugr": {
+      "backend": "cpu",
+      "job_id": "job_direct_ugr",
+      "job_type": "direct",
+      "summary": {
+        "calc_object_count": 1,
+        "calc_objects": [
+          {
+            "id": "g1",
+            "name": "WG",
+            "summary": {
+              "E_avg": 124.99699518765158,
+              "E_max": 444.8774148689408,
+              "E_min": 23.72147344210874,
+              "Eavg": 124.99699518765158,
+              "Emin": 23.72147344210874,
+              "P50": 80.13092453818643,
+              "P90": 239.02983205875964,
+              "U0": 0.18977634947541663,
+              "U1": 0.053321370447850215,
+              "max_lux": 444.8774148689408,
+              "mean_lux": 124.99699518765158,
+              "min_lux": 23.72147344210874,
+              "p50_lux": 80.13092453818643,
+              "p90_lux": 239.02983205875964,
+              "uniformity_diversity": 0.053321370447850215,
+              "uniformity_ratio": 0.18977634947541663
+            },
+            "type": "grid"
+          }
+        ],
+        "compliance": null,
+        "global_highest_ugr": 0.0,
+        "global_worst_min_lux": 23.72147344210874,
+        "global_worst_uniformity_ratio": 0.18977634947541663,
+        "highest_ugr": 0.0,
+        "indoor_planes": {
+          "cylindrical": [],
+          "maintenance_factor": 1.0,
+          "per_plane": [
+            {
+              "Eavg": 124.99699518765158,
+              "Emin": 23.72147344210874,
+              "U0": 0.18977634947541663,
+              "id": "g1",
+              "source": "workplane",
+              "type": "grid"
+            }
+          ]
+        },
+        "max_lux": 444.8774148689408,
+        "mean_lux": 124.99699518765158,
+        "mean_of_means_lux": 124.99699518765158,
+        "min_lux": 23.72147344210874,
+        "occluder_count": 0,
+        "occlusion_enabled": false,
+        "p50_lux": 80.13092453818643,
+        "p90_lux": 239.02983205875964,
+        "uniformity_diversity": 0.053321370447850215,
+        "uniformity_ratio": 0.18977634947541663,
+        "worst_min_lux": 23.72147344210874,
+        "worst_uniformity_ratio": 0.18977634947541663,
+        "zone_compliance": {
+          "status": "PASS",
+          "zone_count": 0
+        },
+        "zone_metrics": []
+      }
+    }
+  },
+  "pack_name": "ugr_reference_room",
+  "scene_file": "scene.lux.json",
+  "schema_version": "parity_results_v1"
+}

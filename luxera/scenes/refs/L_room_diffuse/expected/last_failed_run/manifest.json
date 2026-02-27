@@ -1,0 +1,35 @@
+{
+  "engines": [
+    {
+      "engine_id": "direct_cpu",
+      "grid_csv": [
+        "direct_cpu__grid.csv",
+        "direct_cpu__grid_grid_1.csv"
+      ],
+      "job_id": "job_direct",
+      "result_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_cebtpkz4/_pack_work/.luxera/results/2a1f1b6e6ad060b7ff6598bba816a51fe64fd2b384fdb0f11173d9ef3b1de42f"
+    },
+    {
+      "engine_id": "radiosity_cpu",
+      "grid_csv": [
+        "radiosity_cpu__LroomProxy_ceiling_grid.csv",
+        "radiosity_cpu__LroomProxy_floor_grid.csv",
+        "radiosity_cpu__LroomProxy_wall_0_grid.csv",
+        "radiosity_cpu__LroomProxy_wall_1_grid.csv",
+        "radiosity_cpu__LroomProxy_wall_2_grid.csv",
+        "radiosity_cpu__LroomProxy_wall_3_grid.csv"
+      ],
+      "job_id": "job_radiosity",
+      "result_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_cebtpkz4/_pack_work/.luxera/results/a91920d7a8504989152c06a3420d5919c2e916a7501876c9c61ffb40d996452d"
+    }
+  ],
+  "expected_json": "/Users/manavmadanrawal/Dev/luxera/luxera/scenes/refs/L_room_diffuse/expected/expected.json",
+  "out_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_cebtpkz4",
+  "pack_dir": "/Users/manavmadanrawal/Dev/luxera/luxera/scenes/refs/L_room_diffuse",
+  "pack_name": "L_room_diffuse",
+  "report_pdf": "report.pdf",
+  "results_json": "results.json",
+  "scene_path": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_cebtpkz4/_pack_work/scene.lux.json",
+  "schema_version": "parity_manifest_v1",
+  "work_pack_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_cebtpkz4/_pack_work"
+}

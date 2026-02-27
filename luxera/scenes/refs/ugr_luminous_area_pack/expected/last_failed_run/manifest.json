@@ -1,0 +1,22 @@
+{
+  "engines": [
+    {
+      "engine_id": "radiosity_ugr",
+      "grid_csv": [
+        "radiosity_ugr__grid.csv",
+        "radiosity_ugr__grid_g1.csv"
+      ],
+      "job_id": "job_direct_ugr",
+      "result_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_aymitj8o/_pack_work/.luxera/results/833b1d8d7aa3ad36bbc75984e0621eb43430aa167ccc72fe33974c2477554e94"
+    }
+  ],
+  "expected_json": "/Users/manavmadanrawal/Dev/luxera/luxera/scenes/refs/ugr_luminous_area_pack/expected/expected.json",
+  "out_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_aymitj8o",
+  "pack_dir": "/Users/manavmadanrawal/Dev/luxera/luxera/scenes/refs/ugr_luminous_area_pack",
+  "pack_name": "ugr_luminous_area_pack",
+  "report_pdf": "report.pdf",
+  "results_json": "results.json",
+  "scene_path": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_aymitj8o/_pack_work/scene.lux.json",
+  "schema_version": "parity_manifest_v1",
+  "work_pack_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_aymitj8o/_pack_work"
+}

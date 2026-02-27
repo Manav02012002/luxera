@@ -1,0 +1,109 @@
+{
+  "schema_version": 5,
+  "name": "roadway_luminance_metrics_pack",
+  "parity": {
+    "engines": [
+      {
+        "id": "roadway_cpu",
+        "job_id": "job_roadway_cpu"
+      }
+    ],
+    "report_engine": "roadway_cpu"
+  },
+  "geometry": {
+    "rooms": [],
+    "surfaces": [],
+    "openings": [],
+    "obstructions": [],
+    "levels": [],
+    "coordinate_systems": [],
+    "zones": [],
+    "no_go_zones": [],
+    "length_unit": "m",
+    "scale_to_meters": 1.0
+  },
+  "photometry_assets": [
+    {
+      "id": "asset_1",
+      "format": "IES",
+      "path": "photometry/fixture.ies"
+    }
+  ],
+  "luminaires": [
+    {
+      "id": "lum_1",
+      "name": "Road Luminaire A",
+      "photometry_asset_id": "asset_1",
+      "maintenance_factor": 1.0,
+      "flux_multiplier": 1.0,
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [0.0, 0.0, 8.0],
+        "rotation": {
+          "type": "euler_zyx",
+          "euler_deg": [0.0, 0.0, 0.0]
+        }
+      }
+    },
+    {
+      "id": "lum_2",
+      "name": "Road Luminaire B",
+      "photometry_asset_id": "asset_1",
+      "maintenance_factor": 1.0,
+      "flux_multiplier": 1.0,
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [20.0, 0.0, 8.0],
+        "rotation": {
+          "type": "euler_zyx",
+          "euler_deg": [0.0, 0.0, 0.0]
+        }
+      }
+    }
+  ],
+  "roadways": [
+    {
+      "id": "road_1",
+      "name": "Roadway",
+      "start": [0.0, 0.0, 0.0],
+      "end": [30.0, 0.0, 0.0],
+      "num_lanes": 2,
+      "lane_width": 3.5,
+      "mounting_height_m": 8.0,
+      "setback_m": 1.0,
+      "pole_spacing_m": 20.0,
+      "tilt_deg": 0.0,
+      "aim_deg": 0.0
+    }
+  ],
+  "roadway_grids": [
+    {
+      "id": "road_grid_1",
+      "name": "Road Grid",
+      "lane_width": 3.5,
+      "road_length": 30.0,
+      "nx": 6,
+      "ny": 6,
+      "origin": [0.0, 0.0, 0.0],
+      "roadway_id": "road_1",
+      "num_lanes": 2,
+      "observer_height_m": 1.5
+    }
+  ],
+  "jobs": [
+    {
+      "id": "job_roadway_cpu",
+      "type": "roadway",
+      "backend": "cpu",
+      "seed": 0,
+      "settings": {
+        "road_class": "M3",
+        "road_surface_reflectance": 0.07,
+        "observer_height_m": 1.5,
+        "observer_back_offset_m": 60.0
+      }
+    }
+  ],
+  "results": []
+}
+

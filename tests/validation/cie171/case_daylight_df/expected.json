@@ -1,0 +1,33 @@
+{
+  "schema_version": "validation_case_v1",
+  "run": {
+    "jobs": [
+      "job_daylight"
+    ]
+  },
+  "scalars": [
+    {
+      "id": "mean_df_percent",
+      "reference": "",
+      "expected": "TBD",
+      "tolerance": "TBD",
+      "skip": {
+        "reason": "Daylight benchmark references not populated"
+      },
+      "notes": "Placeholder for daylight factor mean"
+    }
+  ],
+  "grids": [
+    {
+      "id": "daylight_grid",
+      "reference": "",
+      "actual": "TBD",
+      "tolerance": "TBD",
+      "skip": {
+        "reason": "Daylight grid reference matrix pending"
+      },
+      "notes": "Placeholder for daylight spatial residual check"
+    }
+  ],
+  "notes": "CIE 171 daylight-factor placeholder case"
+}

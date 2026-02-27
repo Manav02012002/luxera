@@ -1,0 +1,49 @@
+{
+  "expected": {
+    "results": {
+      "calc_object_count": 1,
+      "max_lux": 43.51554937509224,
+      "mean_lux": 15.704330839994594,
+      "min_lux": 4.090591724486607,
+      "occluder_count": 0,
+      "uniformity_ratio": 0.2604753915441592
+    }
+  },
+  "ignore": [
+    "results.calc_objects",
+    "results.compliance",
+    "results.indoor_planes",
+    "results.zone_metrics",
+    "results.zone_compliance",
+    "results.compliance_profile"
+  ],
+  "schema_version": "parity_expected_v1",
+  "tolerances": {
+    "default": {
+      "abs": 1e-06,
+      "rel": 1e-06
+    },
+    "metrics": {
+      "results.calc_object_count": {
+        "abs": 0.0,
+        "rel": 0.0
+      },
+      "results.max_lux": {
+        "abs": 1e-05,
+        "rel": 1e-06
+      },
+      "results.mean_lux": {
+        "abs": 1e-05,
+        "rel": 1e-06
+      },
+      "results.min_lux": {
+        "abs": 1e-05,
+        "rel": 1e-06
+      },
+      "results.uniformity_ratio": {
+        "abs": 1e-06,
+        "rel": 1e-06
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+id: invariance_suite
+title: Invariance Suite
+version: 1
+engines: []
+scenes:
+  - id: indoor_grid
+    path: scenes/indoor_grid.lux.json
+    tags: [invariance, indoor]
+  - id: indoor_vertical
+    path: scenes/indoor_vertical.lux.json
+    tags: [invariance, indoor]
+  - id: indoor_polygon
+    path: scenes/indoor_polygon.lux.json
+    tags: [invariance, indoor]
+  - id: indoor_route
+    path: scenes/indoor_route.lux.json
+    tags: [invariance, indoor]
+  - id: roadway_basic
+    path: scenes/roadway_basic.lux.json
+    tags: [invariance, roadway]
+  - id: emergency_basic
+    path: scenes/emergency_basic.lux.json
+    tags: [invariance, emergency]
+global:
+  random_seed: 42
+  deterministic: true
+  invariance: true

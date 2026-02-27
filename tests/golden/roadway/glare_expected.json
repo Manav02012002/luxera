@@ -1,0 +1,23 @@
+{
+  "tolerance_abs": 1e-06,
+  "worst_case_glare": {
+    "method": "rp8_veiling_ratio",
+    "rp8_veiling_ratio_worst": 0.14985689234029062,
+    "ti_proxy_percent_worst": 14.985689234029062,
+    "veiling_luminance_total_worst_cd_m2": 0.037544938469813494
+  },
+  "observer_rows": [
+    {
+      "observer_id": "auto_1",
+      "rp8_veiling_ratio": 0.14985689234029062,
+      "ti_proxy_percent": 14.985689234029062,
+      "veiling_luminance_total_cd_m2": 0.037544938469813494
+    },
+    {
+      "observer_id": "auto_2",
+      "rp8_veiling_ratio": 0.11997746699222404,
+      "ti_proxy_percent": 11.997746699222404,
+      "veiling_luminance_total_cd_m2": 0.03005898858331013
+    }
+  ]
+}

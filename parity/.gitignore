@@ -1,0 +1,10 @@
+# External/proprietary baselines (never commit)
+parity/**/expected/agi32/**
+
+# Private baseline dumps and local snapshots
+parity/**/expected/private/**
+parity/**/expected/**/private/**
+parity/**/baseline_dumps/**
+parity/**/private_baselines/**
+parity/**/last_failed_run/**
+parity/**/.luxera/**

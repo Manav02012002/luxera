@@ -1,0 +1,40 @@
+{
+  "baseline": "luxera",
+  "baseline_version": "v1",
+  "generated_by": {
+    "job_id": "direct_cpu",
+    "seed": 42,
+    "tool": "luxera parity run"
+  },
+  "results": {
+    "max_lux": 31.42441107746799,
+    "mean_lux": 29.61820186428359,
+    "min_lux": 28.68949013761017,
+    "parity_arrays": {
+      "grid_1": {
+        "grid_values_lux": {
+          "hash": "sha256:406639ed52080c99c8cf95a93fce15b67f9402fa8175e68227a69d8fc993b5af",
+          "shape": [
+            2,
+            2
+          ],
+          "sidecar": "arrays/irregular_steps_grid_1.csv",
+          "summary": {
+            "max": 31.42441107746799,
+            "mean": 29.61820186428359,
+            "min": 28.68949013761017,
+            "p95": 31.135598545423324,
+            "p99": 31.366648571059056
+          }
+        }
+      }
+    }
+  },
+  "scene_id": "irregular_steps",
+  "schema_version": "parity_expected_v2",
+  "tags": [
+    "photometry",
+    "ies",
+    "edge"
+  ]
+}

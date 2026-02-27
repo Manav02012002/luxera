@@ -1,0 +1,41 @@
+{
+  "baseline": "luxera",
+  "baseline_version": "v1",
+  "generated_by": {
+    "job_id": "direct_cpu",
+    "seed": 42,
+    "tool": "luxera parity run"
+  },
+  "results": {
+    "max_lux": 30.73548165793521,
+    "mean_lux": 30.73548165793521,
+    "min_lux": 30.73548165793521,
+    "parity_arrays": {
+      "grid_1": {
+        "grid_values_lux": {
+          "hash": "sha256:c85ca8c22e61f0dccd352f7eb9ea5aab5f17430a7c0760da77c3d95f5b8edce2",
+          "shape": [
+            2,
+            2
+          ],
+          "sidecar": "arrays/non_ascii_filename_grid_1.csv",
+          "summary": {
+            "max": 30.73548165793521,
+            "mean": 30.73548165793521,
+            "min": 30.73548165793521,
+            "p95": 30.73548165793521,
+            "p99": 30.73548165793521
+          }
+        }
+      }
+    }
+  },
+  "scene_id": "non_ascii_filename",
+  "schema_version": "parity_expected_v2",
+  "tags": [
+    "photometry",
+    "ies",
+    "edge",
+    "encoding"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "baseline": "luxera",
+  "baseline_version": "v1",
+  "generated_by": {
+    "job_id": "direct_cpu",
+    "seed": 42,
+    "tool": "luxera parity run"
+  },
+  "results": {
+    "max_lux": 196.12907112898665,
+    "mean_lux": 34.95976795703137,
+    "min_lux": 5.1396103337538666,
+    "parity_arrays": {
+      "grid_1": {
+        "grid_values_lux": {
+          "hash": "sha256:369e83bad652115128623071efc5a11260b7b22925166037c885ed13250164ae",
+          "shape": [
+            3,
+            3
+          ],
+          "sidecar": "arrays/combined_tilt_aim_grid_1.csv",
+          "summary": {
+            "max": 196.12907112898665,
+            "mean": 34.95976795703137,
+            "min": 5.1396103337538666,
+            "p95": 133.33331457565836,
+            "p99": 183.56991981832098
+          }
+        }
+      }
+    }
+  },
+  "scene_id": "combined_tilt_aim",
+  "schema_version": "parity_expected_v2",
+  "tags": [
+    "photometry",
+    "tilt",
+    "ordering"
+  ]
+}

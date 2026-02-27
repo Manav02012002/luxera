@@ -1,0 +1,353 @@
+{
+  "active_variant_id": null,
+  "agent_history": [
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_1_4fpd1w/_pack_work/.luxera/results/61a3192c2bc1343a3ea8701662375efb8777f2df97bc177ac5e27229cc123d0a"
+      ],
+      "created_at": 1771725164.517714,
+      "diffs": [],
+      "id": "b6e0e8b8-e1ff-417f-a66c-870dc369cf57",
+      "job_hashes": [
+        "61a3192c2bc1343a3ea8701662375efb8777f2df97bc177ac5e27229cc123d0a"
+      ],
+      "metadata": {
+        "job_id": "job_roadway_cpu",
+        "job_type": "roadway"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    }
+  ],
+  "arbitrary_planes": [],
+  "asset_bundle_path": null,
+  "assistant_redo_stack": [],
+  "assistant_undo_stack": [],
+  "block_instances": [],
+  "compliance_profiles": [],
+  "escape_routes": [],
+  "geometry": {
+    "axis_transform_applied": null,
+    "coordinate_systems": [],
+    "length_unit": "m",
+    "levels": [],
+    "no_go_zones": [],
+    "obstructions": [],
+    "openings": [],
+    "rooms": [],
+    "scale_to_meters": 1.0,
+    "source_length_unit": null,
+    "surfaces": [],
+    "zones": []
+  },
+  "glare_views": [],
+  "grids": [],
+  "jobs": [
+    {
+      "backend": "cpu",
+      "daylight": null,
+      "emergency": null,
+      "id": "job_roadway_cpu",
+      "mode": null,
+      "open_area_targets": [],
+      "routes": [],
+      "seed": 0,
+      "settings": {
+        "observer_back_offset_m": 60.0,
+        "observer_height_m": 1.5,
+        "road_class": "M3",
+        "road_surface_reflectance": 0.07
+      },
+      "targets": [],
+      "type": "roadway"
+    }
+  ],
+  "layers": [
+    {
+      "color": null,
+      "id": "room",
+      "name": "Rooms",
+      "order": 10,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "wall",
+      "name": "Walls",
+      "order": 20,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "ceiling_grid",
+      "name": "Ceiling Grid",
+      "order": 30,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "opening",
+      "name": "Openings",
+      "order": 40,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "luminaire",
+      "name": "Luminaires",
+      "order": 50,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "grid",
+      "name": "Calc Grids",
+      "order": 60,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "symbol",
+      "name": "Symbols",
+      "order": 70,
+      "style": null,
+      "visible": true
+    }
+  ],
+  "line_grids": [],
+  "luminaire_families": [],
+  "luminaires": [
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "lum_1",
+      "layer_id": null,
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "Road Luminaire",
+      "photometry_asset_id": "asset_1",
+      "tags": [],
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          0.0,
+          0.0,
+          8.0
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    }
+  ],
+  "material_library": [],
+  "materials": [],
+  "name": "small_roadway_parity",
+  "param": {
+    "footprints": [],
+    "instances": [],
+    "openings": [],
+    "rooms": [],
+    "shared_walls": [],
+    "slabs": [],
+    "walls": [],
+    "zones": []
+  },
+  "photometry_assets": [
+    {
+      "content_hash": null,
+      "embedded_b64": null,
+      "format": "IES",
+      "id": "asset_1",
+      "metadata": {},
+      "path": "photometry/fixture.ies"
+    }
+  ],
+  "point_sets": [],
+  "results": [
+    {
+      "job_hash": "61a3192c2bc1343a3ea8701662375efb8777f2df97bc177ac5e27229cc123d0a",
+      "job_id": "job_roadway_cpu",
+      "result_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_1_4fpd1w/_pack_work/.luxera/results/61a3192c2bc1343a3ea8701662375efb8777f2df97bc177ac5e27229cc123d0a",
+      "summary": {
+        "lane_metrics": [
+          {
+            "lane_index": 0.0,
+            "lane_number": 1.0,
+            "luminance_mean_cd_m2": 0.2804531306664602,
+            "max_lux": 14.0625,
+            "mean_lux": 4.649105453725654,
+            "min_lux": 0.4584332757191221,
+            "nx": 4.0,
+            "ny": 4.0,
+            "sample_count": 16.0,
+            "ul_longitudinal": 0.10461948401078772,
+            "uniformity_min_avg": 0.09860677076097454,
+            "uniformity_ratio": 0.09860677076097454
+          }
+        ],
+        "lane_width_m": 3.5,
+        "lane_widths_m": [
+          3.5
+        ],
+        "lanes": [
+          {
+            "lane_index": 0.0,
+            "lane_number": 1.0,
+            "luminance_mean_cd_m2": 0.2804531306664602,
+            "max_lux": 14.0625,
+            "mean_lux": 4.649105453725654,
+            "min_lux": 0.4584332757191221,
+            "nx": 4.0,
+            "ny": 4.0,
+            "sample_count": 16.0,
+            "ul_longitudinal": 0.10461948401078772,
+            "uniformity_min_avg": 0.09860677076097454,
+            "uniformity_ratio": 0.09860677076097454
+          }
+        ],
+        "luminance_model": {
+          "name": "table_lookup_v1",
+          "stability": {
+            "clamp_count": 3.0,
+            "nan_guard_count": 0.0,
+            "surface_class": "R3"
+          },
+          "surface_class": "R3"
+        },
+        "max_lux": 14.0625,
+        "mean_lux": 4.649105453725654,
+        "metadata": {
+          "method": "default",
+          "road_class": "M3",
+          "units": {
+            "illuminance": "lux",
+            "length": "m",
+            "luminance": "cd/m2"
+          }
+        },
+        "min_lux": 0.4584332757191221,
+        "mounting_height_m": 8.0,
+        "num_lanes": 1,
+        "observer_luminance_max_cd_m2": 0.3315336484070743,
+        "observer_luminance_views": [
+          {
+            "lane_number": 1.0,
+            "luminance_cd_m2": 0.3315336484070743,
+            "method": "luminance",
+            "observer_id": "auto_1",
+            "observer_index": 0.0,
+            "x": -60.0,
+            "y": 1.75,
+            "z": 1.5
+          }
+        ],
+        "overall": {
+          "avg_lux": 4.649105453725654,
+          "max_lux": 14.0625,
+          "min_lux": 0.4584332757191221,
+          "u0": 0.09860677076097454
+        },
+        "overall_uniformity_min_avg": 0.09860677076097454,
+        "pole_spacing_m": 20.0,
+        "road_class": "M3",
+        "road_length_m": 20.0,
+        "road_luminance_mean_cd_m2": 0.2804531306664602,
+        "road_surface_class": "R3",
+        "road_surface_reflectance": 0.067,
+        "roadway_id": "road_1",
+        "roadway_name": "Roadway",
+        "setback_m": 1.0,
+        "surround_ratio_proxy": 1.019188390515032,
+        "threshold_increment_ti_proxy_percent": 16.829735216659966,
+        "ti_observers": [],
+        "ul_longitudinal": 0.10461948401078772,
+        "uniformity_diversity": 0.03259969960669313,
+        "uniformity_ratio": 0.09860677076097454
+      }
+    }
+  ],
+  "roadway_grids": [
+    {
+      "id": "road_grid_1",
+      "lane_width": 3.5,
+      "longitudinal_points": null,
+      "metric_set": [
+        "E_avg",
+        "E_min",
+        "E_max",
+        "U0",
+        "UL",
+        "L_avg"
+      ],
+      "mounting_height_m": null,
+      "name": "Road Grid",
+      "num_lanes": 1,
+      "nx": 4,
+      "ny": 4,
+      "observer_height_m": 1.5,
+      "observer_method": "default",
+      "observers": [],
+      "origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "pole_spacing_m": null,
+      "road_length": 20.0,
+      "roadway_id": "road_1",
+      "setback_m": null,
+      "transverse_points_per_lane": null
+    }
+  ],
+  "roadways": [
+    {
+      "aim_deg": 0.0,
+      "end": [
+        20.0,
+        0.0,
+        0.0
+      ],
+      "id": "road_1",
+      "lane_width": 3.5,
+      "mounting_height_m": 8.0,
+      "name": "Roadway",
+      "num_lanes": 1,
+      "observers": [],
+      "pole_rows": [],
+      "pole_spacing_m": 20.0,
+      "segment": null,
+      "setback_m": 1.0,
+      "start": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "tilt_deg": 0.0
+    }
+  ],
+  "root_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_1_4fpd1w/_pack_work",
+  "schema_version": 5,
+  "selection_sets": [],
+  "symbols_2d": [],
+  "variants": [],
+  "vertical_planes": [],
+  "workplanes": []
+}

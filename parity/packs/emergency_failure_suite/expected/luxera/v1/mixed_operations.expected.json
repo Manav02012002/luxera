@@ -1,0 +1,89 @@
+{
+  "expected": {
+    "results": {
+      "battery_output_factor": 1.0,
+      "compliance": {
+        "open_area_pass": true,
+        "reasons": [],
+        "route_pass": true,
+        "status": "PASS",
+        "thresholds": {
+          "open_area_min_lux": 0.1,
+          "open_area_u0_min": 0.01,
+          "route_min_lux": 0.1,
+          "route_u0_min": 0.01
+        }
+      },
+      "emergency_factor": 1.0,
+      "luminaire_count": 3,
+      "luminaire_operation_counts": {
+        "maintained": 0,
+        "non_maintained": 0,
+        "none": 3
+      },
+      "open_area_results": [
+        {
+          "grid_id": "g1",
+          "max_lux": 142.32359920271185,
+          "mean_lux": 99.9676234777416,
+          "min_lux": 68.12334350731545,
+          "pass": true,
+          "u0": 0.6814540662005788
+        }
+      ],
+      "route_failure_analysis": [
+        {
+          "baseline_min_lux": 97.07298161391483,
+          "drop_lux": 87.34171160259072,
+          "ranking": [
+            {
+              "drop_lux": 87.34171160259072,
+              "luminaire_id": "l1",
+              "route_min_lux": 9.731270011324106
+            },
+            {
+              "drop_lux": 87.34171160259072,
+              "luminaire_id": "l3",
+              "route_min_lux": 9.731270011324106
+            },
+            {
+              "drop_lux": 68.22044162482439,
+              "luminaire_id": "l2",
+              "route_min_lux": 28.85253998909045
+            }
+          ],
+          "route_id": "r1",
+          "worst_failed_luminaire_id": "l1",
+          "worst_min_lux": 9.731270011324106
+        }
+      ],
+      "route_results": [
+        {
+          "max_lux": 156.94770949044272,
+          "mean_lux": 121.02884164447669,
+          "min_lux": 97.07298161391483,
+          "pass": true,
+          "route_id": "r1",
+          "u0": 0.8020648656546477
+        }
+      ],
+      "standard": "EN1838",
+      "worst_single_failure": {
+        "baseline_min_lux": 97.07298161391483,
+        "drop_lux": 87.34171160259072,
+        "luminaire_id": "l1",
+        "route_id": "r1",
+        "worst_min_lux": 9.731270011324106
+      }
+    }
+  },
+  "ignore": [],
+  "schema_version": "parity_expected_v1",
+  "tolerances": {
+    "default": {
+      "abs": 1e-08,
+      "rel": 1e-08
+    },
+    "metrics": {}
+  }
+}

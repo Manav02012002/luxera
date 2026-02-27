@@ -1,0 +1,27 @@
+id: emergency_failure_suite
+title: Emergency Failure Suite
+version: 1
+engines:
+  - emergency_cpu
+scenes:
+  - id: maintained_only
+    path: scenes/maintained_only.lux.json
+    tags: [emergency, failure, maintained]
+  - id: nonmaintained_only
+    path: scenes/nonmaintained_only.lux.json
+    tags: [emergency, failure, nonmaintained]
+  - id: mixed_operations
+    path: scenes/mixed_operations.lux.json
+    tags: [emergency, failure, mixed]
+  - id: battery_reduced_output
+    path: scenes/battery_reduced_output.lux.json
+    tags: [emergency, battery]
+  - id: closest_failure_dominant
+    path: scenes/closest_failure_dominant.lux.json
+    tags: [emergency, failure, ranking]
+  - id: two_routes_failure_ranking
+    path: scenes/two_routes_failure_ranking.lux.json
+    tags: [emergency, failure, multi_route]
+global:
+  random_seed: 42
+  deterministic: true

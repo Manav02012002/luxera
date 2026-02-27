@@ -1,0 +1,37 @@
+{
+  "surface_class": "R3",
+  "tolerance_abs": 1e-05,
+  "summary": {
+    "road_luminance_mean_cd_m2": 0.25053862
+  },
+  "points": [
+    {
+      "lane_number": 1,
+      "order": 0,
+      "x": 0.0,
+      "y": 0.0,
+      "luminance_cd_m2": 0.12315265
+    },
+    {
+      "lane_number": 1,
+      "order": 1,
+      "x": 6.0,
+      "y": 0.0,
+      "luminance_cd_m2": 0.39168137
+    },
+    {
+      "lane_number": 2,
+      "order": 0,
+      "x": 0.0,
+      "y": 4.66666667,
+      "luminance_cd_m2": 0.11924901
+    },
+    {
+      "lane_number": 2,
+      "order": 1,
+      "x": 6.0,
+      "y": 4.66666667,
+      "luminance_cd_m2": 0.36094466
+    }
+  ]
+}

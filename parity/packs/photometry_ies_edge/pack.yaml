@@ -1,0 +1,33 @@
+id: photometry_ies_edge
+title: Photometry IES Edge Robustness
+version: 1
+engines:
+  - direct_cpu
+scenes:
+  - id: unsorted_angles
+    path: scenes/unsorted_angles.lux.json
+    tags: [photometry, ies, edge]
+  - id: irregular_steps
+    path: scenes/irregular_steps.lux.json
+    tags: [photometry, ies, edge]
+  - id: partial_symmetry
+    path: scenes/partial_symmetry.lux.json
+    tags: [photometry, ies, edge, symmetry]
+  - id: wraparound_seam
+    path: scenes/wraparound_seam.lux.json
+    tags: [photometry, ies, edge, seam]
+  - id: narrow_beam_peak
+    path: scenes/narrow_beam_peak.lux.json
+    tags: [photometry, ies, edge, narrow]
+  - id: wide_distribution
+    path: scenes/wide_distribution.lux.json
+    tags: [photometry, ies, edge, wide]
+  - id: malformed_whitespace
+    path: scenes/malformed_whitespace.lux.json
+    tags: [photometry, ies, edge, whitespace]
+  - id: non_ascii_filename
+    path: scenes/non_ascii_filename.lux.json
+    tags: [photometry, ies, edge, encoding]
+global:
+  random_seed: 42
+  deterministic: true

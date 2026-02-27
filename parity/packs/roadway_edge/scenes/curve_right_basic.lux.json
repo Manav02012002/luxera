@@ -1,0 +1,1156 @@
+{
+  "active_variant_id": null,
+  "agent_history": [
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/parity/packs/roadway_edge/scenes/.luxera/results/04bde0a52d13c8b82b4be1e768c2ccc1d7a63129528aa3ffc127028503db93cb"
+      ],
+      "created_at": 1772050222.4996989,
+      "diffs": [],
+      "id": "d2b8b252-818e-4425-956e-c9a9b1456eb6",
+      "job_hashes": [
+        "04bde0a52d13c8b82b4be1e768c2ccc1d7a63129528aa3ffc127028503db93cb"
+      ],
+      "metadata": {
+        "job_id": "roadway_cpu",
+        "job_type": "roadway"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/parity/packs/roadway_edge/scenes/.luxera/results/04bde0a52d13c8b82b4be1e768c2ccc1d7a63129528aa3ffc127028503db93cb"
+      ],
+      "created_at": 1772050284.812617,
+      "diffs": [],
+      "id": "d7d1cc7e-e1f0-43f6-99a5-39e59915fea6",
+      "job_hashes": [
+        "04bde0a52d13c8b82b4be1e768c2ccc1d7a63129528aa3ffc127028503db93cb"
+      ],
+      "metadata": {
+        "job_id": "roadway_cpu",
+        "job_type": "roadway"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    }
+  ],
+  "arbitrary_planes": [],
+  "asset_bundle_path": null,
+  "assistant_redo_stack": [],
+  "assistant_undo_stack": [],
+  "block_instances": [],
+  "compliance_profiles": [],
+  "escape_routes": [],
+  "geometry": {
+    "axis_transform_applied": null,
+    "coordinate_systems": [],
+    "length_unit": "m",
+    "levels": [],
+    "no_go_zones": [],
+    "obstructions": [],
+    "openings": [],
+    "rooms": [],
+    "scale_to_meters": 1.0,
+    "source_length_unit": null,
+    "surfaces": [],
+    "zones": []
+  },
+  "glare_views": [],
+  "grids": [],
+  "jobs": [
+    {
+      "backend": "cpu",
+      "daylight": null,
+      "emergency": null,
+      "id": "roadway_cpu",
+      "mode": null,
+      "open_area_targets": [],
+      "routes": [],
+      "seed": 42,
+      "settings": {
+        "glare_method": "ti_cie",
+        "observer_back_offset_m": 60.0,
+        "observer_height_m": 1.5,
+        "road_class": "M3",
+        "road_surface_class": "R3"
+      },
+      "targets": [],
+      "type": "roadway"
+    }
+  ],
+  "layers": [
+    {
+      "color": null,
+      "id": "room",
+      "name": "Rooms",
+      "order": 10,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "wall",
+      "name": "Walls",
+      "order": 20,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "ceiling_grid",
+      "name": "Ceiling Grid",
+      "order": 30,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "opening",
+      "name": "Openings",
+      "order": 40,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "luminaire",
+      "name": "Luminaires",
+      "order": 50,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "grid",
+      "name": "Calc Grids",
+      "order": 60,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "symbol",
+      "name": "Symbols",
+      "order": 70,
+      "style": null,
+      "visible": true
+    }
+  ],
+  "line_grids": [],
+  "luminaire_families": [],
+  "luminaires": [
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "lum_1",
+      "layer_id": null,
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L1",
+      "photometry_asset_id": "a1",
+      "tags": [],
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          0.0,
+          1.5,
+          8.0
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    },
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "lum_2",
+      "layer_id": null,
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L2",
+      "photometry_asset_id": "a1",
+      "tags": [],
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          30.0,
+          1.5,
+          8.0
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    },
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "lum_3",
+      "layer_id": null,
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L3",
+      "photometry_asset_id": "a1",
+      "tags": [],
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          60.0,
+          1.5,
+          8.0
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    },
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "lum_4",
+      "layer_id": null,
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L4",
+      "photometry_asset_id": "a1",
+      "tags": [],
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          90.0,
+          1.5,
+          8.0
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    }
+  ],
+  "material_library": [],
+  "materials": [],
+  "name": "curve_right_basic",
+  "param": {
+    "footprints": [],
+    "instances": [],
+    "openings": [],
+    "rooms": [],
+    "shared_walls": [],
+    "slabs": [],
+    "walls": [],
+    "zones": []
+  },
+  "photometry_assets": [
+    {
+      "content_hash": null,
+      "embedded_b64": null,
+      "format": "IES",
+      "id": "a1",
+      "metadata": {},
+      "path": "../assets/fixture_base.ies"
+    }
+  ],
+  "point_sets": [],
+  "polygon_workplanes": [],
+  "results": [
+    {
+      "job_hash": "04bde0a52d13c8b82b4be1e768c2ccc1d7a63129528aa3ffc127028503db93cb",
+      "job_id": "roadway_cpu",
+      "result_dir": "/Users/manavmadanrawal/Dev/luxera/parity/packs/roadway_edge/scenes/.luxera/results/04bde0a52d13c8b82b4be1e768c2ccc1d7a63129528aa3ffc127028503db93cb",
+      "summary": {
+        "glare_method_selected": "ti_cie",
+        "lane_metrics": [
+          {
+            "Lavg_cd_m2": 0.22267398223427767,
+            "Lmax_cd_m2": 0.6154772683042374,
+            "Lmin_cd_m2": 0.028786064793923954,
+            "Ul_luminance": 0.05417619226136713,
+            "Uo_luminance": 0.1292744868757852,
+            "lane_index": 0.0,
+            "lane_number": 1.0,
+            "longitudinal_line_row_index": 1.0,
+            "luminance_mean_cd_m2": 0.22267398223427767,
+            "max_lux": 13.606462833507198,
+            "mean_lux": 3.853245628129231,
+            "min_lux": 0.5042384522842963,
+            "nx": 10.0,
+            "ny": 2.0,
+            "sample_count": 20.0,
+            "ul_longitudinal": 0.05417619226136713,
+            "uniformity_min_avg": 0.1308607083346271,
+            "uniformity_ratio": 0.1308607083346271
+          },
+          {
+            "Lavg_cd_m2": 0.2703892889239923,
+            "Lmax_cd_m2": 0.7121272290637677,
+            "Lmin_cd_m2": 0.03923548536193272,
+            "Ul_luminance": 0.06605084136590622,
+            "Uo_luminance": 0.1451073950379817,
+            "lane_index": 1.0,
+            "lane_number": 2.0,
+            "longitudinal_line_row_index": 1.0,
+            "luminance_mean_cd_m2": 0.2703892889239923,
+            "max_lux": 10.599662768240629,
+            "mean_lux": 4.269972874822343,
+            "min_lux": 0.7154392924617137,
+            "nx": 10.0,
+            "ny": 2.0,
+            "sample_count": 20.0,
+            "ul_longitudinal": 0.06605084136590622,
+            "uniformity_min_avg": 0.16755124995764298,
+            "uniformity_ratio": 0.16755124995764298
+          }
+        ],
+        "lane_width_m": 3.5,
+        "lane_widths_m": [
+          3.5,
+          3.5
+        ],
+        "lanes": [
+          {
+            "Lavg_cd_m2": 0.22267398223427767,
+            "Lmax_cd_m2": 0.6154772683042374,
+            "Lmin_cd_m2": 0.028786064793923954,
+            "Ul_luminance": 0.05417619226136713,
+            "Uo_luminance": 0.1292744868757852,
+            "lane_index": 0.0,
+            "lane_number": 1.0,
+            "longitudinal_line_row_index": 1.0,
+            "luminance_mean_cd_m2": 0.22267398223427767,
+            "max_lux": 13.606462833507198,
+            "mean_lux": 3.853245628129231,
+            "min_lux": 0.5042384522842963,
+            "nx": 10.0,
+            "ny": 2.0,
+            "sample_count": 20.0,
+            "ul_longitudinal": 0.05417619226136713,
+            "uniformity_min_avg": 0.1308607083346271,
+            "uniformity_ratio": 0.1308607083346271
+          },
+          {
+            "Lavg_cd_m2": 0.2703892889239923,
+            "Lmax_cd_m2": 0.7121272290637677,
+            "Lmin_cd_m2": 0.03923548536193272,
+            "Ul_luminance": 0.06605084136590622,
+            "Uo_luminance": 0.1451073950379817,
+            "lane_index": 1.0,
+            "lane_number": 2.0,
+            "longitudinal_line_row_index": 1.0,
+            "luminance_mean_cd_m2": 0.2703892889239923,
+            "max_lux": 10.599662768240629,
+            "mean_lux": 4.269972874822343,
+            "min_lux": 0.7154392924617137,
+            "nx": 10.0,
+            "ny": 2.0,
+            "sample_count": 20.0,
+            "ul_longitudinal": 0.06605084136590622,
+            "uniformity_min_avg": 0.16755124995764298,
+            "uniformity_ratio": 0.16755124995764298
+          }
+        ],
+        "luminance_model": {
+          "name": "table_lookup_v1",
+          "stability": {
+            "clamp_count": 8.0,
+            "nan_guard_count": 0.0,
+            "surface_class": "R3"
+          },
+          "surface_class": "R3"
+        },
+        "luminance_worst_case": {
+          "lane_lavg_min": 1.0,
+          "lane_ul_min": 1.0,
+          "lane_uo_min": 1.0,
+          "lavg_min_cd_m2": 0.22267398223427767,
+          "ul_min": 0.05417619226136713,
+          "uo_min": 0.1292744868757852
+        },
+        "max_lux": 13.606462833507198,
+        "mean_lux": 4.061609251475787,
+        "metadata": {
+          "method": "en13201_m",
+          "road_class": "M3",
+          "units": {
+            "illuminance": "lux",
+            "length": "m",
+            "luminance": "cd/m2"
+          }
+        },
+        "min_lux": 0.5042384522842963,
+        "mounting_height_m": 8.0,
+        "num_lanes": 2,
+        "observer_glare_views": [
+          {
+            "contributions": [
+              {
+                "distance_m": 60.35157413025778,
+                "eye_illuminance_lux": 0.14481993319850736,
+                "intensity_cd": 527.4794529380883,
+                "luminaire_index": 0.0,
+                "theta_deg": 6.18746620251921,
+                "veiling_luminance_cd_m2": 0.037827066537800894
+              },
+              {
+                "distance_m": 90.23476325674046,
+                "eye_illuminance_lux": 0.06366241659866527,
+                "intensity_cd": 518.3592904515197,
+                "luminaire_index": 1.0,
+                "theta_deg": 4.13389988660297,
+                "veiling_luminance_cd_m2": 0.0372531679695302
+              },
+              {
+                "distance_m": 120.17617276315634,
+                "eye_illuminance_lux": 0.03557463059694606,
+                "intensity_cd": 513.7799321531566,
+                "luminaire_index": 2.0,
+                "theta_deg": 3.1027793876553185,
+                "veiling_luminance_cd_m2": 0.03695205568917552
+              },
+              {
+                "distance_m": 150.14097541977006,
+                "eye_illuminance_lux": 0.022669716261967152,
+                "intensity_cd": 511.02782826359544,
+                "luminaire_index": 3.0,
+                "theta_deg": 2.4830970825820673,
+                "veiling_luminance_cd_m2": 0.03676704148620864
+              }
+            ],
+            "lane_number": 1.0,
+            "lavg_reference_cd_m2": 0.246531635579135,
+            "method": "ti_cie",
+            "metric_value": 29.649420651054008,
+            "observer_id": "auto_1",
+            "observer_index": 0.0,
+            "rp8_veiling_ratio": 0.6035709426628603,
+            "ti_percent": 29.649420651054008,
+            "ti_proxy_percent": 60.357094266286026,
+            "veiling_luminance_total_cd_m2": 0.14879933168271525,
+            "x": -60.0,
+            "y": 1.75,
+            "z": 1.5
+          },
+          {
+            "contributions": [
+              {
+                "distance_m": 60.46744992142467,
+                "eye_illuminance_lux": 0.14425096005257,
+                "intensity_cd": 527.4265883772123,
+                "luminaire_index": 0.0,
+                "theta_deg": 7.12893288793317,
+                "veiling_luminance_cd_m2": 0.028383742598947617
+              },
+              {
+                "distance_m": 90.31230536311206,
+                "eye_illuminance_lux": 0.06355120648441312,
+                "intensity_cd": 518.3434998388998,
+                "luminaire_index": 1.0,
+                "theta_deg": 4.766275238009493,
+                "veiling_luminance_cd_m2": 0.0279747081217196
+              },
+              {
+                "distance_m": 120.23440647335521,
+                "eye_illuminance_lux": 0.035539716752434045,
+                "intensity_cd": 513.7732515346717,
+                "luminaire_index": 2.0,
+                "theta_deg": 3.5783155163391953,
+                "veiling_luminance_cd_m2": 0.02775598850320335
+              },
+              {
+                "distance_m": 150.1875910320157,
+                "eye_illuminance_lux": 0.02265549403420511,
+                "intensity_cd": 511.0244032774161,
+                "luminaire_index": 3.0,
+                "theta_deg": 2.863992363643002,
+                "veiling_luminance_cd_m2": 0.027620391218164984
+              }
+            ],
+            "lane_number": 2.0,
+            "lavg_reference_cd_m2": 0.246531635579135,
+            "method": "ti_cie",
+            "metric_value": 22.264031374913326,
+            "observer_id": "auto_2",
+            "observer_index": 1.0,
+            "rp8_veiling_ratio": 0.4532271494469903,
+            "ti_percent": 22.264031374913326,
+            "ti_proxy_percent": 45.32271494469903,
+            "veiling_luminance_total_cd_m2": 0.11173483044203555,
+            "x": -60.0,
+            "y": 5.25,
+            "z": 1.5
+          }
+        ],
+        "observer_luminance_max_cd_m2": 0.2929560978890342,
+        "observer_luminance_views": [
+          {
+            "lane_number": 1.0,
+            "luminance_cd_m2": 0.29248433949853175,
+            "method": "en13201_m",
+            "observer_id": "auto_1",
+            "observer_index": 0.0,
+            "x": -60.0,
+            "y": 1.75,
+            "z": 1.5
+          },
+          {
+            "lane_number": 2.0,
+            "luminance_cd_m2": 0.2929560978890342,
+            "method": "en13201_m",
+            "observer_id": "auto_2",
+            "observer_index": 1.0,
+            "x": -60.0,
+            "y": 5.25,
+            "z": 1.5
+          }
+        ],
+        "overall": {
+          "avg_lux": 4.061609251475787,
+          "max_lux": 13.606462833507198,
+          "min_lux": 0.5042384522842963,
+          "u0": 0.12414745512534993
+        },
+        "overall_uniformity_min_avg": 0.12414745512534993,
+        "pole_spacing_m": 30.0,
+        "road_class": "M3",
+        "road_geometry": {
+          "bank_angle_deg": 0.0,
+          "curve_angle_deg": 45.0,
+          "curve_direction": "right",
+          "curve_radius_m": 70.0,
+          "longitudinal_spacing_m": 6.1086523819801535,
+          "type": "curved"
+        },
+        "road_length_m": 60.0,
+        "road_luminance_mean_cd_m2": 0.246531635579135,
+        "road_surface_class": "R3",
+        "road_surface_reflectance": 0.067,
+        "roadway": {
+          "lanes": [
+            {
+              "lane_index": 0,
+              "lane_number": 1,
+              "luminance_grid": [
+                {
+                  "illuminance_lux": 12.82772898,
+                  "lane_col": 0.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.58048649,
+                  "order": 0.0,
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 5.79507051,
+                  "lane_col": 1.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.42282549,
+                  "order": 1.0,
+                  "x": 6.10090199,
+                  "y": -0.26637113,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 2.28011523,
+                  "lane_col": 2.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.16765502,
+                  "order": 2.0,
+                  "x": 12.15537244,
+                  "y": -1.06345729,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 2.23257155,
+                  "lane_col": 3.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.15993472,
+                  "order": 3.0,
+                  "x": 18.11733316,
+                  "y": -2.38519216,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 3.97277447,
+                  "lane_col": 4.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.25024441,
+                  "order": 4.0,
+                  "x": 23.94141003,
+                  "y": -4.22151654,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 4.10325784,
+                  "lane_col": 5.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.19228109,
+                  "order": 5.0,
+                  "x": 29.58327832,
+                  "y": -6.55845491,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 2.04917713,
+                  "lane_col": 6.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.12148604,
+                  "order": 6.0,
+                  "x": 35.0,
+                  "y": -9.37822174,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 1.05091225,
+                  "lane_col": 7.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.06667958,
+                  "order": 7.0,
+                  "x": 40.15035054,
+                  "y": -12.6593569,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 0.69580407,
+                  "lane_col": 8.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.04297595,
+                  "order": 8.0,
+                  "x": 44.99513268,
+                  "y": -16.37688898,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 0.50423845,
+                  "lane_col": 9.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.02878606,
+                  "order": 9.0,
+                  "x": 49.49747468,
+                  "y": -20.50252532,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 13.60646283,
+                  "lane_col": 0.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.61547727,
+                  "order": 10.0,
+                  "x": 0.0,
+                  "y": 2.33333333,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 5.83047464,
+                  "lane_col": 1.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.43264875,
+                  "order": 11.0,
+                  "x": 6.30426539,
+                  "y": 2.05808316,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 2.29825652,
+                  "lane_col": 2.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.17169964,
+                  "order": 12.0,
+                  "x": 12.56055152,
+                  "y": 1.23442747,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 2.57979502,
+                  "lane_col": 3.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.19029872,
+                  "order": 13.0,
+                  "x": 18.72124426,
+                  "y": -0.13136523,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 5.85629958,
+                  "lane_col": 4.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.38799634,
+                  "order": 14.0,
+                  "x": 24.73945703,
+                  "y": -2.02890043,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 6.23097648,
+                  "lane_col": 5.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.30147002,
+                  "order": 15.0,
+                  "x": 30.5693876,
+                  "y": -4.44373674,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 2.53548213,
+                  "lane_col": 6.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.1580331,
+                  "order": 16.0,
+                  "x": 36.16666667,
+                  "y": -7.35749579,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 1.20500505,
+                  "lane_col": 7.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.07846555,
+                  "order": 17.0,
+                  "x": 41.48869556,
+                  "y": -10.74800213,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 0.81665977,
+                  "lane_col": 8.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.0506912,
+                  "order": 18.0,
+                  "x": 46.49497043,
+                  "y": -14.58945195,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 0.59385007,
+                  "lane_col": 9.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.03334421,
+                  "order": 19.0,
+                  "x": 51.14739051,
+                  "y": -18.85260949,
+                  "z": 0.0
+                }
+              ],
+              "metrics": {
+                "Lavg": 0.22267398223427767,
+                "Lmin": 0.028786064793923954,
+                "Ul": 0.05417619226136713,
+                "Uo": 0.1292744868757852
+              }
+            },
+            {
+              "lane_index": 1,
+              "lane_number": 2,
+              "luminance_grid": [
+                {
+                  "illuminance_lux": 10.27247973,
+                  "lane_col": 0.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.46573402,
+                  "order": 0.0,
+                  "x": 0.0,
+                  "y": 4.66666667,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 4.99120656,
+                  "lane_col": 1.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.35344709,
+                  "order": 1.0,
+                  "x": 6.50762879,
+                  "y": 4.38253746,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 2.17853786,
+                  "lane_col": 2.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.16080919,
+                  "order": 2.0,
+                  "x": 12.9657306,
+                  "y": 3.53231222,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 2.82621163,
+                  "lane_col": 3.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.21034589,
+                  "order": 3.0,
+                  "x": 19.32515537,
+                  "y": 2.1224617,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 8.07753805,
+                  "lane_col": 4.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.58209576,
+                  "order": 4.0,
+                  "x": 25.53750403,
+                  "y": 0.16371569,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 8.85190428,
+                  "lane_col": 5.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.48786491,
+                  "order": 5.0,
+                  "x": 31.55549688,
+                  "y": -2.32901857,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 2.94813304,
+                  "lane_col": 6.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.19418584,
+                  "order": 6.0,
+                  "x": 37.33333333,
+                  "y": -5.33676985,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 1.36170311,
+                  "lane_col": 7.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.09099101,
+                  "order": 7.0,
+                  "x": 42.82704058,
+                  "y": -8.83664736,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 0.98102392,
+                  "lane_col": 8.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.06098661,
+                  "order": 8.0,
+                  "x": 47.99480819,
+                  "y": -12.80201491,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 0.71543929,
+                  "lane_col": 9.0,
+                  "lane_row": 0.0,
+                  "luminance_cd_m2": 0.03923549,
+                  "order": 9.0,
+                  "x": 52.79730633,
+                  "y": -17.20269367,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 6.6967941,
+                  "lane_col": 0.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.30507633,
+                  "order": 10.0,
+                  "x": 0.0,
+                  "y": 7.0,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 3.81304008,
+                  "lane_col": 1.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.25598197,
+                  "order": 11.0,
+                  "x": 6.71099219,
+                  "y": 6.70699175,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 1.96239237,
+                  "lane_col": 2.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.14235307,
+                  "order": 12.0,
+                  "x": 13.37090968,
+                  "y": 5.83019698,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 2.87286292,
+                  "lane_col": 3.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.20773502,
+                  "order": 13.0,
+                  "x": 19.92906647,
+                  "y": 4.37628862,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 9.46751765,
+                  "lane_col": 4.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.69218644,
+                  "order": 14.0,
+                  "x": 26.33555104,
+                  "y": 2.3563318,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 10.59966277,
+                  "lane_col": 5.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.71212723,
+                  "order": 15.0,
+                  "x": 32.54160615,
+                  "y": -0.2143004,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 3.14778571,
+                  "lane_col": 6.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.2191062,
+                  "order": 16.0,
+                  "x": 38.5,
+                  "y": -3.31604391,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 1.52791872,
+                  "lane_col": 7.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.10469141,
+                  "order": 17.0,
+                  "x": 44.1653856,
+                  "y": -6.92529259,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 1.22189958,
+                  "lane_col": 8.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.0757957,
+                  "order": 18.0,
+                  "x": 49.49464595,
+                  "y": -11.01457788,
+                  "z": 0.0
+                },
+                {
+                  "illuminance_lux": 0.88540611,
+                  "lane_col": 9.0,
+                  "lane_row": 1.0,
+                  "luminance_cd_m2": 0.0470366,
+                  "order": 19.0,
+                  "x": 54.44722215,
+                  "y": -15.55277785,
+                  "z": 0.0
+                }
+              ],
+              "metrics": {
+                "Lavg": 0.2703892889239923,
+                "Lmin": 0.03923548536193272,
+                "Ul": 0.06605084136590622,
+                "Uo": 0.1451073950379817
+              }
+            }
+          ],
+          "method": "M3",
+          "metrics": {
+            "worst_case": {
+              "lane_lavg_min": 1.0,
+              "lane_ul_min": 1.0,
+              "lane_uo_min": 1.0,
+              "lavg_min_cd_m2": 0.22267398223427767,
+              "ul_min": 0.05417619226136713,
+              "uo_min": 0.1292744868757852
+            },
+            "worst_case_glare": {
+              "method": "ti_cie",
+              "metric_value": 29.649420651054008,
+              "observer_id": "auto_1",
+              "observer_index": 0.0,
+              "rp8_veiling_ratio_worst": 0.6035709426628603,
+              "ti_percent_worst": 29.649420651054008,
+              "ti_proxy_percent_worst": 60.357094266286026,
+              "veiling_luminance_total_worst_cd_m2": 0.14879933168271525
+            }
+          }
+        },
+        "roadway_id": "rw1",
+        "roadway_name": "Road",
+        "roadway_worst_case": {
+          "lane_lavg_min": 1.0,
+          "lane_ul_min": 1.0,
+          "lane_uo_min": 1.0,
+          "lavg_min_cd_m2": 0.22267398223427767,
+          "ul_min": 0.05417619226136713,
+          "uo_min": 0.1292744868757852
+        },
+        "rp8_veiling_ratio_worst": 0.6035709426628603,
+        "setback_m": 1.5,
+        "surround_ratio_proxy": 0.8992988064012722,
+        "threshold_increment_ti_percent": 29.649420651054008,
+        "threshold_increment_ti_proxy_percent": 60.357094266286026,
+        "ti_observers": [
+          {
+            "method": "ti_cie",
+            "observer_id": "auto_1",
+            "status": "computed",
+            "ti_percent": 29.649420651054008,
+            "ti_proxy_percent": 60.357094266286026
+          },
+          {
+            "method": "ti_cie",
+            "observer_id": "auto_2",
+            "status": "computed",
+            "ti_percent": 22.264031374913326,
+            "ti_proxy_percent": 45.32271494469903
+          }
+        ],
+        "ul_longitudinal": 0.16559493412353812,
+        "uniformity_diversity": 0.03705874616013807,
+        "uniformity_ratio": 0.12414745512534993,
+        "worst_case_glare": {
+          "method": "ti_cie",
+          "metric_value": 29.649420651054008,
+          "observer_id": "auto_1",
+          "observer_index": 0.0,
+          "rp8_veiling_ratio_worst": 0.6035709426628603,
+          "ti_percent_worst": 29.649420651054008,
+          "ti_proxy_percent_worst": 60.357094266286026,
+          "veiling_luminance_total_worst_cd_m2": 0.14879933168271525
+        }
+      }
+    }
+  ],
+  "roadway_grids": [
+    {
+      "id": "rg1",
+      "lane_width": 3.5,
+      "longitudinal_points": 10,
+      "metric_set": [
+        "E_avg",
+        "E_min",
+        "E_max",
+        "U0",
+        "UL",
+        "L_avg"
+      ],
+      "mounting_height_m": null,
+      "name": "RG",
+      "num_lanes": 2,
+      "nx": 10,
+      "ny": 4,
+      "observer_height_m": 1.5,
+      "observer_method": "en13201_m",
+      "observers": [],
+      "origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "pole_spacing_m": null,
+      "road_length": 60.0,
+      "roadway_id": "rw1",
+      "setback_m": null,
+      "transverse_points_per_lane": 2
+    }
+  ],
+  "roadways": [
+    {
+      "aim_deg": null,
+      "end": [
+        60.0,
+        0.0,
+        0.0
+      ],
+      "id": "rw1",
+      "lane_width": 3.5,
+      "mounting_height_m": 8.0,
+      "name": "Road",
+      "num_lanes": 2,
+      "observers": [],
+      "pole_rows": [
+        {
+          "aim_deg": 0.0,
+          "count": null,
+          "id": "row_a",
+          "mounting_height_m": 8.0,
+          "offset_m": 1.5,
+          "side": "right",
+          "spacing_m": 30.0,
+          "tilt_deg": 0.0
+        }
+      ],
+      "pole_spacing_m": 30.0,
+      "profile": null,
+      "segment": {
+        "bank_angle_deg": 0.0,
+        "curve_angle_deg": 45.0,
+        "curve_direction": "right",
+        "curve_radius_m": 70.0,
+        "lane_count": 2,
+        "lane_widths_m": [
+          3.5,
+          3.5
+        ],
+        "lateral_offset_m": 0.0,
+        "length_m": 60.0,
+        "vertical_offset_m": 0.0
+      },
+      "setback_m": 1.5,
+      "start": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "tilt_deg": null
+    }
+  ],
+  "root_dir": "/Users/manavmadanrawal/Dev/luxera/parity/packs/roadway_edge/scenes",
+  "schema_version": 5,
+  "selection_sets": [],
+  "symbols_2d": [],
+  "variants": [],
+  "vertical_planes": [],
+  "workplanes": []
+}

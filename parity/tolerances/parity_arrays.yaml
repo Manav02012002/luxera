@@ -1,0 +1,18 @@
+{
+  "default": {
+    "scalar": {
+      "abs": 0.001,
+      "rel": 0.001,
+      "near_zero_abs": 0.001
+    },
+    "arrays": {
+      "default": {
+        "max_abs": 0.01,
+        "rmse_abs": 0.005,
+        "p95_abs": 0.01,
+        "p99_abs": 0.01
+      },
+      "by_id": {}
+    }
+  }
+}

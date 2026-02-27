@@ -1,0 +1,372 @@
+{
+  "active_variant_id": null,
+  "agent_history": [
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_4fdnzuwv/_pack_work/.luxera/results/2b48838ff88c268773a9d7996d6c7d4423dfb60472b6c1254a1ecdcb1c5bd7cb"
+      ],
+      "created_at": 1772056496.873049,
+      "diffs": [],
+      "id": "7269b78c-8d79-42a6-a54c-a28aa4d0c633",
+      "job_hashes": [
+        "2b48838ff88c268773a9d7996d6c7d4423dfb60472b6c1254a1ecdcb1c5bd7cb"
+      ],
+      "metadata": {
+        "job_id": "job_direct_ugr",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    }
+  ],
+  "arbitrary_planes": [],
+  "asset_bundle_path": null,
+  "assistant_redo_stack": [],
+  "assistant_undo_stack": [],
+  "block_instances": [],
+  "compliance_profiles": [],
+  "escape_routes": [],
+  "geometry": {
+    "axis_transform_applied": null,
+    "coordinate_systems": [],
+    "length_unit": "m",
+    "levels": [],
+    "no_go_zones": [],
+    "obstructions": [],
+    "openings": [],
+    "rooms": [
+      {
+        "activity_type": null,
+        "ceiling_reflectance": 0.7,
+        "coordinate_system_id": null,
+        "floor_reflectance": 0.2,
+        "footprint": null,
+        "height": 3.0,
+        "id": "room_1",
+        "layer_id": null,
+        "length": 8.0,
+        "level_id": null,
+        "name": "UGR Reference Room",
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "wall_reflectance": 0.5,
+        "width": 6.0
+      }
+    ],
+    "scale_to_meters": 1.0,
+    "source_length_unit": null,
+    "surfaces": [],
+    "zones": []
+  },
+  "glare_views": [
+    {
+      "fov_deg": 90.0,
+      "id": "view_1",
+      "name": "Reference View",
+      "observer": [
+        1.0,
+        1.0,
+        1.2
+      ],
+      "room_id": "room_1",
+      "view_dir": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "zone_id": null
+    }
+  ],
+  "grids": [
+    {
+      "elevation": 0.8,
+      "evaluation_height_offset": 0.0,
+      "height": 7.0,
+      "id": "g1",
+      "layer_id": null,
+      "mask_near_openings": false,
+      "metric_set": [
+        "E_avg",
+        "E_min",
+        "E_max",
+        "U0",
+        "U1"
+      ],
+      "name": "WG",
+      "normal": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "nx": 6,
+      "ny": 8,
+      "opening_mask_margin": 0.0,
+      "origin": [
+        0.5,
+        0.5,
+        0.8
+      ],
+      "room_id": "room_1",
+      "sample_mask": [],
+      "sample_points": [],
+      "width": 5.0,
+      "zone_id": null
+    }
+  ],
+  "jobs": [
+    {
+      "backend": "cpu",
+      "daylight": null,
+      "emergency": null,
+      "id": "job_direct_ugr",
+      "mode": null,
+      "open_area_targets": [],
+      "routes": [],
+      "seed": 0,
+      "settings": {
+        "ugr_debug_appendix": true,
+        "ugr_debug_top_n": 2
+      },
+      "targets": [],
+      "type": "direct"
+    }
+  ],
+  "layers": [
+    {
+      "color": null,
+      "id": "room",
+      "name": "Rooms",
+      "order": 10,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "wall",
+      "name": "Walls",
+      "order": 20,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "ceiling_grid",
+      "name": "Ceiling Grid",
+      "order": 30,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "opening",
+      "name": "Openings",
+      "order": 40,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "luminaire",
+      "name": "Luminaires",
+      "order": 50,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "grid",
+      "name": "Calc Grids",
+      "order": 60,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "symbol",
+      "name": "Symbols",
+      "order": 70,
+      "style": null,
+      "visible": true
+    }
+  ],
+  "line_grids": [],
+  "luminaire_families": [],
+  "luminaires": [
+    {
+      "emergency_operation": "none",
+      "emergency_output_factor": 1.0,
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "lum_a",
+      "layer_id": null,
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "A",
+      "photometry_asset_id": "asset_1",
+      "tags": [],
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          2.5,
+          4.0,
+          2.8
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    },
+    {
+      "emergency_operation": "none",
+      "emergency_output_factor": 1.0,
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "lum_b",
+      "layer_id": null,
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "B",
+      "photometry_asset_id": "asset_1",
+      "tags": [],
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          3.5,
+          4.0,
+          2.8
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    }
+  ],
+  "material_library": [],
+  "materials": [],
+  "name": "ugr_reference_room",
+  "param": {
+    "footprints": [],
+    "instances": [],
+    "openings": [],
+    "rooms": [],
+    "shared_walls": [],
+    "slabs": [],
+    "walls": [],
+    "zones": []
+  },
+  "photometry_assets": [
+    {
+      "content_hash": null,
+      "embedded_b64": null,
+      "format": "IES",
+      "id": "asset_1",
+      "metadata": {},
+      "path": "photometry/fixture.ies"
+    }
+  ],
+  "point_sets": [],
+  "polygon_workplanes": [],
+  "results": [
+    {
+      "job_hash": "2b48838ff88c268773a9d7996d6c7d4423dfb60472b6c1254a1ecdcb1c5bd7cb",
+      "job_id": "job_direct_ugr",
+      "result_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_4fdnzuwv/_pack_work/.luxera/results/2b48838ff88c268773a9d7996d6c7d4423dfb60472b6c1254a1ecdcb1c5bd7cb",
+      "summary": {
+        "calc_object_count": 1,
+        "calc_objects": [
+          {
+            "id": "g1",
+            "name": "WG",
+            "summary": {
+              "E_avg": 124.99699518765158,
+              "E_max": 444.8774148689408,
+              "E_min": 23.72147344210874,
+              "Eavg": 124.99699518765158,
+              "Emin": 23.72147344210874,
+              "P50": 80.13092453818643,
+              "P90": 239.02983205875964,
+              "U0": 0.18977634947541663,
+              "U1": 0.053321370447850215,
+              "max_lux": 444.8774148689408,
+              "mean_lux": 124.99699518765158,
+              "min_lux": 23.72147344210874,
+              "p50_lux": 80.13092453818643,
+              "p90_lux": 239.02983205875964,
+              "uniformity_diversity": 0.053321370447850215,
+              "uniformity_ratio": 0.18977634947541663
+            },
+            "type": "grid"
+          }
+        ],
+        "compliance": null,
+        "global_highest_ugr": 0.0,
+        "global_worst_min_lux": 23.72147344210874,
+        "global_worst_uniformity_ratio": 0.18977634947541663,
+        "highest_ugr": 0.0,
+        "indoor_planes": {
+          "cylindrical": [],
+          "maintenance_factor": 1.0,
+          "per_plane": [
+            {
+              "Eavg": 124.99699518765158,
+              "Emin": 23.72147344210874,
+              "U0": 0.18977634947541663,
+              "id": "g1",
+              "source": "workplane",
+              "type": "grid"
+            }
+          ]
+        },
+        "max_lux": 444.8774148689408,
+        "mean_lux": 124.99699518765158,
+        "mean_of_means_lux": 124.99699518765158,
+        "min_lux": 23.72147344210874,
+        "occluder_count": 0,
+        "occlusion_enabled": false,
+        "p50_lux": 80.13092453818643,
+        "p90_lux": 239.02983205875964,
+        "uniformity_diversity": 0.053321370447850215,
+        "uniformity_ratio": 0.18977634947541663,
+        "worst_min_lux": 23.72147344210874,
+        "worst_uniformity_ratio": 0.18977634947541663,
+        "zone_compliance": {
+          "status": "PASS",
+          "zone_count": 0
+        },
+        "zone_metrics": []
+      }
+    }
+  ],
+  "roadway_grids": [],
+  "roadways": [],
+  "root_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_4fdnzuwv/_pack_work",
+  "schema_version": 5,
+  "selection_sets": [],
+  "symbols_2d": [],
+  "variants": [],
+  "vertical_planes": [],
+  "workplanes": []
+}

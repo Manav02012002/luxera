@@ -1,0 +1,756 @@
+{
+  "expected": {
+    "results": {
+      "lane_metrics": [
+        {
+          "Lavg_cd_m2": 0.43171901288890746,
+          "Lmax_cd_m2": 0.6843639850655532,
+          "Lmin_cd_m2": 0.12065008309898026,
+          "Ul_luminance": 0.17629519631636306,
+          "Uo_luminance": 0.27946437265209506,
+          "lane_index": 0.0,
+          "lane_number": 1.0,
+          "longitudinal_line_row_index": 1.0,
+          "luminance_mean_cd_m2": 0.43171901288890746,
+          "max_lux": 14.67017568618391,
+          "mean_lux": 7.284648544836261,
+          "min_lux": 2.1270710973995075,
+          "nx": 10.0,
+          "ny": 2.0,
+          "sample_count": 20.0,
+          "ul_longitudinal": 0.17629519631636306,
+          "uniformity_min_avg": 0.2919936472305567,
+          "uniformity_ratio": 0.2919936472305567
+        },
+        {
+          "Lavg_cd_m2": 0.4089710412764207,
+          "Lmax_cd_m2": 1.0041726817909646,
+          "Lmin_cd_m2": 0.08075488521328278,
+          "Ul_luminance": 0.0804193209770003,
+          "Uo_luminance": 0.1974586879336063,
+          "lane_index": 1.0,
+          "lane_number": 2.0,
+          "longitudinal_line_row_index": 1.0,
+          "luminance_mean_cd_m2": 0.4089710412764207,
+          "max_lux": 14.42018154306068,
+          "mean_lux": 6.53303964142224,
+          "min_lux": 1.4876172604690026,
+          "nx": 10.0,
+          "ny": 2.0,
+          "sample_count": 20.0,
+          "ul_longitudinal": 0.0804193209770003,
+          "uniformity_min_avg": 0.22770675552569414,
+          "uniformity_ratio": 0.22770675552569414
+        },
+        {
+          "Lavg_cd_m2": 0.3100686711290933,
+          "Lmax_cd_m2": 0.8513565327856785,
+          "Lmin_cd_m2": 0.056259196729855916,
+          "Ul_luminance": 0.09966724110802164,
+          "Uo_luminance": 0.18144108698564096,
+          "lane_index": 2.0,
+          "lane_number": 3.0,
+          "longitudinal_line_row_index": 1.0,
+          "luminance_mean_cd_m2": 0.3100686711290933,
+          "max_lux": 13.894423993508237,
+          "mean_lux": 5.003629992092513,
+          "min_lux": 1.0535663414333243,
+          "nx": 10.0,
+          "ny": 2.0,
+          "sample_count": 20.0,
+          "ul_longitudinal": 0.09966724110802164,
+          "uniformity_min_avg": 0.21056040176798202,
+          "uniformity_ratio": 0.21056040176798202
+        }
+      ],
+      "mean_lux": 6.273772726117005,
+      "road_geometry": {
+        "bank_angle_deg": 0.0,
+        "curve_angle_deg": 45.0,
+        "curve_direction": "left",
+        "curve_radius_m": 70.0,
+        "longitudinal_spacing_m": 6.1086523819801535,
+        "type": "curved"
+      },
+      "road_luminance_mean_cd_m2": 0.38358624176480716,
+      "roadway": {
+        "lanes": [
+          {
+            "lane_index": 0,
+            "lane_number": 1,
+            "luminance_grid": [
+              {
+                "illuminance_lux": 13.55953345,
+                "lane_col": 0.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.62975312,
+                "order": 0.0,
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 7.60220621,
+                "lane_col": 1.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.54141889,
+                "order": 1.0,
+                "x": 6.10090199,
+                "y": 0.26637113,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 6.02375336,
+                "lane_col": 2.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.3687535,
+                "order": 2.0,
+                "x": 12.15537244,
+                "y": 1.06345729,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 7.12227563,
+                "lane_col": 3.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.44019798,
+                "order": 3.0,
+                "x": 18.11733316,
+                "y": 2.38519216,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 8.42758444,
+                "lane_col": 4.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.58379601,
+                "order": 4.0,
+                "x": 23.94141003,
+                "y": 4.22151654,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 9.42177108,
+                "lane_col": 5.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.48938731,
+                "order": 5.0,
+                "x": 29.58327832,
+                "y": 6.55845491,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 6.34287277,
+                "lane_col": 6.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.4267931,
+                "order": 6.0,
+                "x": 35.0,
+                "y": 9.37822174,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 7.53167441,
+                "lane_col": 7.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.48385155,
+                "order": 7.0,
+                "x": 40.15035054,
+                "y": 12.6593569,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 5.54860832,
+                "lane_col": 8.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.27898607,
+                "order": 8.0,
+                "x": 44.99513268,
+                "y": 16.37688898,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 2.50365979,
+                "lane_col": 9.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.14687782,
+                "order": 9.0,
+                "x": 49.49747468,
+                "y": 20.50252532,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 14.67017569,
+                "lane_col": 0.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.68436399,
+                "order": 10.0,
+                "x": 0.0,
+                "y": 2.1,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 8.30208082,
+                "lane_col": 1.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.59714262,
+                "order": 11.0,
+                "x": 5.91787493,
+                "y": 2.35838,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 7.63322012,
+                "lane_col": 2.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.4768666,
+                "order": 12.0,
+                "x": 11.79071126,
+                "y": 3.13155357,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 9.27589878,
+                "lane_col": 3.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.55863324,
+                "order": 13.0,
+                "x": 17.57381316,
+                "y": 4.41363639,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 7.80046139,
+                "lane_col": 4.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.53370265,
+                "order": 14.0,
+                "x": 23.22316773,
+                "y": 6.19487105,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 7.10889696,
+                "lane_col": 5.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.39268844,
+                "order": 15.0,
+                "x": 28.69577997,
+                "y": 8.46170126,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 5.20798975,
+                "lane_col": 6.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.33916157,
+                "order": 16.0,
+                "x": 33.95,
+                "y": 11.19687508,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 5.37778996,
+                "lane_col": 7.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.33639043,
+                "order": 17.0,
+                "x": 38.94584003,
+                "y": 14.37957619,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 4.10544687,
+                "lane_col": 8.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.20496531,
+                "order": 18.0,
+                "x": 43.6452787,
+                "y": 17.98558231,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 2.1270711,
+                "lane_col": 9.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.12065008,
+                "order": 19.0,
+                "x": 48.01255044,
+                "y": 21.98744956,
+                "z": 0.0
+              }
+            ],
+            "metrics": {
+              "Lavg": 0.43171901288890746,
+              "Lmin": 0.12065008309898026,
+              "Ul": 0.17629519631636306,
+              "Uo": 0.27946437265209506
+            }
+          },
+          {
+            "lane_index": 1,
+            "lane_number": 2,
+            "luminance_grid": [
+              {
+                "illuminance_lux": 11.98282299,
+                "lane_col": 0.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.56895354,
+                "order": 0.0,
+                "x": 0.0,
+                "y": 4.2,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 8.1393564,
+                "lane_col": 1.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.56836656,
+                "order": 1.0,
+                "x": 5.73484787,
+                "y": 4.45038887,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 9.35582646,
+                "lane_col": 2.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.61506083,
+                "order": 2.0,
+                "x": 11.42605009,
+                "y": 5.19964985,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 12.08457177,
+                "lane_col": 3.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.73815812,
+                "order": 3.0,
+                "x": 17.03029317,
+                "y": 6.44208063,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 7.54771376,
+                "lane_col": 4.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.52657538,
+                "order": 4.0,
+                "x": 22.50492543,
+                "y": 8.16822555,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 5.55171272,
+                "lane_col": 5.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.32730817,
+                "order": 5.0,
+                "x": 27.80828162,
+                "y": 10.36494761,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 4.19780605,
+                "lane_col": 6.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.26500336,
+                "order": 6.0,
+                "x": 32.9,
+                "y": 13.01552843,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 3.92215766,
+                "lane_col": 7.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.24100601,
+                "order": 7.0,
+                "x": 37.74132951,
+                "y": 16.09979549,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 3.05277922,
+                "lane_col": 8.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.15533232,
+                "order": 8.0,
+                "x": 42.29542472,
+                "y": 19.59427564,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 1.78211157,
+                "lane_col": 9.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.09848398,
+                "order": 9.0,
+                "x": 46.5276262,
+                "y": 23.4723738,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 8.70834635,
+                "lane_col": 0.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.42538344,
+                "order": 10.0,
+                "x": 0.0,
+                "y": 6.3,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 7.34370316,
+                "lane_col": 1.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.50356392,
+                "order": 11.0,
+                "x": 5.55182081,
+                "y": 6.54239773,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 10.49774625,
+                "lane_col": 2.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.74762676,
+                "order": 12.0,
+                "x": 11.06138892,
+                "y": 7.26774613,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 14.42018154,
+                "lane_col": 3.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 1.00417268,
+                "order": 13.0,
+                "x": 16.48677317,
+                "y": 8.47052487,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 7.37241137,
+                "lane_col": 4.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.52196057,
+                "order": 14.0,
+                "x": 21.78668313,
+                "y": 10.14158006,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 4.54208842,
+                "lane_col": 5.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.27927668,
+                "order": 15.0,
+                "x": 26.92078327,
+                "y": 12.26819397,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 3.39191865,
+                "lane_col": 6.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.21044011,
+                "order": 16.0,
+                "x": 31.85,
+                "y": 14.83418178,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 2.95764461,
+                "lane_col": 7.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.17969907,
+                "order": 17.0,
+                "x": 36.536819,
+                "y": 17.82001478,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 2.32227661,
+                "lane_col": 8.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.12229445,
+                "order": 18.0,
+                "x": 40.94557074,
+                "y": 21.20296897,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 1.48761726,
+                "lane_col": 9.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.08075489,
+                "order": 19.0,
+                "x": 45.04270196,
+                "y": 24.95729804,
+                "z": 0.0
+              }
+            ],
+            "metrics": {
+              "Lavg": 0.4089710412764207,
+              "Lmin": 0.08075488521328278,
+              "Ul": 0.0804193209770003,
+              "Uo": 0.1974586879336063
+            }
+          },
+          {
+            "lane_index": 2,
+            "lane_number": 3,
+            "luminance_grid": [
+              {
+                "illuminance_lux": 6.10670894,
+                "lane_col": 0.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.31286023,
+                "order": 0.0,
+                "x": 0.0,
+                "y": 8.4,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 6.28082574,
+                "lane_col": 1.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.42669925,
+                "order": 1.0,
+                "x": 5.36879375,
+                "y": 8.6344066,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 10.19686136,
+                "lane_col": 2.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.73882852,
+                "order": 2.0,
+                "x": 10.69672774,
+                "y": 9.33584241,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 13.89442399,
+                "lane_col": 3.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.85135653,
+                "order": 3.0,
+                "x": 15.94325318,
+                "y": 10.4989691,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 6.86629534,
+                "lane_col": 4.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.4732637,
+                "order": 4.0,
+                "x": 21.06844083,
+                "y": 12.11493456,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 3.83421667,
+                "lane_col": 5.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.24088336,
+                "order": 5.0,
+                "x": 26.03328492,
+                "y": 14.17144032,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 2.77622109,
+                "lane_col": 6.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.17061203,
+                "order": 6.0,
+                "x": 30.8,
+                "y": 16.65283513,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 2.30715471,
+                "lane_col": 7.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.13898842,
+                "order": 7.0,
+                "x": 35.33230848,
+                "y": 19.54023407,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 1.81755295,
+                "lane_col": 8.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.09828542,
+                "order": 8.0,
+                "x": 39.59571676,
+                "y": 22.8116623,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 1.24665475,
+                "lane_col": 9.0,
+                "lane_row": 0.0,
+                "luminance_cd_m2": 0.06690529,
+                "order": 9.0,
+                "x": 43.55777772,
+                "y": 26.44222228,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 4.35093855,
+                "lane_col": 0.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.23391615,
+                "order": 10.0,
+                "x": 0.0,
+                "y": 10.5,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 5.17402326,
+                "lane_col": 1.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.34361585,
+                "order": 11.0,
+                "x": 5.18576669,
+                "y": 10.72641546,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 8.52164263,
+                "lane_col": 2.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.56447029,
+                "order": 12.0,
+                "x": 10.33206657,
+                "y": 11.4039387,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 10.84834506,
+                "lane_col": 3.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.56239232,
+                "order": 13.0,
+                "x": 15.39973318,
+                "y": 12.52741334,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 5.91086121,
+                "lane_col": 4.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.38550253,
+                "order": 14.0,
+                "x": 20.35019853,
+                "y": 14.08828906,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 3.26448764,
+                "lane_col": 5.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.20461169,
+                "order": 15.0,
+                "x": 25.14578657,
+                "y": 16.07468667,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 2.30540986,
+                "lane_col": 6.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.14049853,
+                "order": 16.0,
+                "x": 29.75,
+                "y": 18.47148847,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 1.85392229,
+                "lane_col": 7.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.11086797,
+                "order": 17.0,
+                "x": 34.12779796,
+                "y": 21.26045336,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 1.46248745,
+                "lane_col": 8.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.08055615,
+                "order": 18.0,
+                "x": 38.24586278,
+                "y": 24.42035563,
+                "z": 0.0
+              },
+              {
+                "illuminance_lux": 1.05356634,
+                "lane_col": 9.0,
+                "lane_row": 1.0,
+                "luminance_cd_m2": 0.0562592,
+                "order": 19.0,
+                "x": 42.07285348,
+                "y": 27.92714652,
+                "z": 0.0
+              }
+            ],
+            "metrics": {
+              "Lavg": 0.3100686711290933,
+              "Lmin": 0.056259196729855916,
+              "Ul": 0.09966724110802164,
+              "Uo": 0.18144108698564096
+            }
+          }
+        ],
+        "method": "M3",
+        "metrics": {
+          "worst_case": {
+            "lane_lavg_min": 3.0,
+            "lane_ul_min": 2.0,
+            "lane_uo_min": 3.0,
+            "lavg_min_cd_m2": 0.3100686711290933,
+            "ul_min": 0.0804193209770003,
+            "uo_min": 0.18144108698564096
+          },
+          "worst_case_glare": {
+            "method": "ti_cie",
+            "metric_value": 23.474004834708253,
+            "observer_id": "auto_2",
+            "observer_index": 1.0,
+            "rp8_veiling_ratio_worst": 0.4374226111134136,
+            "ti_percent_worst": 23.474004834708253,
+            "ti_proxy_percent_worst": 43.74226111134136,
+            "veiling_luminance_total_worst_cd_m2": 0.1677892954599431
+          }
+        }
+      },
+      "threshold_increment_ti_percent": 23.474004834708253,
+      "ul_longitudinal": 0.23596516918256186,
+      "uniformity_ratio": 0.1679318629199695
+    }
+  },
+  "ignore": [
+    "results.observer_glare_views",
+    "results.observer_luminance_views",
+    "results.ti_observers",
+    "results.luminance_model.stability"
+  ],
+  "schema_version": "parity_expected_v1",
+  "tolerances": {
+    "default": {
+      "abs": 1e-08,
+      "rel": 1e-08
+    },
+    "metrics": {}
+  }
+}

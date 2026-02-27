@@ -1,0 +1,48 @@
+{
+  "schema_version": "parity_expected_v1",
+  "tolerances": {
+    "default": {
+      "abs": 1e-06,
+      "rel": 1e-06
+    },
+    "metrics": {
+      "engines.direct_cpu.summary.max_lux": {
+        "abs": 1e-04,
+        "rel": 1e-04
+      },
+      "engines.direct_cpu.summary.mean_lux": {
+        "abs": 1e-04,
+        "rel": 1e-04
+      },
+      "engines.direct_cpu.summary.min_lux": {
+        "abs": 1e-04,
+        "rel": 1e-04
+      },
+      "engines.direct_cpu.summary.uniformity_ratio": {
+        "abs": 1e-04,
+        "rel": 1e-04
+      }
+    }
+  },
+  "ignore": [
+    "engines.direct_cpu.summary.calc_objects"
+  ],
+  "expected": {
+    "pack_name": "small_indoor",
+    "engines": {
+      "direct_cpu": {
+        "backend": "cpu",
+        "job_id": "job_direct_cpu",
+        "job_type": "direct",
+        "summary": {
+          "calc_object_count": 1,
+          "max_lux": 225.00000000000006,
+          "mean_lux": 46.19722454445375,
+          "min_lux": 11.86510672265132,
+          "occluder_count": 0,
+          "uniformity_ratio": 0.2568359211976901
+        }
+      }
+    }
+  }
+}

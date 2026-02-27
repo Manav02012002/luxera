@@ -1,0 +1,18 @@
+{
+  "schema_version": "parity_expected_v1",
+  "tolerances": {
+    "default": {
+      "abs": 1e-06,
+      "rel": 1e-06
+    },
+    "metrics": {}
+  },
+  "ignore": [],
+  "expected": {
+    "engines": {
+      "radiosity_ugr": {
+        "job_type": "radiosity"
+      }
+    }
+  }
+}

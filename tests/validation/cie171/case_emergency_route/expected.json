@@ -1,0 +1,33 @@
+{
+  "schema_version": "validation_case_v1",
+  "run": {
+    "jobs": [
+      "job_emergency"
+    ]
+  },
+  "scalars": [
+    {
+      "id": "route_min_lux",
+      "reference": "",
+      "expected": "TBD",
+      "tolerance": "TBD",
+      "skip": {
+        "reason": "Emergency route CIE reference values not yet mapped"
+      },
+      "notes": "Placeholder for route minimum illuminance"
+    }
+  ],
+  "grids": [
+    {
+      "id": "open_area_grid",
+      "reference": "",
+      "actual": "TBD",
+      "tolerance": "TBD",
+      "skip": {
+        "reason": "Open-area emergency grid baseline pending"
+      },
+      "notes": "Placeholder for open-area spatial checks"
+    }
+  ],
+  "notes": "CIE 171 emergency placeholder case"
+}

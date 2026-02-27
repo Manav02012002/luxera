@@ -1,0 +1,67 @@
+{
+  "schema_version": "parity_expected_v1",
+  "tolerances": {
+    "default": {
+      "abs": 1e-06,
+      "rel": 1e-06
+    },
+    "metrics": {
+      "engines.roadway_cpu.summary.observer_glare_views[0].metric_value": {
+        "abs": 0.0001,
+        "rel": 0.0001
+      },
+      "engines.roadway_cpu.summary.roadway.metrics.worst_case_glare.metric_value": {
+        "abs": 0.0001,
+        "rel": 0.0001
+      }
+    }
+  },
+  "ignore": [],
+  "expected": {
+    "pack_name": "roadway_glare_pack",
+    "engines": {
+      "roadway_cpu": {
+        "backend": "cpu",
+        "job_id": "job_roadway_cpu",
+        "job_type": "roadway",
+        "summary": {
+          "roadway": {
+            "method": "M3",
+            "lanes": [
+              {
+                "lane_index": 0,
+                "lane_number": 1,
+                "metrics": {
+                  "Lavg": 0.7643783056515471,
+                  "Lmin": 0.5031754672314789,
+                  "Uo": 0.6582806753032819,
+                  "Ul": 0.4896025118686912
+                }
+              }
+            ],
+            "metrics": {
+              "worst_case_glare": {
+                "method": "rp8_veiling_ratio",
+                "metric_value": 0.10670935037809307,
+                "observer_id": "obs_lane1"
+              }
+            }
+          },
+          "observer_glare_views": [
+            {
+              "observer_id": "obs_lane1",
+              "contributions": [
+                {
+                  "luminaire_index": 0.0
+                },
+                {
+                  "luminaire_index": 1.0
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

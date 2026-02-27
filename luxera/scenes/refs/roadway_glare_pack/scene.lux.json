@@ -1,0 +1,121 @@
+{
+  "schema_version": 5,
+  "name": "roadway_glare_pack",
+  "parity": {
+    "engines": [
+      {
+        "id": "roadway_cpu",
+        "job_id": "job_roadway_cpu"
+      }
+    ],
+    "report_engine": "roadway_cpu"
+  },
+  "geometry": {
+    "rooms": [],
+    "surfaces": [],
+    "openings": [],
+    "obstructions": [],
+    "levels": [],
+    "coordinate_systems": [],
+    "zones": [],
+    "no_go_zones": [],
+    "length_unit": "m",
+    "scale_to_meters": 1.0
+  },
+  "photometry_assets": [
+    {
+      "id": "asset_1",
+      "format": "IES",
+      "path": "photometry/fixture.ies"
+    }
+  ],
+  "luminaires": [
+    {
+      "id": "lum_1",
+      "name": "Road Glare Luminaire A",
+      "photometry_asset_id": "asset_1",
+      "maintenance_factor": 1.0,
+      "flux_multiplier": 1.0,
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [0.0, 0.0, 8.0],
+        "rotation": {
+          "type": "euler_zyx",
+          "euler_deg": [0.0, 0.0, 0.0]
+        }
+      }
+    },
+    {
+      "id": "lum_2",
+      "name": "Road Glare Luminaire B",
+      "photometry_asset_id": "asset_1",
+      "maintenance_factor": 1.0,
+      "flux_multiplier": 1.2,
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [16.0, 2.0, 8.0],
+        "rotation": {
+          "type": "euler_zyx",
+          "euler_deg": [0.0, 0.0, 0.0]
+        }
+      }
+    }
+  ],
+  "roadways": [
+    {
+      "id": "road_1",
+      "name": "Roadway",
+      "start": [0.0, 0.0, 0.0],
+      "end": [20.0, 0.0, 0.0],
+      "num_lanes": 1,
+      "lane_width": 3.5,
+      "mounting_height_m": 8.0,
+      "setback_m": 1.0,
+      "pole_spacing_m": 20.0,
+      "tilt_deg": 0.0,
+      "aim_deg": 0.0,
+      "observers": [
+        {
+          "id": "obs_lane1",
+          "lane_number": 1,
+          "method": "rp8_veiling_ratio",
+          "height_m": 1.5,
+          "back_offset_m": 40.0,
+          "lateral_offset_m": 1.75,
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "roadway_grids": [
+    {
+      "id": "road_grid_1",
+      "name": "Road Grid",
+      "lane_width": 3.5,
+      "road_length": 20.0,
+      "nx": 5,
+      "ny": 4,
+      "origin": [0.0, 0.0, 0.0],
+      "roadway_id": "road_1",
+      "num_lanes": 1,
+      "observer_height_m": 1.5
+    }
+  ],
+  "jobs": [
+    {
+      "id": "job_roadway_cpu",
+      "type": "roadway",
+      "backend": "cpu",
+      "seed": 0,
+      "settings": {
+        "road_class": "M3",
+        "glare_method": "rp8_veiling_ratio",
+        "road_surface_reflectance": 0.07,
+        "observer_height_m": 1.5,
+        "observer_back_offset_m": 40.0
+      }
+    }
+  ],
+  "results": []
+}
+

@@ -1,0 +1,18 @@
+id: photometry_tilt
+title: Photometry Tilt Ordering
+version: 1
+engines:
+  - direct_cpu
+scenes:
+  - id: downward_tilt
+    path: scenes/downward_tilt.lux.json
+    tags: [photometry, tilt, include]
+  - id: sideways_tilt
+    path: scenes/sideways_tilt.lux.json
+    tags: [photometry, tilt, file]
+  - id: combined_tilt_aim
+    path: scenes/combined_tilt_aim.lux.json
+    tags: [photometry, tilt, ordering]
+global:
+  random_seed: 42
+  deterministic: true

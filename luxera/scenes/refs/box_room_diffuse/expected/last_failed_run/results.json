@@ -1,0 +1,149 @@
+{
+  "engines": {
+    "direct_cpu": {
+      "backend": "cpu",
+      "job_id": "job_direct",
+      "job_type": "direct",
+      "summary": {
+        "calc_object_count": 1,
+        "calc_objects": [
+          {
+            "id": "grid_1",
+            "name": "Workplane",
+            "summary": {
+              "E_avg": 46.19722454445375,
+              "E_max": 225.00000000000006,
+              "E_min": 11.86510672265132,
+              "Eavg": 46.19722454445375,
+              "Emin": 11.86510672265132,
+              "P50": 27.72364415139845,
+              "P90": 94.22512489480874,
+              "U0": 0.2568359211976901,
+              "U1": 0.05273380765622807,
+              "max_lux": 225.00000000000006,
+              "mean_lux": 46.19722454445375,
+              "min_lux": 11.86510672265132,
+              "p50_lux": 27.72364415139845,
+              "p90_lux": 94.22512489480874,
+              "uniformity_diversity": 0.05273380765622807,
+              "uniformity_ratio": 0.2568359211976901
+            },
+            "type": "grid"
+          }
+        ],
+        "compliance": null,
+        "global_highest_ugr": 0.0,
+        "global_worst_min_lux": 11.86510672265132,
+        "global_worst_uniformity_ratio": 0.2568359211976901,
+        "highest_ugr": 0.0,
+        "indoor_planes": {
+          "cylindrical": [],
+          "maintenance_factor": 1.0,
+          "per_plane": [
+            {
+              "Eavg": 46.19722454445375,
+              "Emin": 11.86510672265132,
+              "U0": 0.2568359211976901,
+              "id": "grid_1",
+              "source": "workplane",
+              "type": "grid"
+            }
+          ]
+        },
+        "max_lux": 225.00000000000006,
+        "mean_lux": 46.19722454445375,
+        "mean_of_means_lux": 46.19722454445375,
+        "min_lux": 11.86510672265132,
+        "occluder_count": 0,
+        "occlusion_enabled": false,
+        "p50_lux": 27.72364415139845,
+        "p90_lux": 94.22512489480874,
+        "uniformity_diversity": 0.05273380765622807,
+        "uniformity_ratio": 0.2568359211976901,
+        "worst_min_lux": 11.86510672265132,
+        "worst_uniformity_ratio": 0.2568359211976901,
+        "zone_compliance": {
+          "status": "PASS",
+          "zone_count": 0
+        },
+        "zone_metrics": []
+      }
+    },
+    "radiosity_cpu": {
+      "backend": "cpu",
+      "job_id": "job_radiosity",
+      "job_type": "radiosity",
+      "summary": {
+        "avg_illuminance": 3.1400511698717755,
+        "bounce_delta_lux": -44.64171695527914,
+        "bounce_ratio": -0.9342834873408767,
+        "compliance": null,
+        "converged": true,
+        "direct_floor_baseline_lux": 47.78176812515092,
+        "energy": {
+          "total_absorbed": 200.0832971650674,
+          "total_emitted": 826.5306122448982,
+          "total_exitance": 1104.9833668608371,
+          "total_reflected": 278.45795652618403
+        },
+        "energy_balance_history": [
+          0.020444650843139827,
+          0.006222355009329767,
+          0.0005491028192419523,
+          0.00017057813647384064,
+          1.5145962220580705e-05,
+          4.707681944349811e-06
+        ],
+        "iterations": 6,
+        "radiosity_diagnostics": {
+          "final_energy_balance_rel": 4.707681944349811e-06,
+          "final_residual": 0.0006034310011955313,
+          "iterations_used": 6,
+          "max_energy_balance_rel": 0.020444650843139827,
+          "max_residual": 8.618682265490278
+        },
+        "residual_below_threshold": true,
+        "residual_nonincreasing": true,
+        "residual_threshold": 0.001,
+        "residuals": [
+          8.618682265490278,
+          0.7876581927423416,
+          0.24594465696216794,
+          0.02185762605898489,
+          0.006794704225338677,
+          0.0006034310011955313
+        ],
+        "solver_status": {
+          "converged": true,
+          "energy_balance_history": [
+            0.020444650843139827,
+            0.006222355009329767,
+            0.0005491028192419523,
+            0.00017057813647384064,
+            1.5145962220580705e-05,
+            4.707681944349811e-06
+          ],
+          "iterations": 6,
+          "residual": 0.0006034310011955313,
+          "residual_history": [
+            8.618682265490278,
+            0.7876581927423416,
+            0.24594465696216794,
+            0.02185762605898489,
+            0.006794704225338677,
+            0.0006034310011955313
+          ],
+          "warnings": []
+        },
+        "stop_reason": "converged",
+        "total_flux": 1104.9833668608371,
+        "ugr_debug": null,
+        "ugr_views": null,
+        "ugr_worst_case": 27.729222240133502
+      }
+    }
+  },
+  "pack_name": "box_room_diffuse",
+  "scene_file": "scene.lux.json",
+  "schema_version": "parity_results_v1"
+}

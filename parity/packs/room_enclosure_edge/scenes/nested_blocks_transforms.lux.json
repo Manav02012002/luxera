@@ -1,0 +1,635 @@
+{
+  "active_variant_id": null,
+  "agent_history": [
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/parity/packs/room_enclosure_edge/scenes/.luxera/results/8b1b2c04f8212d647d2b74a0aa23928cc1222c7e53f0df24b2fa0815d8cfc7a7"
+      ],
+      "created_at": 1772042942.268814,
+      "diffs": [],
+      "id": "bbc4e02d-edd1-4302-9b7c-b8c9193878cb",
+      "job_hashes": [
+        "8b1b2c04f8212d647d2b74a0aa23928cc1222c7e53f0df24b2fa0815d8cfc7a7"
+      ],
+      "metadata": {
+        "job_id": "direct_cpu",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/parity/packs/room_enclosure_edge/scenes/.luxera/results/8b1b2c04f8212d647d2b74a0aa23928cc1222c7e53f0df24b2fa0815d8cfc7a7"
+      ],
+      "created_at": 1772042973.160953,
+      "diffs": [],
+      "id": "ad08cbe4-6824-4cf1-9add-06998b5bf480",
+      "job_hashes": [
+        "8b1b2c04f8212d647d2b74a0aa23928cc1222c7e53f0df24b2fa0815d8cfc7a7"
+      ],
+      "metadata": {
+        "job_id": "direct_cpu",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    }
+  ],
+  "arbitrary_planes": [],
+  "asset_bundle_path": null,
+  "assistant_redo_stack": [],
+  "assistant_undo_stack": [],
+  "block_instances": [],
+  "compliance_profiles": [],
+  "escape_routes": [],
+  "geometry": {
+    "axis_transform_applied": null,
+    "coordinate_systems": [],
+    "length_unit": "m",
+    "levels": [],
+    "no_go_zones": [],
+    "obstructions": [
+      {
+        "height": 1.0,
+        "id": "obs1",
+        "kind": "furniture",
+        "layer_id": null,
+        "name": "inner",
+        "vertices": [
+          [
+            2,
+            2,
+            0
+          ],
+          [
+            4,
+            2,
+            0
+          ],
+          [
+            4,
+            4,
+            0
+          ],
+          [
+            2,
+            4,
+            0
+          ]
+        ]
+      }
+    ],
+    "openings": [],
+    "rooms": [
+      {
+        "activity_type": null,
+        "ceiling_reflectance": 0.7,
+        "coordinate_system_id": null,
+        "floor_reflectance": 0.2,
+        "footprint": null,
+        "height": 3.0,
+        "id": "room_1",
+        "layer_id": null,
+        "length": 6.0,
+        "level_id": null,
+        "name": "OuterRoom",
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "wall_reflectance": 0.5,
+        "width": 6.0
+      }
+    ],
+    "scale_to_meters": 1.0,
+    "source_length_unit": null,
+    "surfaces": [
+      {
+        "id": "o_floor",
+        "kind": "floor",
+        "layer": null,
+        "layer_id": null,
+        "material_id": null,
+        "name": "outer_floor",
+        "normal": null,
+        "room_id": "room_1",
+        "tags": [],
+        "two_sided": true,
+        "vertices": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            6,
+            0,
+            0
+          ],
+          [
+            6,
+            6,
+            0
+          ],
+          [
+            0,
+            6,
+            0
+          ]
+        ],
+        "wall_material_side_a": null,
+        "wall_material_side_b": null,
+        "wall_room_side_a": null,
+        "wall_room_side_b": null
+      },
+      {
+        "id": "o_ceil",
+        "kind": "ceiling",
+        "layer": null,
+        "layer_id": null,
+        "material_id": null,
+        "name": "outer_ceiling",
+        "normal": null,
+        "room_id": "room_1",
+        "tags": [],
+        "two_sided": true,
+        "vertices": [
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            6,
+            0,
+            3
+          ],
+          [
+            6,
+            6,
+            3
+          ],
+          [
+            0,
+            6,
+            3
+          ]
+        ],
+        "wall_material_side_a": null,
+        "wall_material_side_b": null,
+        "wall_room_side_a": null,
+        "wall_room_side_b": null
+      },
+      {
+        "id": "o_w1",
+        "kind": "wall",
+        "layer": null,
+        "layer_id": null,
+        "material_id": null,
+        "name": "outer_w1",
+        "normal": null,
+        "room_id": "room_1",
+        "tags": [],
+        "two_sided": true,
+        "vertices": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            6,
+            0,
+            0
+          ],
+          [
+            6,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            3
+          ]
+        ],
+        "wall_material_side_a": null,
+        "wall_material_side_b": null,
+        "wall_room_side_a": null,
+        "wall_room_side_b": null
+      },
+      {
+        "id": "o_w2",
+        "kind": "wall",
+        "layer": null,
+        "layer_id": null,
+        "material_id": null,
+        "name": "outer_w2",
+        "normal": null,
+        "room_id": "room_1",
+        "tags": [],
+        "two_sided": true,
+        "vertices": [
+          [
+            6,
+            0,
+            0
+          ],
+          [
+            6,
+            6,
+            0
+          ],
+          [
+            6,
+            6,
+            3
+          ],
+          [
+            6,
+            0,
+            3
+          ]
+        ],
+        "wall_material_side_a": null,
+        "wall_material_side_b": null,
+        "wall_room_side_a": null,
+        "wall_room_side_b": null
+      },
+      {
+        "id": "o_w3",
+        "kind": "wall",
+        "layer": null,
+        "layer_id": null,
+        "material_id": null,
+        "name": "outer_w3",
+        "normal": null,
+        "room_id": "room_1",
+        "tags": [],
+        "two_sided": true,
+        "vertices": [
+          [
+            6,
+            6,
+            0
+          ],
+          [
+            0,
+            6,
+            0
+          ],
+          [
+            0,
+            6,
+            3
+          ],
+          [
+            6,
+            6,
+            3
+          ]
+        ],
+        "wall_material_side_a": null,
+        "wall_material_side_b": null,
+        "wall_room_side_a": null,
+        "wall_room_side_b": null
+      },
+      {
+        "id": "o_w4",
+        "kind": "wall",
+        "layer": null,
+        "layer_id": null,
+        "material_id": null,
+        "name": "outer_w4",
+        "normal": null,
+        "room_id": "room_1",
+        "tags": [],
+        "two_sided": true,
+        "vertices": [
+          [
+            0,
+            6,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            6,
+            3
+          ]
+        ],
+        "wall_material_side_a": null,
+        "wall_material_side_b": null,
+        "wall_room_side_a": null,
+        "wall_room_side_b": null
+      },
+      {
+        "id": "inner_block",
+        "kind": "custom",
+        "layer": null,
+        "layer_id": null,
+        "material_id": null,
+        "name": "inner_block",
+        "normal": null,
+        "room_id": null,
+        "tags": [],
+        "two_sided": true,
+        "vertices": [
+          [
+            2,
+            2,
+            0.0
+          ],
+          [
+            4,
+            2,
+            0.0
+          ],
+          [
+            4,
+            4,
+            0.0
+          ],
+          [
+            2,
+            4,
+            0.0
+          ]
+        ],
+        "wall_material_side_a": null,
+        "wall_material_side_b": null,
+        "wall_room_side_a": null,
+        "wall_room_side_b": null
+      }
+    ],
+    "zones": []
+  },
+  "glare_views": [],
+  "grids": [
+    {
+      "elevation": 0.8,
+      "evaluation_height_offset": 0.0,
+      "height": 6.0,
+      "id": "grid_1",
+      "layer_id": null,
+      "mask_near_openings": false,
+      "metric_set": [
+        "E_avg",
+        "E_min",
+        "E_max",
+        "U0",
+        "U1"
+      ],
+      "name": "Grid",
+      "normal": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "nx": 3,
+      "ny": 3,
+      "opening_mask_margin": 0.0,
+      "origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "room_id": "room_1",
+      "sample_mask": [],
+      "sample_points": [],
+      "width": 6.0,
+      "zone_id": null
+    }
+  ],
+  "jobs": [
+    {
+      "backend": "cpu",
+      "daylight": null,
+      "emergency": null,
+      "id": "direct_cpu",
+      "mode": null,
+      "open_area_targets": [],
+      "routes": [],
+      "seed": 42,
+      "settings": {
+        "occlusion_epsilon": 1e-06,
+        "occlusion_include_room_shell": false,
+        "use_occlusion": false
+      },
+      "targets": [],
+      "type": "direct"
+    }
+  ],
+  "layers": [
+    {
+      "color": null,
+      "id": "room",
+      "name": "Rooms",
+      "order": 10,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "wall",
+      "name": "Walls",
+      "order": 20,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "ceiling_grid",
+      "name": "Ceiling Grid",
+      "order": 30,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "opening",
+      "name": "Openings",
+      "order": 40,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "luminaire",
+      "name": "Luminaires",
+      "order": 50,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "grid",
+      "name": "Calc Grids",
+      "order": 60,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "symbol",
+      "name": "Symbols",
+      "order": 70,
+      "style": null,
+      "visible": true
+    }
+  ],
+  "line_grids": [],
+  "luminaire_families": [],
+  "luminaires": [
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "lum_1",
+      "layer_id": null,
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L1",
+      "photometry_asset_id": "asset_1",
+      "tags": [],
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          3.0,
+          3.0,
+          2.6
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    }
+  ],
+  "material_library": [],
+  "materials": [],
+  "name": "room_enclosure_nested_blocks_transforms",
+  "param": {
+    "footprints": [],
+    "instances": [],
+    "openings": [],
+    "rooms": [],
+    "shared_walls": [],
+    "slabs": [],
+    "walls": [],
+    "zones": []
+  },
+  "photometry_assets": [
+    {
+      "content_hash": null,
+      "embedded_b64": null,
+      "format": "IES",
+      "id": "asset_1",
+      "metadata": {},
+      "path": "../assets/fixture.ies"
+    }
+  ],
+  "point_sets": [],
+  "results": [
+    {
+      "job_hash": "8b1b2c04f8212d647d2b74a0aa23928cc1222c7e53f0df24b2fa0815d8cfc7a7",
+      "job_id": "direct_cpu",
+      "result_dir": "/Users/manavmadanrawal/Dev/luxera/parity/packs/room_enclosure_edge/scenes/.luxera/results/8b1b2c04f8212d647d2b74a0aa23928cc1222c7e53f0df24b2fa0815d8cfc7a7",
+      "summary": {
+        "calc_object_count": 1,
+        "calc_objects": [
+          {
+            "id": "grid_1",
+            "name": "Grid",
+            "summary": {
+              "E_avg": 47.69732830587256,
+              "E_max": 277.77777777777777,
+              "E_min": 11.07298513213488,
+              "Eavg": 47.69732830587256,
+              "Emin": 11.07298513213488,
+              "P50": 26.80155911163395,
+              "P90": 76.99680284486277,
+              "U0": 0.23215105594858987,
+              "U1": 0.03986274647568557,
+              "max_lux": 277.77777777777777,
+              "mean_lux": 47.69732830587256,
+              "min_lux": 11.07298513213488,
+              "p50_lux": 26.80155911163395,
+              "p90_lux": 76.99680284486277,
+              "uniformity_diversity": 0.03986274647568557,
+              "uniformity_ratio": 0.23215105594858987
+            },
+            "type": "grid"
+          }
+        ],
+        "compliance": null,
+        "global_highest_ugr": 0.0,
+        "global_worst_min_lux": 11.07298513213488,
+        "global_worst_uniformity_ratio": 0.23215105594858987,
+        "highest_ugr": 0.0,
+        "indoor_planes": {
+          "cylindrical": [],
+          "maintenance_factor": 1.0,
+          "per_plane": [
+            {
+              "Eavg": 47.69732830587256,
+              "Emin": 11.07298513213488,
+              "U0": 0.23215105594858987,
+              "id": "grid_1",
+              "source": "workplane",
+              "type": "grid"
+            }
+          ]
+        },
+        "max_lux": 277.77777777777777,
+        "mean_lux": 47.69732830587256,
+        "mean_of_means_lux": 47.69732830587256,
+        "min_lux": 11.07298513213488,
+        "occluder_count": 14,
+        "occlusion_enabled": false,
+        "p50_lux": 26.80155911163395,
+        "p90_lux": 76.99680284486277,
+        "uniformity_diversity": 0.03986274647568557,
+        "uniformity_ratio": 0.23215105594858987,
+        "worst_min_lux": 11.07298513213488,
+        "worst_uniformity_ratio": 0.23215105594858987,
+        "zone_compliance": {
+          "status": "PASS",
+          "zone_count": 0
+        },
+        "zone_metrics": []
+      }
+    }
+  ],
+  "roadway_grids": [],
+  "roadways": [],
+  "root_dir": "/Users/manavmadanrawal/Dev/luxera/parity/packs/room_enclosure_edge/scenes",
+  "schema_version": 5,
+  "selection_sets": [],
+  "symbols_2d": [],
+  "variants": [],
+  "vertical_planes": [],
+  "workplanes": []
+}

@@ -1,0 +1,59 @@
+{
+  "schema_version": "parity_expected_v1",
+  "tolerances": {
+    "default": {
+      "abs": 1e-06,
+      "rel": 1e-06
+    },
+    "metrics": {
+      "engines.roadway_cpu.summary.compliance.margins.mean_lux": {
+        "abs": 0.0001,
+        "rel": 0.0001
+      },
+      "engines.roadway_cpu.summary.compliance.margins.uniformity_ratio": {
+        "abs": 0.0001,
+        "rel": 0.0001
+      }
+    }
+  },
+  "ignore": [],
+  "expected": {
+    "pack_name": "roadway_profile_check_pack",
+    "engines": {
+      "roadway_cpu": {
+        "backend": "cpu",
+        "job_id": "job_roadway_cpu",
+        "job_type": "roadway",
+        "summary": {
+          "roadway_profile": {
+            "id": "demo_nonstandard_placeholder",
+            "name": "Demo Profile (Non-standard Placeholder)",
+            "standard_ref": "DEMO-NONSTANDARD",
+            "class": "DEMO"
+          },
+          "compliance": {
+            "profile_id": "demo_nonstandard_placeholder",
+            "profile_name": "Demo Profile (Non-standard Placeholder)",
+            "status": "FAIL",
+            "avg_ok": true,
+            "uo_ok": false,
+            "ul_ok": false,
+            "luminance_ok": true,
+            "ti_ok": true,
+            "surround_ratio_ok": true
+          },
+          "roadway": {
+            "method": "demo_nonstandard_placeholder",
+            "metrics": {
+              "worst_case": {
+                "lavg_min_cd_m2": 0.2804531306664602,
+                "uo_min": 0.12046080102584873,
+                "ul_min": 0.06764481101538936
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

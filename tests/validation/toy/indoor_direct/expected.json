@@ -1,0 +1,56 @@
+{
+  "schema_version": "validation_case_v1",
+  "run": {
+    "jobs": [
+      "job_direct"
+    ]
+  },
+  "scalars": [
+    {
+      "id": "mean_lux",
+      "job_id": "job_direct",
+      "path": "mean_lux",
+      "expected": 66.54169336877385,
+      "tolerance": {
+        "abs": 1e-06,
+        "rel": 1e-06
+      },
+      "notes": "Direct mean illuminance"
+    },
+    {
+      "id": "min_lux",
+      "job_id": "job_direct",
+      "path": "min_lux",
+      "expected": 31.59696672591821,
+      "tolerance": {
+        "abs": 1e-06,
+        "rel": 1e-06
+      }
+    },
+    {
+      "id": "max_lux",
+      "job_id": "job_direct",
+      "path": "max_lux",
+      "expected": 225.00000000000006,
+      "tolerance": {
+        "abs": 1e-06,
+        "rel": 1e-06
+      }
+    }
+  ],
+  "grids": [
+    {
+      "id": "grid_regression",
+      "job_id": "job_direct",
+      "actual": "grid.csv",
+      "reference": "assets/reference_grid.csv",
+      "tolerance": {
+        "max_abs": 1e-12,
+        "mean_abs": 1e-12,
+        "p95_abs": 1e-12
+      },
+      "notes": "Grid output must remain deterministic"
+    }
+  ],
+  "notes": "Toy direct validation case"
+}

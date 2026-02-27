@@ -1,0 +1,39 @@
+id: roadway_edge
+title: Roadway Edge Cases
+version: 1
+engines:
+  - roadway_cpu
+scenes:
+  - id: curve_left_basic
+    path: scenes/curve_left_basic.lux.json
+    tags: [roadway, edge]
+  - id: curve_right_basic
+    path: scenes/curve_right_basic.lux.json
+    tags: [roadway, edge]
+  - id: bank_5deg
+    path: scenes/bank_5deg.lux.json
+    tags: [roadway, edge]
+  - id: bank_10deg
+    path: scenes/bank_10deg.lux.json
+    tags: [roadway, edge]
+  - id: curve_bank_mix
+    path: scenes/curve_bank_mix.lux.json
+    tags: [roadway, edge]
+  - id: mixed_pole_offsets
+    path: scenes/mixed_pole_offsets.lux.json
+    tags: [roadway, edge]
+  - id: extreme_narrow_beam
+    path: scenes/extreme_narrow_beam.lux.json
+    tags: [roadway, edge]
+  - id: extreme_wide_beam
+    path: scenes/extreme_wide_beam.lux.json
+    tags: [roadway, edge]
+  - id: curve_multilane_three
+    path: scenes/curve_multilane_three.lux.json
+    tags: [roadway, edge]
+  - id: curve_bank_opposite
+    path: scenes/curve_bank_opposite.lux.json
+    tags: [roadway, edge]
+global:
+  random_seed: 42
+  deterministic: true

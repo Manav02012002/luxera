@@ -1,0 +1,84 @@
+{
+  "schema_version": 5,
+  "name": "validation_toy_roadway",
+  "geometry": {
+    "rooms": [],
+    "surfaces": [],
+    "openings": [],
+    "obstructions": [],
+    "levels": [],
+    "coordinate_systems": [],
+    "zones": [],
+    "no_go_zones": [],
+    "length_unit": "m",
+    "scale_to_meters": 1.0
+  },
+  "photometry_assets": [
+    {
+      "id": "asset_1",
+      "format": "IES",
+      "path": "assets/fixture.ies"
+    }
+  ],
+  "luminaires": [
+    {
+      "id": "lum_1",
+      "name": "Road Luminaire",
+      "photometry_asset_id": "asset_1",
+      "maintenance_factor": 1.0,
+      "flux_multiplier": 1.0,
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [0.0, 0.0, 8.0],
+        "rotation": {
+          "type": "euler_zyx",
+          "euler_deg": [0.0, 0.0, 0.0]
+        }
+      }
+    }
+  ],
+  "roadways": [
+    {
+      "id": "road_1",
+      "name": "Toy Road",
+      "start": [0.0, 0.0, 0.0],
+      "end": [12.0, 0.0, 0.0],
+      "num_lanes": 1,
+      "lane_width": 3.5,
+      "mounting_height_m": 8.0,
+      "setback_m": 1.0,
+      "pole_spacing_m": 12.0,
+      "tilt_deg": 0.0,
+      "aim_deg": 0.0
+    }
+  ],
+  "roadway_grids": [
+    {
+      "id": "road_grid_1",
+      "name": "Toy Road Grid",
+      "lane_width": 3.5,
+      "road_length": 12.0,
+      "nx": 3,
+      "ny": 3,
+      "origin": [0.0, 0.0, 0.0],
+      "roadway_id": "road_1",
+      "num_lanes": 1,
+      "observer_height_m": 1.5
+    }
+  ],
+  "jobs": [
+    {
+      "id": "job_roadway",
+      "type": "roadway",
+      "backend": "cpu",
+      "seed": 0,
+      "settings": {
+        "road_class": "M3",
+        "road_surface_reflectance": 0.07,
+        "observer_height_m": 1.5,
+        "observer_back_offset_m": 40.0
+      }
+    }
+  ],
+  "results": []
+}

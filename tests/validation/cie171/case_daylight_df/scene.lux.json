@@ -1,0 +1,85 @@
+{
+  "schema_version": 5,
+  "name": "cie171_case_daylight_df",
+  "geometry": {
+    "rooms": [
+      {
+        "id": "room_1",
+        "name": "Daylight Room",
+        "width": 5.0,
+        "length": 4.0,
+        "height": 3.0,
+        "origin": [0.0, 0.0, 0.0],
+        "floor_reflectance": 0.2,
+        "wall_reflectance": 0.5,
+        "ceiling_reflectance": 0.7
+      }
+    ],
+    "surfaces": [],
+    "openings": [
+      {
+        "id": "op_1",
+        "name": "Window",
+        "opening_type": "window",
+        "kind": "window",
+        "vertices": [
+          [0.0, 1.0, 1.0],
+          [0.0, 3.0, 1.0],
+          [0.0, 3.0, 2.0],
+          [0.0, 1.0, 2.0]
+        ],
+        "is_daylight_aperture": true,
+        "vt": 0.7
+      }
+    ],
+    "obstructions": [],
+    "levels": [],
+    "coordinate_systems": [],
+    "zones": [],
+    "no_go_zones": [],
+    "length_unit": "m",
+    "scale_to_meters": 1.0
+  },
+  "grids": [
+    {
+      "id": "grid_1",
+      "name": "Daylight Grid",
+      "origin": [0.0, 0.0, 0.0],
+      "width": 5.0,
+      "height": 4.0,
+      "elevation": 0.8,
+      "nx": 4,
+      "ny": 4,
+      "normal": [0.0, 0.0, 1.0],
+      "room_id": "room_1"
+    }
+  ],
+  "jobs": [
+    {
+      "id": "job_daylight",
+      "type": "daylight",
+      "backend": "df",
+      "seed": 0,
+      "settings": {
+        "mode": "daylight_factor",
+        "exterior_horizontal_illuminance_lux": 10000.0,
+        "daylight_factor_percent": 2.0,
+        "target_lux": 300.0
+      },
+      "daylight": {
+        "mode": "df",
+        "sky": "CIE_overcast",
+        "external_horizontal_illuminance_lux": 10000.0,
+        "glass_visible_transmittance_default": 0.7,
+        "surface_reflectance_override": {},
+        "radiance_quality": "normal",
+        "random_seed": 0,
+        "annual": null
+      },
+      "targets": [
+        "grid_1"
+      ]
+    }
+  ],
+  "results": []
+}

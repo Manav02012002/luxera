@@ -1,0 +1,27 @@
+id: room_enclosure_edge
+title: Room Enclosure Robustness Edge Cases
+version: 1
+engines:
+  - direct_cpu
+scenes:
+  - id: perfect_box
+    path: scenes/perfect_box.lux.json
+    tags: [geometry, room_enclosure, perfect]
+  - id: tiny_seam_gap
+    path: scenes/tiny_seam_gap.lux.json
+    tags: [geometry, room_enclosure, seam_gap]
+  - id: mixed_winding
+    path: scenes/mixed_winding.lux.json
+    tags: [geometry, room_enclosure, winding]
+  - id: nested_blocks_transforms
+    path: scenes/nested_blocks_transforms.lux.json
+    tags: [geometry, room_enclosure, nested]
+  - id: mirrored_transform
+    path: scenes/mirrored_transform.lux.json
+    tags: [geometry, room_enclosure, mirrored]
+  - id: large_coordinate_far_origin
+    path: scenes/large_coordinate_far_origin.lux.json
+    tags: [geometry, room_enclosure, large_coords]
+global:
+  random_seed: 42
+  deterministic: true

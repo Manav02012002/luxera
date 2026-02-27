@@ -1,0 +1,45 @@
+{
+  "baseline": "luxera",
+  "baseline_version": "v1",
+  "generated_by": {
+    "job_id": "direct_cpu",
+    "seed": 42,
+    "tool": "luxera parity run"
+  },
+  "results": {
+    "geometry_heal_degenerate_triangles": 0,
+    "geometry_heal_duplicate_coplanar_faces": 0,
+    "geometry_heal_non_manifold_edges": 0,
+    "geometry_heal_open_shell_edges": 11,
+    "geometry_heal_sliver_triangles": 0,
+    "max_lux": 107.4151167289052,
+    "mean_lux": 72.93205175305528,
+    "min_lux": 0.0,
+    "parity_arrays": {
+      "grid_1": {
+        "grid_values_lux": {
+          "hash": "sha256:ac92a9128d5e8f73fa4970c4f08e6dd29bcb6f6b635199fd223fc38a1eca933c",
+          "shape": [
+            3,
+            3
+          ],
+          "sidecar": "arrays/dirty_nonmanifold_grid_1.csv",
+          "summary": {
+            "max": 107.4151167289052,
+            "mean": 72.93205175305528,
+            "min": 0.0,
+            "p95": 107.4151167289052,
+            "p99": 107.4151167289052
+          }
+        }
+      }
+    }
+  },
+  "scene_id": "dirty_nonmanifold",
+  "schema_version": "parity_expected_v2",
+  "tags": [
+    "geometry",
+    "healing",
+    "nonmanifold"
+  ]
+}

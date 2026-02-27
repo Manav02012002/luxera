@@ -1,0 +1,40 @@
+{
+  "schema_version": "validation_case_v1",
+  "reference_source": {
+    "standard": "CIE 171",
+    "reference_id": "",
+    "notes": "Reference numeric values not yet populated in repository."
+  },
+  "run": {
+    "jobs": [
+      "job_direct"
+    ]
+  },
+  "skip": {
+    "scalars": {
+      "mean_lux": {
+        "reason": "CIE 171 reference table row not yet available in repo."
+      }
+    },
+    "grids": {
+      "grid_regression": {
+        "reason": "Reference grid artifact is not available in repository."
+      }
+    }
+  },
+  "scalars": [
+    {
+      "id": "mean_lux",
+      "reference": "",
+      "notes": "Placeholder for CIE 171 direct illuminance comparison"
+    }
+  ],
+  "grids": [
+    {
+      "id": "grid_regression",
+      "reference": "",
+      "notes": "Placeholder for point-by-point grid comparison"
+    }
+  ],
+  "notes": "CIE 171 direct-room placeholder case"
+}

@@ -1,0 +1,108 @@
+{
+  "engines": {
+    "roadway_cpu": {
+      "backend": "cpu",
+      "job_id": "job_roadway_cpu",
+      "job_type": "roadway",
+      "summary": {
+        "lane_metrics": [
+          {
+            "lane_index": 0.0,
+            "lane_number": 1.0,
+            "luminance_mean_cd_m2": 0.2804531306664602,
+            "max_lux": 14.0625,
+            "mean_lux": 4.649105453725654,
+            "min_lux": 0.4584332757191221,
+            "nx": 4.0,
+            "ny": 4.0,
+            "sample_count": 16.0,
+            "ul_longitudinal": 0.10461948401078772,
+            "uniformity_min_avg": 0.09860677076097454,
+            "uniformity_ratio": 0.09860677076097454
+          }
+        ],
+        "lane_width_m": 3.5,
+        "lane_widths_m": [
+          3.5
+        ],
+        "lanes": [
+          {
+            "lane_index": 0.0,
+            "lane_number": 1.0,
+            "luminance_mean_cd_m2": 0.2804531306664602,
+            "max_lux": 14.0625,
+            "mean_lux": 4.649105453725654,
+            "min_lux": 0.4584332757191221,
+            "nx": 4.0,
+            "ny": 4.0,
+            "sample_count": 16.0,
+            "ul_longitudinal": 0.10461948401078772,
+            "uniformity_min_avg": 0.09860677076097454,
+            "uniformity_ratio": 0.09860677076097454
+          }
+        ],
+        "luminance_model": {
+          "name": "table_lookup_v1",
+          "stability": {
+            "clamp_count": 3.0,
+            "nan_guard_count": 0.0,
+            "surface_class": "R3"
+          },
+          "surface_class": "R3"
+        },
+        "max_lux": 14.0625,
+        "mean_lux": 4.649105453725654,
+        "metadata": {
+          "method": "default",
+          "road_class": "M3",
+          "units": {
+            "illuminance": "lux",
+            "length": "m",
+            "luminance": "cd/m2"
+          }
+        },
+        "min_lux": 0.4584332757191221,
+        "mounting_height_m": 8.0,
+        "num_lanes": 1,
+        "observer_luminance_max_cd_m2": 0.3315336484070743,
+        "observer_luminance_views": [
+          {
+            "lane_number": 1.0,
+            "luminance_cd_m2": 0.3315336484070743,
+            "method": "luminance",
+            "observer_id": "auto_1",
+            "observer_index": 0.0,
+            "x": -60.0,
+            "y": 1.75,
+            "z": 1.5
+          }
+        ],
+        "overall": {
+          "avg_lux": 4.649105453725654,
+          "max_lux": 14.0625,
+          "min_lux": 0.4584332757191221,
+          "u0": 0.09860677076097454
+        },
+        "overall_uniformity_min_avg": 0.09860677076097454,
+        "pole_spacing_m": 20.0,
+        "road_class": "M3",
+        "road_length_m": 20.0,
+        "road_luminance_mean_cd_m2": 0.2804531306664602,
+        "road_surface_class": "R3",
+        "road_surface_reflectance": 0.067,
+        "roadway_id": "road_1",
+        "roadway_name": "Roadway",
+        "setback_m": 1.0,
+        "surround_ratio_proxy": 1.019188390515032,
+        "threshold_increment_ti_proxy_percent": 16.829735216659966,
+        "ti_observers": [],
+        "ul_longitudinal": 0.10461948401078772,
+        "uniformity_diversity": 0.03259969960669313,
+        "uniformity_ratio": 0.09860677076097454
+      }
+    }
+  },
+  "pack_name": "small_roadway",
+  "scene_file": "scene.lux.json",
+  "schema_version": "parity_results_v1"
+}

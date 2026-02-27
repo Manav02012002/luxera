@@ -1,0 +1,24 @@
+{
+  "scene": "examples/roadway_basic/road.luxera.json",
+  "job_id": "roadway_job",
+  "tolerance_abs": 1e-06,
+  "worst_case": {
+    "lavg_min_cd_m2": 0.14028512818947345,
+    "uo_min": 0.010202522017713407,
+    "ul_min": 0.0018880207637276619
+  },
+  "lanes": [
+    {
+      "lane_number": 1,
+      "Lavg_cd_m2": 0.19615236387324758,
+      "Uo_luminance": 0.010202522017713407,
+      "Ul_luminance": 0.0018880207637276619
+    },
+    {
+      "lane_number": 2,
+      "Lavg_cd_m2": 0.14028512818947345,
+      "Uo_luminance": 0.013975891026336413,
+      "Ul_luminance": 0.004301677720566155
+    }
+  ]
+}

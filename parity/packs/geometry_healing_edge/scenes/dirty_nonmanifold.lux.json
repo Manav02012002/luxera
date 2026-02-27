@@ -1,0 +1,438 @@
+{
+  "active_variant_id": null,
+  "agent_history": [
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/parity/packs/geometry_healing_edge/scenes/.luxera/results/97259899d6582e3d5fc7a59916c22694384aebfc453dc627a05c5b3445a19caa"
+      ],
+      "created_at": 1772040809.1940212,
+      "diffs": [],
+      "id": "6d47cee2-822f-4d67-b483-896af4e00879",
+      "job_hashes": [
+        "97259899d6582e3d5fc7a59916c22694384aebfc453dc627a05c5b3445a19caa"
+      ],
+      "metadata": {
+        "job_id": "direct_cpu",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/parity/packs/geometry_healing_edge/scenes/.luxera/results/97259899d6582e3d5fc7a59916c22694384aebfc453dc627a05c5b3445a19caa"
+      ],
+      "created_at": 1772040956.827141,
+      "diffs": [],
+      "id": "da0e8a1c-5cef-4ec3-8039-1664ba331e29",
+      "job_hashes": [
+        "97259899d6582e3d5fc7a59916c22694384aebfc453dc627a05c5b3445a19caa"
+      ],
+      "metadata": {
+        "job_id": "direct_cpu",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    }
+  ],
+  "arbitrary_planes": [],
+  "asset_bundle_path": null,
+  "assistant_redo_stack": [],
+  "assistant_undo_stack": [],
+  "block_instances": [],
+  "compliance_profiles": [],
+  "escape_routes": [],
+  "geometry": {
+    "axis_transform_applied": null,
+    "coordinate_systems": [],
+    "length_unit": "m",
+    "levels": [],
+    "no_go_zones": [],
+    "obstructions": [],
+    "openings": [],
+    "rooms": [
+      {
+        "activity_type": null,
+        "ceiling_reflectance": 0.7,
+        "coordinate_system_id": null,
+        "floor_reflectance": 0.2,
+        "footprint": null,
+        "height": 2.8,
+        "id": "room_1",
+        "layer_id": null,
+        "length": 3.0,
+        "level_id": null,
+        "name": "Office",
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "wall_reflectance": 0.5,
+        "width": 3.0
+      }
+    ],
+    "scale_to_meters": 1.0,
+    "source_length_unit": null,
+    "surfaces": [
+      {
+        "id": "nm_1",
+        "kind": "custom",
+        "layer": null,
+        "layer_id": null,
+        "material_id": null,
+        "name": "NM1",
+        "normal": null,
+        "room_id": null,
+        "tags": [],
+        "two_sided": true,
+        "vertices": [
+          [
+            1.5,
+            1.5,
+            1.0
+          ],
+          [
+            2.2,
+            1.0,
+            1.6
+          ],
+          [
+            1.0,
+            1.0,
+            1.6
+          ]
+        ],
+        "wall_material_side_a": null,
+        "wall_material_side_b": null,
+        "wall_room_side_a": null,
+        "wall_room_side_b": null
+      },
+      {
+        "id": "nm_2",
+        "kind": "custom",
+        "layer": null,
+        "layer_id": null,
+        "material_id": null,
+        "name": "NM2",
+        "normal": null,
+        "room_id": null,
+        "tags": [],
+        "two_sided": true,
+        "vertices": [
+          [
+            1.5,
+            1.5,
+            1.0
+          ],
+          [
+            1.0,
+            1.0,
+            1.6
+          ],
+          [
+            1.0,
+            2.2,
+            1.6
+          ]
+        ],
+        "wall_material_side_a": null,
+        "wall_material_side_b": null,
+        "wall_room_side_a": null,
+        "wall_room_side_b": null
+      },
+      {
+        "id": "nm_3",
+        "kind": "custom",
+        "layer": null,
+        "layer_id": null,
+        "material_id": null,
+        "name": "NM3",
+        "normal": null,
+        "room_id": null,
+        "tags": [],
+        "two_sided": true,
+        "vertices": [
+          [
+            1.5,
+            1.5,
+            1.0
+          ],
+          [
+            1.0,
+            2.2,
+            1.6
+          ],
+          [
+            2.2,
+            1.0,
+            1.6
+          ]
+        ],
+        "wall_material_side_a": null,
+        "wall_material_side_b": null,
+        "wall_room_side_a": null,
+        "wall_room_side_b": null
+      }
+    ],
+    "zones": []
+  },
+  "glare_views": [],
+  "grids": [
+    {
+      "elevation": 0.8,
+      "evaluation_height_offset": 0.0,
+      "height": 3.0,
+      "id": "grid_1",
+      "layer_id": null,
+      "mask_near_openings": false,
+      "metric_set": [
+        "E_avg",
+        "E_min",
+        "E_max",
+        "U0",
+        "U1"
+      ],
+      "name": "Workplane",
+      "normal": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "nx": 3,
+      "ny": 3,
+      "opening_mask_margin": 0.0,
+      "origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "room_id": "room_1",
+      "sample_mask": [],
+      "sample_points": [],
+      "width": 3.0,
+      "zone_id": null
+    }
+  ],
+  "jobs": [
+    {
+      "backend": "cpu",
+      "daylight": null,
+      "emergency": null,
+      "id": "direct_cpu",
+      "mode": null,
+      "open_area_targets": [],
+      "routes": [],
+      "seed": 42,
+      "settings": {
+        "occlusion_epsilon": 1e-06,
+        "occlusion_include_room_shell": true,
+        "use_occlusion": true
+      },
+      "targets": [],
+      "type": "direct"
+    }
+  ],
+  "layers": [
+    {
+      "color": null,
+      "id": "room",
+      "name": "Rooms",
+      "order": 10,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "wall",
+      "name": "Walls",
+      "order": 20,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "ceiling_grid",
+      "name": "Ceiling Grid",
+      "order": 30,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "opening",
+      "name": "Openings",
+      "order": 40,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "luminaire",
+      "name": "Luminaires",
+      "order": 50,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "grid",
+      "name": "Calc Grids",
+      "order": 60,
+      "style": null,
+      "visible": true
+    },
+    {
+      "color": null,
+      "id": "symbol",
+      "name": "Symbols",
+      "order": 70,
+      "style": null,
+      "visible": true
+    }
+  ],
+  "line_grids": [],
+  "luminaire_families": [],
+  "luminaires": [
+    {
+      "family_id": null,
+      "flux_multiplier": 1.0,
+      "id": "lum_1",
+      "layer_id": null,
+      "maintenance_factor": 1.0,
+      "mounting_height_m": null,
+      "mounting_type": null,
+      "name": "L1",
+      "photometry_asset_id": "asset_1",
+      "tags": [],
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [
+          1.5,
+          1.5,
+          2.4
+        ],
+        "rotation": {
+          "aim": null,
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "matrix": null,
+          "type": "euler_zyx",
+          "up": null
+        }
+      }
+    }
+  ],
+  "material_library": [],
+  "materials": [],
+  "name": "heal_dirty_nonmanifold",
+  "param": {
+    "footprints": [],
+    "instances": [],
+    "openings": [],
+    "rooms": [],
+    "shared_walls": [],
+    "slabs": [],
+    "walls": [],
+    "zones": []
+  },
+  "photometry_assets": [
+    {
+      "content_hash": null,
+      "embedded_b64": null,
+      "format": "IES",
+      "id": "asset_1",
+      "metadata": {},
+      "path": "../assets/fixture.ies"
+    }
+  ],
+  "point_sets": [],
+  "results": [
+    {
+      "job_hash": "97259899d6582e3d5fc7a59916c22694384aebfc453dc627a05c5b3445a19caa",
+      "job_id": "direct_cpu",
+      "result_dir": "/Users/manavmadanrawal/Dev/luxera/parity/packs/geometry_healing_edge/scenes/.luxera/results/97259899d6582e3d5fc7a59916c22694384aebfc453dc627a05c5b3445a19caa",
+      "summary": {
+        "calc_object_count": 1,
+        "calc_objects": [
+          {
+            "id": "grid_1",
+            "name": "Workplane",
+            "summary": {
+              "E_avg": 72.93205175305528,
+              "E_max": 107.4151167289052,
+              "E_min": 0.0,
+              "Eavg": 72.93205175305528,
+              "Emin": 0.0,
+              "P50": 56.681999715469175,
+              "P90": 107.4151167289052,
+              "U0": 0.0,
+              "U1": 0.0,
+              "max_lux": 107.4151167289052,
+              "mean_lux": 72.93205175305528,
+              "min_lux": 0.0,
+              "p50_lux": 56.681999715469175,
+              "p90_lux": 107.4151167289052,
+              "uniformity_diversity": 0.0,
+              "uniformity_ratio": 0.0
+            },
+            "type": "grid"
+          }
+        ],
+        "compliance": null,
+        "global_highest_ugr": 0.0,
+        "global_worst_min_lux": 0.0,
+        "global_worst_uniformity_ratio": 0.0,
+        "highest_ugr": 0.0,
+        "indoor_planes": {
+          "cylindrical": [],
+          "maintenance_factor": 1.0,
+          "per_plane": [
+            {
+              "Eavg": 72.93205175305528,
+              "Emin": 0.0,
+              "U0": 0.0,
+              "id": "grid_1",
+              "source": "workplane",
+              "type": "grid"
+            }
+          ]
+        },
+        "max_lux": 107.4151167289052,
+        "mean_lux": 72.93205175305528,
+        "mean_of_means_lux": 72.93205175305528,
+        "min_lux": 0.0,
+        "occluder_count": 15,
+        "occlusion_enabled": true,
+        "p50_lux": 56.681999715469175,
+        "p90_lux": 107.4151167289052,
+        "uniformity_diversity": 0.0,
+        "uniformity_ratio": 0.0,
+        "worst_min_lux": 0.0,
+        "worst_uniformity_ratio": 0.0,
+        "zone_compliance": {
+          "status": "PASS",
+          "zone_count": 0
+        },
+        "zone_metrics": []
+      }
+    }
+  ],
+  "roadway_grids": [],
+  "roadways": [],
+  "root_dir": "/Users/manavmadanrawal/Dev/luxera/parity/packs/geometry_healing_edge/scenes",
+  "schema_version": 5,
+  "selection_sets": [],
+  "symbols_2d": [],
+  "variants": [],
+  "vertical_planes": [],
+  "workplanes": []
+}

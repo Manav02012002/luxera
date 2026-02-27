@@ -1,0 +1,39 @@
+id: calc_objects_core
+title: Calc Objects Core Coverage
+version: 1
+engines:
+  - direct_cpu
+scenes:
+  - id: polygon_clip_basic
+    path: scenes/polygon_clip_basic.lux.json
+    tags: [calc_objects]
+  - id: polygon_clip_hole
+    path: scenes/polygon_clip_hole.lux.json
+    tags: [calc_objects]
+  - id: polygon_clip_triangle
+    path: scenes/polygon_clip_triangle.lux.json
+    tags: [calc_objects]
+  - id: vertical_offset_zero
+    path: scenes/vertical_offset_zero.lux.json
+    tags: [calc_objects]
+  - id: vertical_offset_pos
+    path: scenes/vertical_offset_pos.lux.json
+    tags: [calc_objects]
+  - id: vertical_offset_neg
+    path: scenes/vertical_offset_neg.lux.json
+    tags: [calc_objects]
+  - id: route_corner
+    path: scenes/route_corner.lux.json
+    tags: [calc_objects]
+  - id: route_square
+    path: scenes/route_square.lux.json
+    tags: [calc_objects]
+  - id: route_dense
+    path: scenes/route_dense.lux.json
+    tags: [calc_objects]
+  - id: route_sparse
+    path: scenes/route_sparse.lux.json
+    tags: [calc_objects]
+global:
+  random_seed: 42
+  deterministic: true

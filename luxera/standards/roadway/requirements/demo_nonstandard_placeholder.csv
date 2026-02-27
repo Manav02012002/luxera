@@ -1,0 +1,8 @@
+metric,comparator,target,units
+mean_lux,>=,2.0,lux
+uniformity_ratio,>=,0.25,ratio
+ul_longitudinal,>=,0.20,ratio
+road_luminance_mean_cd_m2,>=,0.20,cd/m2
+threshold_increment_ti_proxy_percent,<=,30.0,percent
+surround_ratio_proxy,>=,0.30,ratio
+

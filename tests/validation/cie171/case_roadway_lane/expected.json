@@ -1,0 +1,40 @@
+{
+  "schema_version": "validation_case_v1",
+  "reference_source": {
+    "standard": "CIE 171",
+    "reference_id": "",
+    "notes": "Roadway reference values pending import."
+  },
+  "run": {
+    "jobs": [
+      "job_roadway"
+    ]
+  },
+  "skip": {
+    "scalars": {
+      "road_luminance_mean_cd_m2": {
+        "reason": "CIE roadway luminance references are unavailable in repository."
+      }
+    },
+    "grids": {
+      "road_grid": {
+        "reason": "Roadway reference grid baseline is not stored in repository."
+      }
+    }
+  },
+  "scalars": [
+    {
+      "id": "road_luminance_mean_cd_m2",
+      "reference": "",
+      "notes": "Placeholder for roadway luminance metric"
+    }
+  ],
+  "grids": [
+    {
+      "id": "road_grid",
+      "reference": "",
+      "notes": "Placeholder for roadway grid residual checks"
+    }
+  ],
+  "notes": "CIE 171 roadway placeholder case"
+}

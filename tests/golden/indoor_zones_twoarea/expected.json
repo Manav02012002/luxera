@@ -1,0 +1,15 @@
+{
+  "zones": {
+    "zone_task": {
+      "Eavg_range": [85.0, 96.0],
+      "U0_min": 0.55,
+      "status": "PASS"
+    },
+    "zone_surround": {
+      "Eavg_range": [60.0, 74.0],
+      "U0_min": 0.20,
+      "status": "PASS"
+    }
+  },
+  "ordering": ["zone_surround", "zone_task"]
+}

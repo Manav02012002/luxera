@@ -1,0 +1,24 @@
+{
+  "tolerance_abs": 1e-06,
+  "profile": {
+    "id": "en13201_m3_common",
+    "class": "M3"
+  },
+  "compliance": {
+    "status": "FAIL",
+    "avg_ok": true,
+    "uo_ok": false,
+    "ul_ok": false,
+    "luminance_ok": false,
+    "ti_ok": true,
+    "surround_ratio_ok": true
+  },
+  "margins": {
+    "mean_lux": 3.649105453725654,
+    "uniformity_ratio": -0.2513932292390254,
+    "ul_longitudinal": -0.29538051598921233,
+    "road_luminance_mean_cd_m2": -0.21954686933353978,
+    "threshold_increment_ti_proxy_percent": 2.4088649395590025,
+    "surround_ratio_proxy": 0.5191883905150321
+  }
+}

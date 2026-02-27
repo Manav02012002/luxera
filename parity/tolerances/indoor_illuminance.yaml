@@ -1,0 +1,37 @@
+{
+  "default": {
+    "scalar": {
+      "abs": 0.001,
+      "rel": 0.001,
+      "near_zero_abs": 0.01,
+      "metrics": {
+        "mean_lux": {"abs": 0.01, "rel": 0.001},
+        "max_lux": {"abs": 0.02, "rel": 0.001}
+      }
+    },
+    "arrays": {
+      "default": {
+        "max_abs": 0.05,
+        "rmse_abs": 0.02,
+        "p95_abs": 0.04,
+        "p99_abs": 0.05
+      },
+      "by_id": {}
+    }
+  },
+  "profiles": [
+    {
+      "name": "fast_relaxed",
+      "when_tags_any": ["fast"],
+      "scalar": {"abs": 0.01, "rel": 0.01},
+      "arrays": {
+        "default": {
+          "max_abs": 0.1,
+          "rmse_abs": 0.05,
+          "p95_abs": 0.08,
+          "p99_abs": 0.1
+        }
+      }
+    }
+  ]
+}

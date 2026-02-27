@@ -1,0 +1,110 @@
+{
+  "schema_version": 5,
+  "name": "ugr_luminous_area_pack",
+  "parity": {
+    "engines": [
+      {
+        "id": "radiosity_ugr",
+        "job_id": "job_radiosity_ugr"
+      }
+    ],
+    "report_engine": "radiosity_ugr"
+  },
+  "geometry": {
+    "rooms": [
+      {
+        "id": "room_1",
+        "name": "UGR Area Room",
+        "width": 6.0,
+        "length": 8.0,
+        "height": 3.0,
+        "origin": [0.0, 0.0, 0.0],
+        "floor_reflectance": 0.2,
+        "wall_reflectance": 0.5,
+        "ceiling_reflectance": 0.7
+      }
+    ],
+    "surfaces": [],
+    "openings": [],
+    "obstructions": [],
+    "levels": [],
+    "coordinate_systems": [],
+    "zones": [],
+    "no_go_zones": [],
+    "length_unit": "m",
+    "scale_to_meters": 1.0
+  },
+  "photometry_assets": [
+    {
+      "id": "asset_small",
+      "format": "IES",
+      "path": "photometry/fixture_small_opening.ies"
+    },
+    {
+      "id": "asset_large",
+      "format": "IES",
+      "path": "photometry/fixture_large_opening.ies"
+    }
+  ],
+  "luminaires": [
+    {
+      "id": "lum_small",
+      "name": "Small Opening",
+      "photometry_asset_id": "asset_small",
+      "maintenance_factor": 1.0,
+      "flux_multiplier": 1.0,
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [2.8, 4.0, 2.8],
+        "rotation": {
+          "type": "euler_zyx",
+          "euler_deg": [0.0, 0.0, 0.0]
+        }
+      }
+    },
+    {
+      "id": "lum_large",
+      "name": "Large Opening",
+      "photometry_asset_id": "asset_large",
+      "maintenance_factor": 1.0,
+      "flux_multiplier": 1.0,
+      "tilt_deg": 0.0,
+      "transform": {
+        "position": [3.2, 4.0, 2.8],
+        "rotation": {
+          "type": "euler_zyx",
+          "euler_deg": [0.0, 0.0, 0.0]
+        }
+      }
+    }
+  ],
+  "glare_views": [
+    {
+      "id": "view_1",
+      "name": "Primary View",
+      "observer": [1.0, 1.0, 1.2],
+      "view_dir": [1.0, 0.0, 0.0],
+      "fov_deg": 90.0,
+      "room_id": "room_1"
+    }
+  ],
+  "grids": [],
+  "jobs": [
+    {
+      "id": "job_radiosity_ugr",
+      "type": "radiosity",
+      "backend": "cpu",
+      "seed": 0,
+      "settings": {
+        "ugr_debug_top_n": 2,
+        "max_iterations": 3,
+        "convergence_threshold": 0.02,
+        "patch_max_area": 100.0,
+        "use_visibility": false,
+        "form_factor_method": "analytic",
+        "monte_carlo_samples": 2
+      }
+    }
+  ],
+  "results": []
+}

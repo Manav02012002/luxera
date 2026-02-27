@@ -1,0 +1,23 @@
+{
+  "engines": [
+    {
+      "engine_id": "roadway_cpu",
+      "grid_csv": [
+        "roadway_cpu__grid.csv",
+        "roadway_cpu__road_grid.csv",
+        "roadway_cpu__road_grid_1.csv"
+      ],
+      "job_id": "job_roadway_cpu",
+      "result_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_1_4fpd1w/_pack_work/.luxera/results/61a3192c2bc1343a3ea8701662375efb8777f2df97bc177ac5e27229cc123d0a"
+    }
+  ],
+  "expected_json": "/Users/manavmadanrawal/Dev/luxera/luxera/scenes/refs/small_roadway/expected/expected.json",
+  "out_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_1_4fpd1w",
+  "pack_dir": "/Users/manavmadanrawal/Dev/luxera/luxera/scenes/refs/small_roadway",
+  "pack_name": "small_roadway",
+  "report_pdf": "report.pdf",
+  "results_json": "results.json",
+  "scene_path": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_1_4fpd1w/_pack_work/scene.lux.json",
+  "schema_version": "parity_manifest_v1",
+  "work_pack_dir": "/private/var/folders/y1/flvrfl0d48lcydc1dqrsx3r00000gn/T/luxera_parity_1_4fpd1w/_pack_work"
+}

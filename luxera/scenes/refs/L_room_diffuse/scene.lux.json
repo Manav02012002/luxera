@@ -1,0 +1,31 @@
+{
+  "schema_version": 5,
+  "name": "L_room_diffuse",
+  "parity": {
+    "engines": [
+      {"id": "direct_cpu", "job_id": "job_direct"},
+      {"id": "radiosity_cpu", "job_id": "job_radiosity"}
+    ],
+    "report_engine": "radiosity_cpu"
+  },
+  "geometry": {
+    "rooms": [{
+      "id": "room_1", "name": "LroomProxy", "width": 8.0, "length": 5.0, "height": 3.0,
+      "origin": [0.0,0.0,0.0], "floor_reflectance": 0.25, "wall_reflectance": 0.55, "ceiling_reflectance": 0.75
+    }],
+    "surfaces": [], "openings": [], "obstructions": [], "levels": [], "coordinate_systems": [], "zones": [], "no_go_zones": [], "length_unit": "m", "scale_to_meters": 1.0
+  },
+  "photometry_assets": [{"id":"asset_1","format":"IES","path":"photometry/fixture.ies"}],
+  "luminaires": [
+    {"id":"lum_1","name":"L1","photometry_asset_id":"asset_1","maintenance_factor":1.0,"flux_multiplier":1.0,"tilt_deg":0.0,
+     "transform":{"position":[2.0,2.0,2.8],"rotation":{"type":"euler_zyx","euler_deg":[0.0,0.0,0.0]}}},
+    {"id":"lum_2","name":"L2","photometry_asset_id":"asset_1","maintenance_factor":1.0,"flux_multiplier":1.0,"tilt_deg":0.0,
+     "transform":{"position":[6.0,3.0,2.8],"rotation":{"type":"euler_zyx","euler_deg":[0.0,0.0,0.0]}}}
+  ],
+  "grids": [{"id":"grid_1","name":"Workplane","origin":[0.0,0.0,0.0],"width":8.0,"height":5.0,"elevation":0.8,"nx":6,"ny":4,"normal":[0.0,0.0,1.0],"room_id":"room_1"}],
+  "jobs": [
+    {"id":"job_direct","type":"direct","backend":"cpu","seed":0,"settings":{"use_occlusion":false}},
+    {"id":"job_radiosity","type":"radiosity","backend":"cpu","seed":0,"settings":{"max_iterations":40,"convergence_threshold":0.0005,"damping":1.0,"patch_max_area":4.0,"method":"GATHERING","use_visibility":false,"ambient_light":0.0,"monte_carlo_samples":16}}
+  ],
+  "results": []
+}

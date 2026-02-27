@@ -1,0 +1,41 @@
+{
+  "schema_version": "parity_expected_v1",
+  "tolerances": {
+    "default": {"abs": 1e-06, "rel": 1e-06},
+    "metrics": {
+      "engines.direct_cpu.summary.mean_lux": {"abs": 0.5, "rel": 0.02},
+      "engines.direct_cpu.summary.min_lux": {"abs": 0.5, "rel": 0.05},
+      "engines.direct_cpu.summary.max_lux": {"abs": 1.0, "rel": 0.02},
+      "engines.direct_cpu.summary.uniformity_ratio": {"abs": 0.02, "rel": 0.05},
+      "engines.radiosity_cpu.summary.bounce_ratio": {"abs": 1.0, "rel": 1.0},
+      "engines.radiosity_cpu.summary.radiosity_diagnostics.final_residual": {"abs": 0.001, "rel": 0.0}
+    }
+  },
+  "ignore": [],
+  "expected": {
+    "pack_name": "box_room_diffuse",
+    "engines": {
+      "direct_cpu": {
+        "job_type": "direct",
+        "summary": {
+          "mean_lux": 46.19722454445375,
+          "min_lux": 11.86510672265132,
+          "max_lux": 225.00000000000006,
+          "uniformity_ratio": 0.2568359211976901
+        }
+      },
+      "radiosity_cpu": {
+        "job_type": "radiosity",
+        "summary": {
+          "residual_threshold": 0.0005,
+          "residual_below_threshold": true,
+          "residual_nonincreasing": true,
+          "bounce_ratio": 0.0,
+          "radiosity_diagnostics": {
+            "final_residual": 0.0
+          }
+        }
+      }
+    }
+  }
+}
