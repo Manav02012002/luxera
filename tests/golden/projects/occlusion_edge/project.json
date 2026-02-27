@@ -95,12 +95,32 @@
       "plan": "Execute job and persist immutable result artifacts.",
       "tool_calls": [],
       "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/occlusion_edge/.luxera/results/e77a045a9382b2a478f97878fe9ca6ec8d4d7d0ea7b6b6c5338499f64820fc7d"
+      ],
+      "created_at": 1772225162.050313,
+      "diffs": [],
+      "id": "a4cf63f4-9f18-49d6-a27c-2e5c2e26a986",
+      "job_hashes": [
+        "e77a045a9382b2a478f97878fe9ca6ec8d4d7d0ea7b6b6c5338499f64820fc7d"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
     }
   ],
   "arbitrary_planes": [],
   "asset_bundle_path": null,
   "assistant_redo_stack": [],
   "assistant_undo_stack": [],
+  "block_instances": [],
   "compliance_profiles": [],
   "escape_routes": [],
   "geometry": {
@@ -114,6 +134,7 @@
         "height": 2.7,
         "id": "o_edge",
         "kind": "partition",
+        "layer_id": null,
         "name": "Thin Edge Blocker",
         "vertices": [
           [
@@ -149,6 +170,7 @@
         "footprint": null,
         "height": 3.0,
         "id": "r1",
+        "layer_id": null,
         "length": 6.0,
         "level_id": null,
         "name": "EdgeRoom",
@@ -173,6 +195,8 @@
       "evaluation_height_offset": 0.0,
       "height": 6.0,
       "id": "g1",
+      "layer_id": null,
+      "mask_near_openings": false,
       "metric_set": [
         "E_avg",
         "E_min",
@@ -188,6 +212,7 @@
       ],
       "nx": 17,
       "ny": 9,
+      "opening_mask_margin": 0.0,
       "origin": [
         0.0,
         0.0,
@@ -220,39 +245,51 @@
   ],
   "layers": [
     {
+      "color": null,
       "id": "room",
       "name": "Rooms",
       "order": 10,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "wall",
       "name": "Walls",
       "order": 20,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "ceiling_grid",
       "name": "Ceiling Grid",
       "order": 30,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "opening",
       "name": "Openings",
       "order": 40,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "luminaire",
       "name": "Luminaires",
       "order": 50,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "grid",
       "name": "Calc Grids",
       "order": 60,
+      "style": null,
       "visible": true
     }
   ],
@@ -260,9 +297,12 @@
   "luminaire_families": [],
   "luminaires": [
     {
+      "emergency_operation": "maintained",
+      "emergency_output_factor": 1.0,
       "family_id": null,
       "flux_multiplier": 1.0,
       "id": "l1",
+      "layer_id": null,
       "maintenance_factor": 1.0,
       "mounting_height_m": null,
       "mounting_type": null,
@@ -290,9 +330,12 @@
       }
     },
     {
+      "emergency_operation": "maintained",
+      "emergency_output_factor": 1.0,
       "family_id": null,
       "flux_multiplier": 1.0,
       "id": "l2",
+      "layer_id": null,
       "maintenance_factor": 1.0,
       "mounting_height_m": null,
       "mounting_type": null,
@@ -325,6 +368,7 @@
   "name": "validation_occlusion_edge",
   "param": {
     "footprints": [],
+    "instances": [],
     "openings": [],
     "rooms": [],
     "shared_walls": [],
@@ -343,11 +387,12 @@
     }
   ],
   "point_sets": [],
+  "polygon_workplanes": [],
   "results": [
     {
-      "job_hash": "be1880335361990c8d3dfb2b27b5b4009be5d47ee34c981b8f3ab3d157dc89cc",
+      "job_hash": "e77a045a9382b2a478f97878fe9ca6ec8d4d7d0ea7b6b6c5338499f64820fc7d",
       "job_id": "j_direct",
-      "result_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/occlusion_edge/.luxera/results/be1880335361990c8d3dfb2b27b5b4009be5d47ee34c981b8f3ab3d157dc89cc",
+      "result_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/occlusion_edge/.luxera/results/e77a045a9382b2a478f97878fe9ca6ec8d4d7d0ea7b6b6c5338499f64820fc7d",
       "summary": {
         "calc_object_count": 1,
         "calc_objects": [
@@ -378,6 +423,64 @@
         "global_worst_min_lux": 21.292322735204515,
         "global_worst_uniformity_ratio": 0.2561851264011804,
         "highest_ugr": 0.0,
+        "indoor_planes": {
+          "cylindrical": [
+            {
+              "Eavg": 41.55651624728048,
+              "U0": 0.2561851264011804,
+              "id": "cyl_1"
+            }
+          ],
+          "maintenance_factor": 0.8,
+          "per_plane": [
+            {
+              "Eavg": 83.11303249456095,
+              "U0": 0.2561851264011804,
+              "id": "grid_1",
+              "name": "Workplane",
+              "source": "workplane"
+            },
+            {
+              "Eavg": 83.11303249456095,
+              "U0": 0.2561851264011804,
+              "id": "auto_wall_north",
+              "name": "auto_wall_north",
+              "room_id": "r1",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 83.11303249456095,
+              "U0": 0.2561851264011804,
+              "id": "auto_wall_east",
+              "name": "auto_wall_east",
+              "room_id": "r1",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 83.11303249456095,
+              "U0": 0.2561851264011804,
+              "id": "auto_wall_south",
+              "name": "auto_wall_south",
+              "room_id": "r1",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 83.11303249456095,
+              "U0": 0.2561851264011804,
+              "id": "auto_wall_west",
+              "name": "auto_wall_west",
+              "room_id": "r1",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 83.11303249456095,
+              "U0": 0.2561851264011804,
+              "id": "vp_user",
+              "name": "vp_user",
+              "source": "user_defined"
+            }
+          ]
+        },
         "max_lux": 238.82039589895265,
         "mean_lux": 83.11303249456095,
         "mean_of_means_lux": 83.11303249456095,
@@ -397,6 +500,8 @@
   "roadways": [],
   "root_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/occlusion_edge",
   "schema_version": 5,
+  "selection_sets": [],
+  "symbols_2d": [],
   "variants": [],
   "vertical_planes": [],
   "workplanes": []

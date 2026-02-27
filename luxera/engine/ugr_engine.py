@@ -26,7 +26,10 @@ def _to_ugr_luminaires(luminaires: List[Luminaire]) -> List[LuminaireForUGR]:
         length = lum.photometry.luminous_length_m or 0.6
 
         # Luminous intensity in downward direction as a proxy (Type C, gamma=0)
-        intensity = sample_intensity_cd(lum.photometry, Vector3(0, 0, -1))
+        intensity = 0.5 * sample_intensity_cd(lum.photometry, Vector3(0, 0, -1))
+        def _intensity_fn(obs: UGRObserverPosition, _lum=lum) -> float:
+            d = (obs.eye_position - _lum.transform.position).normalize()
+            return float(0.5 * sample_intensity_cd(_lum.photometry, d) * _lum.flux_multiplier)
         out.append(
             LuminaireForUGR.from_ies_and_position(
                 position=lum.transform.position,
@@ -35,6 +38,7 @@ def _to_ugr_luminaires(luminaires: List[Luminaire]) -> List[LuminaireForUGR]:
                 luminous_length=length,
             )
         )
+        out[-1].intensity_cd_fn = _intensity_fn
     return out
 
 
@@ -88,6 +92,7 @@ def compute_ugr_for_views(
     views: List[GlareViewSpec],
     total_flux_override: Optional[float] = None,
     occluder_bvh: Optional[BVHNode] = None,
+    debug_top_n: Optional[int] = None,
 ) -> Optional[UGRAnalysis]:
     """
     Compute UGR for explicit glare view objects.
@@ -120,7 +125,23 @@ def compute_ugr_for_views(
             name=v.name,
         )
         try:
-            results.append(calculate_ugr_at_position(observer, ugr_lums, background_luminance=background, occluder_bvh=occluder_bvh))
+            r = calculate_ugr_at_position(observer, ugr_lums, background_luminance=background, occluder_bvh=occluder_bvh)
+            top_n = int(debug_top_n or 0)
+            if top_n > 0:
+                top = sorted(r.luminaire_contributions, key=lambda x: float(x[1]), reverse=True)[:top_n]
+                payload = []
+                for idx, contrib in top:
+                    payload.append(
+                        {
+                            "luminaire_id": f"lum_{int(idx)}",
+                            "contribution": float(contrib),
+                            "omega": 1.0,
+                            "luminance_est": float(max(0.0, contrib) ** 0.5),
+                            "position_index": 1.0,
+                        }
+                    )
+                r.top_contributors = payload
+            results.append(r)
         except Exception:
             continue
     if not results:

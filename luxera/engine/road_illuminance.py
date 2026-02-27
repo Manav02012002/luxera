@@ -9,6 +9,7 @@ import numpy as np
 
 from luxera.calculation.illuminance import Luminaire
 from luxera.engine.direct_illuminance import run_direct_grid
+from luxera.engine.roadway_grids import resolve_lane_slices
 from luxera.project.schema import CalcGrid, RoadwayGridSpec, RoadwaySpec
 
 
@@ -20,6 +21,44 @@ class RoadIlluminanceResult:
     ny: int
     lane_grids: List[Dict[str, object]]
     summary: Dict[str, object]
+
+
+def compute_lane_luminance_metrics(
+    luminance_grid: np.ndarray,
+    *,
+    lane_ranges: List[tuple[int, int, int]],
+    longitudinal_line_policy: str = "center",
+) -> tuple[List[Dict[str, float]], Dict[str, float]]:
+    arr = np.asarray(luminance_grid, dtype=float)
+    lanes: List[Dict[str, float]] = []
+    for lane_number, y0, y1 in lane_ranges:
+        band = arr[int(y0):int(y1), :]
+        if band.size == 0:
+            continue
+        lavg = float(np.mean(band))
+        lmin = float(np.min(band))
+        uo = lmin / lavg if lavg > 1e-12 else 0.0
+        if str(longitudinal_line_policy).lower() == "center":
+            row = band[min(max(band.shape[0] // 2, 0), band.shape[0] - 1), :]
+        else:
+            row = band[0, :]
+        row_min = float(np.min(row)) if row.size else 0.0
+        row_max = float(np.max(row)) if row.size else 0.0
+        ul = row_min / row_max if row_max > 1e-12 else 0.0
+        lanes.append(
+            {
+                "lane_number": float(lane_number),
+                "Lavg_cd_m2": lavg,
+                "Uo_luminance": uo,
+                "Ul_luminance": ul,
+            }
+        )
+    worst = {
+        "lavg_min_cd_m2": float(min((l["Lavg_cd_m2"] for l in lanes), default=0.0)),
+        "uo_min": float(min((l["Uo_luminance"] for l in lanes), default=0.0)),
+        "ul_min": float(min((l["Ul_luminance"] for l in lanes), default=0.0)),
+    }
+    return lanes, worst
 
 
 def _compute_grid_stats(values: np.ndarray) -> Dict[str, float]:
@@ -113,13 +152,33 @@ def run_road_illuminance(
         normal=(0.0, 0.0, 1.0),
     )
     road = run_direct_grid(road_grid, luminaires, occluders=None, use_occlusion=False, occlusion_epsilon=1e-6)
-
     vals = np.array(road.result.values, dtype=float).reshape(ny, nx)
-    points = road.points
+    points = np.array(road.points, dtype=float)
+
+    # Optional geometric roadway segment transform (curve + bank) for reporting grids.
+    segment = getattr(roadway, "segment", None) if roadway is not None else None
+    if segment is not None:
+        local = points - np.array([[origin[0], origin[1], origin[2]]], dtype=float)
+        x = local[:, 0]
+        y = local[:, 1]
+        z = local[:, 2]
+        radius = float(getattr(segment, "curve_radius_m", 0.0) or 0.0)
+        angle_deg = float(getattr(segment, "curve_angle_deg", 0.0) or 0.0)
+        if radius > 1e-9 and abs(angle_deg) > 1e-9 and road_length > 1e-9:
+            # Map longitudinal x to arc angle to preserve equal arc-length spacing.
+            arc_theta = (x / road_length) * math.radians(angle_deg)
+            sign = 1.0 if str(getattr(segment, "curve_direction", "left")).lower() == "left" else -1.0
+            x = radius * np.sin(sign * arc_theta)
+            y = y + sign * (radius * (1.0 - np.cos(arc_theta)))
+        bank_deg = float(getattr(segment, "bank_angle_deg", 0.0) or 0.0)
+        if abs(bank_deg) > 1e-9:
+            z = z + y * math.tan(math.radians(bank_deg))
+        points = np.stack([x + origin[0], y + origin[1], z + origin[2]], axis=1)
     centerline = vals[ny // 2, :]
     ul = float(np.min(centerline) / np.mean(centerline)) if centerline.size and float(np.mean(centerline)) > 1e-9 else 0.0
     rho = float(settings.get("road_surface_reflectance", 0.07))
     luminance = np.array(road.result.values, dtype=float).reshape(-1) * rho / math.pi
+    luminance_grid = vals * rho / math.pi
     views = _observer_luminance(points, luminance, origin, lane_width, settings)
     mean_lum = float(np.mean(luminance)) if luminance.size else 0.0
     max_view_lum = max((float(v.get("luminance_cd_m2", 0.0)) for v in views), default=0.0)
@@ -177,6 +236,18 @@ def run_road_illuminance(
                     "ny": max(y1 - y0, 0),
                 }
             )
+    lane_ranges = [(int(m["lane_number"]), int(s.y0), int(s.y1)) for m, s in zip(lane_metrics, resolve_lane_slices(num_lanes, ny))]
+    luminance_lane_metrics, worst_case = compute_lane_luminance_metrics(
+        luminance_grid,
+        lane_ranges=lane_ranges,
+        longitudinal_line_policy="center",
+    )
+    by_lane_num = {int(float(m["lane_number"])): m for m in lane_metrics}
+    for lm in luminance_lane_metrics:
+        base = by_lane_num.get(int(float(lm["lane_number"])))
+        if base is not None:
+            base.update(lm)
+
     summary.update(
         {
             "ul_longitudinal": ul,
@@ -194,6 +265,7 @@ def run_road_illuminance(
             "surround_ratio_proxy": surround_ratio_proxy,
             "lane_metrics": lane_metrics,
             "lanes": lane_metrics,
+            "roadway_worst_case": worst_case,
             "overall": {
                 "avg_lux": summary.get("mean_lux", 0.0),
                 "min_lux": summary.get("min_lux", 0.0),

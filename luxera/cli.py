@@ -1007,6 +1007,144 @@ def _cmd_agent_context_reset(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_agent_run(args: argparse.Namespace) -> int:
+    from luxera.runner import run_job
+    from luxera.export.debug_bundle import export_debug_bundle
+    from luxera.export.en12464_pdf import render_en12464_pdf
+    from luxera.export.en12464_report import build_en12464_report_model
+    from luxera.export.pdf_report import build_project_pdf_report
+
+    project_path = Path(args.project).expanduser().resolve()
+    out_dir = Path(args.out).expanduser().resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    project = load_project_schema(project_path)
+    if not project.jobs:
+        print("[ERROR] Project has no jobs to run.")
+        return 2
+    job = project.jobs[0]
+    ref = run_job(project_path, job.id)
+    project = load_project_schema(project_path)
+
+    report_path = out_dir / "report.pdf"
+    if job.type in {"roadway", "daylight", "emergency"}:
+        build_project_pdf_report(project, ref, report_path)
+    else:
+        model = build_en12464_report_model(project, ref)
+        render_en12464_pdf(model, report_path)
+    audit_path = out_dir / "audit_bundle.zip"
+    export_debug_bundle(project, ref, audit_path)
+    print(f"Agent batch complete: {out_dir}")
+    return 0
+
+
+def _cmd_library_index(args: argparse.Namespace) -> int:
+    from luxera.database.library_manager import index_folder
+
+    stats = index_folder(args.folder, args.out)
+    print(json.dumps({"scanned_files": stats.scanned_files, "indexed_files": stats.indexed_files, "failed_files": stats.failed_files}, indent=2, sort_keys=True))
+    return 0
+
+
+def _cmd_library_search(args: argparse.Namespace) -> int:
+    from luxera.database.library_manager import search_db
+
+    rows = [r.to_dict() for r in search_db(args.db, args.query)]
+    if args.json:
+        print(json.dumps(rows, indent=2, sort_keys=True))
+    else:
+        for r in rows:
+            print(f"{r.get('catalog_number','')} | {r.get('manufacturer','')} | {r.get('name','')}")
+    return 0
+
+
+def _load_parity_selector(args: argparse.Namespace) -> dict:
+    selector: dict = {}
+    if getattr(args, "pack", None):
+        selector["include_packs"] = [str(args.pack)]
+    selector_path = getattr(args, "selector", None)
+    if selector_path:
+        try:
+            import yaml  # type: ignore
+
+            payload = yaml.safe_load(Path(selector_path).read_text(encoding="utf-8")) or {}
+        except Exception:
+            payload = {}
+        if isinstance(payload, dict):
+            packs: List[str] = []
+            for row in payload.get("selectors", []) or []:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("kind", "")).lower() == "pack" and bool(row.get("enabled", True)):
+                    packs.append(str(row.get("value", "")))
+            if packs:
+                selector["include_packs"] = packs
+    return selector
+
+
+def _cmd_parity_run(args: argparse.Namespace) -> int:
+    from luxera.parity.corpus import run_corpus
+
+    parity_root = Path("tests/parity").resolve()
+    out_dir = Path(args.out).expanduser().resolve()
+    selector = _load_parity_selector(args)
+    result = run_corpus(parity_root=parity_root, selector=selector, baseline=str(args.baseline), out_dir=out_dir, update_goldens=False)
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+def _cmd_parity_update(args: argparse.Namespace) -> int:
+    from luxera.parity.corpus import run_corpus
+
+    if str(args.baseline) != "luxera":
+        print("[ERROR] parity update only supports --baseline luxera")
+        return 2
+    if not bool(args.force):
+        print("[ERROR] parity update requires --force")
+        return 2
+    parity_root = Path("tests/parity").resolve()
+    out_dir = Path(args.out).expanduser().resolve()
+    selector = _load_parity_selector(args)
+    result = run_corpus(parity_root=parity_root, selector=selector, baseline=str(args.baseline), out_dir=out_dir, update_goldens=True)
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+def _cmd_parity_report(args: argparse.Namespace) -> int:
+    print(f"Parity report directory: {Path(args.out).expanduser().resolve()}")
+    return 0
+
+
+def _cmd_validate_list(args: argparse.Namespace) -> int:
+    from luxera.validation.harness import discover_cases
+
+    suites = discover_cases(Path(args.root).expanduser().resolve() if args.root else None)
+    for suite, cases in suites.items():
+        print(f"{suite}: {len(cases)} case(s)")
+    return 0
+
+
+def _cmd_validate_run(args: argparse.Namespace) -> int:
+    from luxera.validation.harness import discover_cases, parse_target, run_cases
+
+    suites = discover_cases(Path(args.root).expanduser().resolve() if args.root else None)
+    selected = parse_target(str(args.target), suites)
+    out_root = Path(args.out).expanduser().resolve()
+    run_cases(selected, out_root)
+    return 0
+
+
+def _cmd_validate_report(args: argparse.Namespace) -> int:
+    from luxera.validation.harness import discover_cases, parse_target, run_cases, write_suite_report
+
+    suites = discover_cases(Path(args.root).expanduser().resolve() if args.root else None)
+    selected = parse_target(str(args.suite), suites)
+    out_root = Path(args.out).expanduser().resolve()
+    results = run_cases(selected, out_root)
+    suite_name = str(selected[0].suite if selected else str(args.suite).split("/", 1)[0])
+    write_suite_report(suite_name, results, out_root)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="luxera")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -1331,6 +1469,61 @@ def main(argv: list[str] | None = None) -> int:
     gc.add_argument("--detect-rooms", action="store_true", help="Detect room volumes from cleaned surfaces")
     gc.set_defaults(func=_cmd_geometry_clean)
 
+    library = sub.add_parser("library", help="Luminaire library indexing and search.")
+    library_sub = library.add_subparsers(dest="library_cmd", required=True)
+
+    lib_index = library_sub.add_parser("index", help="Index IES/LDT folder into sqlite database.")
+    lib_index.add_argument("folder", help="Folder containing photometry files")
+    lib_index.add_argument("--out", required=True, help="Output sqlite db path")
+    lib_index.set_defaults(func=_cmd_library_index)
+
+    lib_search = library_sub.add_parser("search", help="Search indexed sqlite library.")
+    lib_search.add_argument("--db", required=True, help="SQLite db path")
+    lib_search.add_argument("--query", required=True, help="Search query")
+    lib_search.add_argument("--json", action="store_true", help="Emit JSON output")
+    lib_search.set_defaults(func=_cmd_library_search)
+
+    parity = sub.add_parser("parity", help="Parity corpus commands.")
+    parity_sub = parity.add_subparsers(dest="parity_cmd", required=True)
+
+    parity_run = parity_sub.add_parser("run", help="Run parity corpus.")
+    parity_run.add_argument("--pack", default=None, help="Pack id filter")
+    parity_run.add_argument("--selector", default=None, help="Selector YAML path")
+    parity_run.add_argument("--baseline", default="luxera", help="Baseline id")
+    parity_run.add_argument("--out", required=True, help="Output directory")
+    parity_run.set_defaults(func=_cmd_parity_run)
+
+    parity_update = parity_sub.add_parser("update", help="Update parity expected outputs.")
+    parity_update.add_argument("--pack", default=None, help="Pack id filter")
+    parity_update.add_argument("--selector", default=None, help="Selector YAML path")
+    parity_update.add_argument("--baseline", default="luxera", help="Baseline id")
+    parity_update.add_argument("--force", action="store_true", help="Required acknowledgement")
+    parity_update.add_argument("--out", required=True, help="Output directory")
+    parity_update.set_defaults(func=_cmd_parity_update)
+
+    parity_report = parity_sub.add_parser("report", help="Show parity report location.")
+    parity_report.add_argument("--out", required=True, help="Output directory")
+    parity_report.set_defaults(func=_cmd_parity_report)
+
+    validate = sub.add_parser("validate", help="Validation harness for case suites in tests/validation.")
+    validate_sub = validate.add_subparsers(dest="validate_cmd", required=True)
+
+    validate_list = validate_sub.add_parser("list", help="List discovered validation suites/cases.")
+    validate_list.add_argument("--root", default=None, help="Validation root (default: tests/validation)")
+    validate_list.set_defaults(func=_cmd_validate_list)
+
+    validate_run = validate_sub.add_parser("run", help="Run validation suite or case target.")
+    validate_run.add_argument("target", help="Suite or suite/case_id")
+    validate_run.add_argument("--out", required=True, help="Output directory for run artifacts")
+    validate_run.add_argument("--root", default=None, help="Validation root (default: tests/validation)")
+    validate_run.set_defaults(func=_cmd_validate_run)
+
+    validate_report = validate_sub.add_parser("report", help="Run suite and emit markdown/json summary.")
+    validate_report.add_argument("suite", help="Suite or suite/case_id")
+    validate_report.add_argument("--out", required=True, help="Output directory for report artifacts")
+    validate_report.add_argument("--root", default=None, help="Validation root (default: tests/validation)")
+    validate_report.set_defaults(func=_cmd_validate_report)
+
     agent = sub.add_parser("agent", help="Agent tooling.")
     agent_sub = agent.add_subparsers(dest="agent_cmd", required=True)
     agent_ctx = agent_sub.add_parser("context", help="Inspect/reset persisted agent context memory.")
@@ -1343,6 +1536,12 @@ def main(argv: list[str] | None = None) -> int:
     agent_ctx_reset = agent_ctx_sub.add_parser("reset", help="Reset agent context memory for project.")
     agent_ctx_reset.add_argument("project", help="Path to project JSON")
     agent_ctx_reset.set_defaults(func=_cmd_agent_context_reset)
+
+    agent_run = agent_sub.add_parser("run", help="Run project job and export report/audit bundle.")
+    agent_run.add_argument("--project", required=True, help="Path to project JSON")
+    agent_run.add_argument("--approve-all", action="store_true", help="Compatibility flag; all actions execute.")
+    agent_run.add_argument("--out", required=True, help="Output directory")
+    agent_run.set_defaults(func=_cmd_agent_run)
 
     args = p.parse_args(argv)
     return int(args.func(args))

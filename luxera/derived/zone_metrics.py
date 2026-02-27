@@ -66,6 +66,7 @@ def compute_zone_metrics(
     zones: Sequence[ZoneSpec],
     rooms_by_id: Mapping[str, RoomSpec],
     zone_requirements: Optional[Mapping[str, Mapping[str, object]]] = None,
+    maintenance_factor: float = 1.0,
 ) -> List[Dict[str, object]]:
     req_map = zone_requirements or {}
     rows: List[Dict[str, object]] = []
@@ -117,6 +118,11 @@ def compute_zone_metrics(
                 if point_in_polygon_inclusive((float(points[i, 0]), float(points[i, 1])), polygon):
                     selected_values.append(float(values[i]))
                     selected_points += 1
+
+        mf = float(maintenance_factor)
+        if mf < 0.0:
+            mf = 0.0
+        selected_values = [float(v) * mf for v in selected_values]
 
         metrics = compute_basic_metrics(selected_values).to_dict() if selected_values else {
             "E_avg": 0.0,

@@ -45,6 +45,7 @@ class Photometry:
     tilt_applied_angle: Literal["gamma"] = "gamma"
     luminous_width_m: Optional[float] = None
     luminous_length_m: Optional[float] = None
+    luminous_height_m: Optional[float] = None
     ies_units_type: Optional[int] = None
 
 
@@ -94,6 +95,7 @@ def photometry_from_parsed_ies(doc: ParsedIES) -> Photometry:
             tilt_source = "NONE"
             tilt = TiltData(type="NONE")
 
+    dim_scale = 1.0 if int(doc.photometry.units_type) == 2 else 0.3048
     return Photometry(
         system=system,
         c_angles_deg=c_angles,
@@ -105,8 +107,9 @@ def photometry_from_parsed_ies(doc: ParsedIES) -> Photometry:
         tilt_source=tilt_source,
         tilt_file=tilt_file,
         tilt_applied_angle="gamma",
-        luminous_width_m=doc.photometry.width,
-        luminous_length_m=doc.photometry.length,
+        luminous_width_m=float(doc.photometry.width) * dim_scale,
+        luminous_length_m=float(doc.photometry.length) * dim_scale,
+        luminous_height_m=float(doc.photometry.height) * dim_scale,
         ies_units_type=int(doc.photometry.units_type),
     )
 

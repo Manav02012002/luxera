@@ -114,12 +114,32 @@
       "plan": "Execute job and persist immutable result artifacts.",
       "tool_calls": [],
       "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room_radiosity/.luxera/results/37861076411568a5558336e0c8125c410210a872f4aaa04635292ba60c49c103"
+      ],
+      "created_at": 1772225157.449307,
+      "diffs": [],
+      "id": "334b5679-f429-4b16-bcec-68fb5e1e82df",
+      "job_hashes": [
+        "37861076411568a5558336e0c8125c410210a872f4aaa04635292ba60c49c103"
+      ],
+      "metadata": {
+        "job_id": "j_radiosity",
+        "job_type": "radiosity"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
     }
   ],
   "arbitrary_planes": [],
   "asset_bundle_path": null,
   "assistant_redo_stack": [],
   "assistant_undo_stack": [],
+  "block_instances": [],
   "compliance_profiles": [],
   "escape_routes": [],
   "geometry": {
@@ -139,6 +159,7 @@
         "footprint": null,
         "height": 3.0,
         "id": "r1",
+        "layer_id": null,
         "length": 6.0,
         "level_id": null,
         "name": "Box",
@@ -163,6 +184,8 @@
       "evaluation_height_offset": 0.0,
       "height": 6.0,
       "id": "g1",
+      "layer_id": null,
+      "mask_near_openings": false,
       "metric_set": [
         "E_avg",
         "E_min",
@@ -178,6 +201,7 @@
       ],
       "nx": 5,
       "ny": 5,
+      "opening_mask_margin": 0.0,
       "origin": [
         0.0,
         0.0,
@@ -215,39 +239,51 @@
   ],
   "layers": [
     {
+      "color": null,
       "id": "room",
       "name": "Rooms",
       "order": 10,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "wall",
       "name": "Walls",
       "order": 20,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "ceiling_grid",
       "name": "Ceiling Grid",
       "order": 30,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "opening",
       "name": "Openings",
       "order": 40,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "luminaire",
       "name": "Luminaires",
       "order": 50,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "grid",
       "name": "Calc Grids",
       "order": 60,
+      "style": null,
       "visible": true
     }
   ],
@@ -255,9 +291,12 @@
   "luminaire_families": [],
   "luminaires": [
     {
+      "emergency_operation": "maintained",
+      "emergency_output_factor": 1.0,
       "family_id": null,
       "flux_multiplier": 1.0,
       "id": "l1",
+      "layer_id": null,
       "maintenance_factor": 1.0,
       "mounting_height_m": null,
       "mounting_type": null,
@@ -290,6 +329,7 @@
   "name": "golden_box_room_radiosity",
   "param": {
     "footprints": [],
+    "instances": [],
     "openings": [],
     "rooms": [],
     "shared_walls": [],
@@ -308,33 +348,37 @@
     }
   ],
   "point_sets": [],
+  "polygon_workplanes": [],
   "results": [
     {
-      "job_hash": "efb0f054cf040ae4c3211a4522af1e09615f5185e369e1a6469c2e6190be4b9f",
+      "job_hash": "37861076411568a5558336e0c8125c410210a872f4aaa04635292ba60c49c103",
       "job_id": "j_radiosity",
-      "result_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room_radiosity/.luxera/results/efb0f054cf040ae4c3211a4522af1e09615f5185e369e1a6469c2e6190be4b9f",
+      "result_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room_radiosity/.luxera/results/37861076411568a5558336e0c8125c410210a872f4aaa04635292ba60c49c103",
       "summary": {
-        "avg_illuminance": 2.965897150476499,
+        "avg_illuminance": 2.0357687193233613,
         "compliance": null,
-        "converged": true,
+        "converged": false,
         "energy": {
-          "total_absorbed": 191.38007450229787,
+          "total_absorbed": 166.20056568282027,
           "total_emitted": 826.5306122448982,
-          "total_exitance": 1095.1296777120715,
-          "total_reflected": 268.5996781434384
+          "total_exitance": 1211.6661775486205,
+          "total_reflected": 265.65519676717884
         },
-        "iterations": 9,
+        "iterations": 60,
         "residuals": [
-          5.72280326291974e-05
+          0.8532832465314668
         ],
         "solver_status": {
-          "converged": true,
-          "iterations": 9,
-          "residual": 5.72280326291974e-05,
-          "warnings": []
+          "converged": false,
+          "iterations": 60,
+          "residual": 0.8532832465314668,
+          "warnings": [
+            "max iterations reached before convergence.",
+            "energy conservation error exceeds 5% (47.75%)."
+          ]
         },
-        "stop_reason": "converged",
-        "total_flux": 1095.1296777120715,
+        "stop_reason": "max_iterations",
+        "total_flux": 1211.6661775486205,
         "ugr_views": null,
         "ugr_worst_case": 27.83388574672066
       }
@@ -344,6 +388,8 @@
   "roadways": [],
   "root_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room_radiosity",
   "schema_version": 5,
+  "selection_sets": [],
+  "symbols_2d": [],
   "variants": [],
   "vertical_planes": [],
   "workplanes": []

@@ -12,6 +12,7 @@ from luxera.geometry.cleaning import (
     merge_vertices as clean_merge_vertices,
     remove_degenerate_triangles,
 )
+from luxera.geometry.heal import heal_mesh
 from luxera.geometry.triangulate import TriangulationConfig, canonicalize_mesh
 
 
@@ -28,6 +29,7 @@ class MeshImportResult:
     length_unit: str = "m"
     scale_to_meters: float = 1.0
     warnings: List[str] = field(default_factory=list)
+    geometry_heal_report: dict = field(default_factory=dict)
 
 
 def _normalize_unit(unit: Optional[str]) -> str:
@@ -164,6 +166,9 @@ def import_mesh_file(
 
     scaled_vertices = [(vx * scale, vy * scale, vz * scale) for (vx, vy, vz) in vertices]
     merged_vertices, normalized_faces, triangles = canonicalize_mesh(scaled_vertices, faces, config=triangulation)
+    healed = heal_mesh(merged_vertices, triangles, deduplicate_coplanar_faces=False)
+    merged_vertices = list(healed.vertices)
+    triangles = list(healed.triangles)
     cleaned_vertices, remap = clean_merge_vertices(
         merged_vertices,
         eps=(triangulation.merge_epsilon if triangulation is not None else 1e-9),
@@ -184,4 +189,5 @@ def import_mesh_file(
         length_unit=unit,
         scale_to_meters=scale,
         warnings=warnings,
+        geometry_heal_report=healed.report.to_dict(),
     )

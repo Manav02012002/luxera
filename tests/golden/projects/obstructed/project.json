@@ -95,12 +95,32 @@
       "plan": "Execute job and persist immutable result artifacts.",
       "tool_calls": [],
       "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/obstructed/.luxera/results/49bbb4b1889dfef56c33b82d5762387b0b68f20ecaef3762bb8652fece108163"
+      ],
+      "created_at": 1772225161.4707541,
+      "diffs": [],
+      "id": "ec6a4dd8-a5b4-48cd-a203-42ae46826568",
+      "job_hashes": [
+        "49bbb4b1889dfef56c33b82d5762387b0b68f20ecaef3762bb8652fece108163"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
     }
   ],
   "arbitrary_planes": [],
   "asset_bundle_path": null,
   "assistant_redo_stack": [],
   "assistant_undo_stack": [],
+  "block_instances": [],
   "compliance_profiles": [],
   "escape_routes": [],
   "geometry": {
@@ -114,6 +134,7 @@
         "height": 2.0,
         "id": "o_block",
         "kind": "partition",
+        "layer_id": null,
         "name": "Blocker",
         "vertices": [
           [
@@ -149,6 +170,7 @@
         "footprint": null,
         "height": 3.0,
         "id": "r1",
+        "layer_id": null,
         "length": 6.0,
         "level_id": null,
         "name": "ObstructedRoom",
@@ -173,6 +195,8 @@
       "evaluation_height_offset": 0.0,
       "height": 6.0,
       "id": "g1",
+      "layer_id": null,
+      "mask_near_openings": false,
       "metric_set": [
         "E_avg",
         "E_min",
@@ -188,6 +212,7 @@
       ],
       "nx": 9,
       "ny": 7,
+      "opening_mask_margin": 0.0,
       "origin": [
         0.0,
         0.0,
@@ -219,39 +244,51 @@
   ],
   "layers": [
     {
+      "color": null,
       "id": "room",
       "name": "Rooms",
       "order": 10,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "wall",
       "name": "Walls",
       "order": 20,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "ceiling_grid",
       "name": "Ceiling Grid",
       "order": 30,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "opening",
       "name": "Openings",
       "order": 40,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "luminaire",
       "name": "Luminaires",
       "order": 50,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "grid",
       "name": "Calc Grids",
       "order": 60,
+      "style": null,
       "visible": true
     }
   ],
@@ -259,9 +296,12 @@
   "luminaire_families": [],
   "luminaires": [
     {
+      "emergency_operation": "maintained",
+      "emergency_output_factor": 1.0,
       "family_id": null,
       "flux_multiplier": 1.0,
       "id": "l1",
+      "layer_id": null,
       "maintenance_factor": 1.0,
       "mounting_height_m": null,
       "mounting_type": null,
@@ -289,9 +329,12 @@
       }
     },
     {
+      "emergency_operation": "maintained",
+      "emergency_output_factor": 1.0,
       "family_id": null,
       "flux_multiplier": 1.0,
       "id": "l2",
+      "layer_id": null,
       "maintenance_factor": 1.0,
       "mounting_height_m": null,
       "mounting_type": null,
@@ -324,6 +367,7 @@
   "name": "validation_obstructed",
   "param": {
     "footprints": [],
+    "instances": [],
     "openings": [],
     "rooms": [],
     "shared_walls": [],
@@ -342,11 +386,12 @@
     }
   ],
   "point_sets": [],
+  "polygon_workplanes": [],
   "results": [
     {
-      "job_hash": "fef81612dede908c1ac299f65d261f401e164eb6a968dff830fa2b26adde2309",
+      "job_hash": "49bbb4b1889dfef56c33b82d5762387b0b68f20ecaef3762bb8652fece108163",
       "job_id": "j_direct",
-      "result_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/obstructed/.luxera/results/fef81612dede908c1ac299f65d261f401e164eb6a968dff830fa2b26adde2309",
+      "result_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/obstructed/.luxera/results/49bbb4b1889dfef56c33b82d5762387b0b68f20ecaef3762bb8652fece108163",
       "summary": {
         "calc_object_count": 1,
         "calc_objects": [
@@ -377,6 +422,64 @@
         "global_worst_min_lux": 21.292322735204515,
         "global_worst_uniformity_ratio": 0.27051701031540115,
         "highest_ugr": 0.0,
+        "indoor_planes": {
+          "cylindrical": [
+            {
+              "Eavg": 39.35486849861932,
+              "U0": 0.27051701031540115,
+              "id": "cyl_1"
+            }
+          ],
+          "maintenance_factor": 0.8,
+          "per_plane": [
+            {
+              "Eavg": 78.70973699723864,
+              "U0": 0.27051701031540115,
+              "id": "grid_1",
+              "name": "Workplane",
+              "source": "workplane"
+            },
+            {
+              "Eavg": 78.70973699723864,
+              "U0": 0.27051701031540115,
+              "id": "auto_wall_north",
+              "name": "auto_wall_north",
+              "room_id": "r1",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 78.70973699723864,
+              "U0": 0.27051701031540115,
+              "id": "auto_wall_east",
+              "name": "auto_wall_east",
+              "room_id": "r1",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 78.70973699723864,
+              "U0": 0.27051701031540115,
+              "id": "auto_wall_south",
+              "name": "auto_wall_south",
+              "room_id": "r1",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 78.70973699723864,
+              "U0": 0.27051701031540115,
+              "id": "auto_wall_west",
+              "name": "auto_wall_west",
+              "room_id": "r1",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 78.70973699723864,
+              "U0": 0.27051701031540115,
+              "id": "vp_user",
+              "name": "vp_user",
+              "source": "user_defined"
+            }
+          ]
+        },
         "max_lux": 238.82039589895265,
         "mean_lux": 78.70973699723864,
         "mean_of_means_lux": 78.70973699723864,
@@ -396,6 +499,8 @@
   "roadways": [],
   "root_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/obstructed",
   "schema_version": 5,
+  "selection_sets": [],
+  "symbols_2d": [],
   "variants": [],
   "vertical_planes": [],
   "workplanes": []

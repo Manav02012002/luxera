@@ -164,6 +164,7 @@ def heal_mesh(
     area_epsilon: float = EPS_AREA,
     sliver_ratio_epsilon: float = EPS_SLIVER_RATIO,
     normal_epsilon: float = EPS_POS,
+    deduplicate_coplanar_faces: bool = True,
 ) -> MeshHealingResult:
     in_vertices = [(float(x), float(y), float(z)) for (x, y, z) in vertices]
     in_triangles = [(int(a), int(b), int(c)) for (a, b, c) in triangles]
@@ -230,21 +231,22 @@ def heal_mesh(
             )
         )
 
-    # Deduplicate exact coplanar duplicates after weld/remap.
-    seen_faces: Dict[Tuple[int, int, int], int] = {}
+    # Optionally deduplicate exact coplanar duplicates after weld/remap.
     dedup_tris: List[TriangleIdx] = []
     dedup_refs: List[FaceRef] = []
     dup_count = 0
+    seen_faces: Dict[Tuple[int, int, int], int] = {}
     for tri, ref in zip(triangles_clean, refs_clean):
         key = tuple(sorted(tri))
         if key in seen_faces:
             dup_count += 1
             issues["duplicate_coplanar_faces"].append(ref.to_dict())
-            continue
-        seen_faces[key] = len(dedup_tris)
+            if deduplicate_coplanar_faces:
+                continue
+        seen_faces.setdefault(key, len(dedup_tris))
         dedup_tris.append(tri)
         dedup_refs.append(ref)
-    if dup_count > 0:
+    if deduplicate_coplanar_faces and dup_count > 0:
         actions.append(
             HealAction(
                 action="deduplicate_coplanar_duplicate_faces",

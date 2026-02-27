@@ -23,6 +23,7 @@ from luxera.geometry.selection_sets import remap_selection_sets
 from luxera.geometry.zones import obstacle_polygons_for_room, resolve_zone_polygon, room_polygon
 from luxera.calcs.masks import apply_obstacle_masks, apply_opening_proximity_mask
 from luxera.project.schema import OpeningSpec, Project, SurfaceSpec
+from luxera.geometry.tolerance import EPS_POS
 
 
 @dataclass(frozen=True)
@@ -57,10 +58,10 @@ def _edge_bulge(fp: FootprintParam, i0: int, i1: int) -> float:
 
 
 def _sample_bulge_edge(a: Tuple[float, float], b: Tuple[float, float], bulge: float, seg_len: float = 0.5) -> List[Tuple[float, float]]:
-    if abs(float(bulge)) <= 1e-12:
+    if abs(float(bulge)) <= EPS_POS:
         return [a, b]
     arc = Arc.from_bulge(a, b, float(bulge))
-    sweep = max(arc.sweep(), 1e-9)
+    sweep = max(arc.sweep(), EPS_POS)
     arc_len = abs(float(arc.radius) * sweep)
     n = max(2, int(math.ceil(arc_len / max(float(seg_len), 0.05))) + 1)
     return [arc.point_at(i / float(n - 1)) for i in range(n)]

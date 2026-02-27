@@ -114,12 +114,32 @@
       "plan": "Execute job and persist immutable result artifacts.",
       "tool_calls": [],
       "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/corridor_radiosity/.luxera/results/38e766ffc18244e4a1eaa9d409f7a4ce93534e4730ec44b75a06c8d159c02af2"
+      ],
+      "created_at": 1772225159.853568,
+      "diffs": [],
+      "id": "5e79e596-c7b4-4f74-ba7c-d3ea064b706a",
+      "job_hashes": [
+        "38e766ffc18244e4a1eaa9d409f7a4ce93534e4730ec44b75a06c8d159c02af2"
+      ],
+      "metadata": {
+        "job_id": "j_radiosity",
+        "job_type": "radiosity"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
     }
   ],
   "arbitrary_planes": [],
   "asset_bundle_path": null,
   "assistant_redo_stack": [],
   "assistant_undo_stack": [],
+  "block_instances": [],
   "compliance_profiles": [],
   "escape_routes": [],
   "geometry": {
@@ -139,6 +159,7 @@
         "footprint": null,
         "height": 3.0,
         "id": "r1",
+        "layer_id": null,
         "length": 4.0,
         "level_id": null,
         "name": "Corridor",
@@ -163,6 +184,8 @@
       "evaluation_height_offset": 0.0,
       "height": 4.0,
       "id": "g1",
+      "layer_id": null,
+      "mask_near_openings": false,
       "metric_set": [
         "E_avg",
         "E_min",
@@ -178,6 +201,7 @@
       ],
       "nx": 11,
       "ny": 3,
+      "opening_mask_margin": 0.0,
       "origin": [
         0.0,
         0.0,
@@ -215,39 +239,51 @@
   ],
   "layers": [
     {
+      "color": null,
       "id": "room",
       "name": "Rooms",
       "order": 10,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "wall",
       "name": "Walls",
       "order": 20,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "ceiling_grid",
       "name": "Ceiling Grid",
       "order": 30,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "opening",
       "name": "Openings",
       "order": 40,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "luminaire",
       "name": "Luminaires",
       "order": 50,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "grid",
       "name": "Calc Grids",
       "order": 60,
+      "style": null,
       "visible": true
     }
   ],
@@ -255,9 +291,12 @@
   "luminaire_families": [],
   "luminaires": [
     {
+      "emergency_operation": "maintained",
+      "emergency_output_factor": 1.0,
       "family_id": null,
       "flux_multiplier": 1.0,
       "id": "l1",
+      "layer_id": null,
       "maintenance_factor": 1.0,
       "mounting_height_m": null,
       "mounting_type": null,
@@ -285,9 +324,12 @@
       }
     },
     {
+      "emergency_operation": "maintained",
+      "emergency_output_factor": 1.0,
       "family_id": null,
       "flux_multiplier": 1.0,
       "id": "l2",
+      "layer_id": null,
       "maintenance_factor": 1.0,
       "mounting_height_m": null,
       "mounting_type": null,
@@ -320,6 +362,7 @@
   "name": "golden_corridor_radiosity",
   "param": {
     "footprints": [],
+    "instances": [],
     "openings": [],
     "rooms": [],
     "shared_walls": [],
@@ -338,33 +381,37 @@
     }
   ],
   "point_sets": [],
+  "polygon_workplanes": [],
   "results": [
     {
-      "job_hash": "48a0b05aaa11db873adf3a6a25719be748bdedde02fe9423ebc516facc87018e",
+      "job_hash": "38e766ffc18244e4a1eaa9d409f7a4ce93534e4730ec44b75a06c8d159c02af2",
       "job_id": "j_radiosity",
-      "result_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/corridor_radiosity/.luxera/results/48a0b05aaa11db873adf3a6a25719be748bdedde02fe9423ebc516facc87018e",
+      "result_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/corridor_radiosity/.luxera/results/38e766ffc18244e4a1eaa9d409f7a4ce93534e4730ec44b75a06c8d159c02af2",
       "summary": {
-        "avg_illuminance": 0.5633937335796633,
+        "avg_illuminance": 0.38310366825659664,
         "compliance": null,
-        "converged": true,
+        "converged": false,
         "energy": {
-          "total_absorbed": 77.82382436243776,
+          "total_absorbed": 66.84936701791563,
           "total_emitted": 299.944042615441,
-          "total_exitance": 406.4124055890209,
-          "total_reflected": 106.46975903506632
+          "total_exitance": 441.668537603345,
+          "total_reflected": 104.90136727425686
         },
-        "iterations": 8,
+        "iterations": 60,
         "residuals": [
-          5.7223025780483994e-05
+          0.8583408434571628
         ],
         "solver_status": {
-          "converged": true,
-          "iterations": 8,
-          "residual": 5.7223025780483994e-05,
-          "warnings": []
+          "converged": false,
+          "iterations": 60,
+          "residual": 0.8583408434571628,
+          "warnings": [
+            "max iterations reached before convergence.",
+            "energy conservation error exceeds 5% (42.74%)."
+          ]
         },
-        "stop_reason": "converged",
-        "total_flux": 406.4124055890209,
+        "stop_reason": "max_iterations",
+        "total_flux": 441.668537603345,
         "ugr_views": null,
         "ugr_worst_case": 0
       }
@@ -374,6 +421,8 @@
   "roadways": [],
   "root_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/corridor_radiosity",
   "schema_version": 5,
+  "selection_sets": [],
+  "symbols_2d": [],
   "variants": [],
   "vertical_planes": [],
   "workplanes": []

@@ -62,3 +62,7 @@ apps/luxera-desktop/src-tauri/target/
 # Dev/test bundles
 luxera_devtest/
 *.zip
+
+# Generated parity/reference run artifacts
+luxera/scenes/refs/**/expected/last_failed_run/
+**/_pack_work/

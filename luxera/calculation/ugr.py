@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Dict
+from typing import Callable, Dict, List, Optional, Tuple
 import numpy as np
 
 from luxera.geometry.core import Vector3, Room
@@ -54,6 +54,8 @@ class LuminaireForUGR:
     luminance: float  # cd/m²
     width: float = 0.6
     length: float = 0.6
+    normal: Vector3 = field(default_factory=lambda: Vector3(0.0, 0.0, -1.0))
+    intensity_cd_fn: Optional[Callable[[UGRObserverPosition], float]] = None
     
     @staticmethod
     def from_ies_and_position(
@@ -82,6 +84,7 @@ class LuminaireForUGR:
             luminance=luminance,
             width=luminous_width,
             length=luminous_length,
+            normal=Vector3(0.0, 0.0, -1.0),
         )
 
 
@@ -113,6 +116,7 @@ class UGRResult:
     ugr_value: float
     background_luminance: float  # cd/m²
     luminaire_contributions: List[Tuple[int, float]]  # (luminaire_index, contribution)
+    top_contributors: List[Dict[str, float | str]] = field(default_factory=list)
     
     @property
     def ugr_class(self) -> int:
@@ -248,7 +252,7 @@ def calculate_solid_angle(
     
     # Assume luminaire faces down (typical for ceiling mounted)
     # Angle from luminaire normal to observer direction
-    lum_normal = Vector3(0, 0, -1)  # Pointing down
+    lum_normal = luminaire.normal if hasattr(luminaire, "normal") else Vector3(0, 0, -1)
     cos_theta = abs(to_lum.normalize().dot(lum_normal))
     
     # Solid angle
@@ -387,6 +391,13 @@ def calculate_ugr_at_position(
         
         # Luminance (adjusted for viewing angle)
         L = lum.luminance
+        if lum.intensity_cd_fn is not None and lum.luminous_area > 1e-12:
+            try:
+                I = float(lum.intensity_cd_fn(observer))
+                if math.isfinite(I):
+                    L = max(0.0, I / lum.luminous_area)
+            except Exception:
+                pass
         
         # Contribution to sum
         contribution = (L ** 2 * omega) / (p ** 2)

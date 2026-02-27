@@ -76,31 +76,40 @@ def resolve_observers(
     lane_widths: Sequence[float],
     settings: Dict[str, object],
 ) -> List[Dict[str, float | str]]:
+    def _get(obs: object, key: str, default: object = None) -> object:
+        if isinstance(obs, dict):
+            return obs.get(key, default)
+        return getattr(obs, key, default)
+
     segment = getattr(roadway, "segment", None) if roadway is not None else None
     base_offsets = lane_center_offsets(lane_widths, float(getattr(segment, "lateral_offset_m", 0.0) or 0.0))
     default_h = float(settings.get("observer_height_m", getattr(grid, "observer_height_m", 1.5)))
     default_back = float(settings.get("observer_back_offset_m", 60.0))
 
-    explicit: List[RoadwayObserverSpec] = []
-    explicit.extend([o for o in getattr(roadway, "observers", []) or [] if bool(getattr(o, "enabled", True))])
-    explicit.extend([o for o in getattr(grid, "observers", []) or [] if bool(getattr(o, "enabled", True))])
+    explicit: List[RoadwayObserverSpec | Dict[str, object]] = []
+    explicit.extend([o for o in getattr(roadway, "observers", []) or [] if bool(_get(o, "enabled", True))])
+    explicit.extend([o for o in getattr(grid, "observers", []) or [] if bool(_get(o, "enabled", True))])
 
     auto_method = str(getattr(grid, "observer_method", "") or "luminance")
     out: List[Dict[str, float | str]] = []
     if explicit:
         for obs in explicit:
-            lane_num = max(1, int(obs.lane_number))
+            lane_num = max(1, int(_get(obs, "lane_number", 1)))
             lane_idx = min(lane_num - 1, max(0, len(base_offsets) - 1))
-            lat = float(obs.lateral_offset_m) if obs.lateral_offset_m is not None else float(base_offsets[lane_idx])
+            obs_lat = _get(obs, "lateral_offset_m", None)
+            lat = float(obs_lat) if obs_lat is not None else float(base_offsets[lane_idx])
+            method = str(_get(obs, "method", auto_method))
+            back = float(_get(obs, "back_offset_m", default_back))
+            height = float(_get(obs, "height_m", default_h))
             out.append(
                 {
-                    "observer_id": str(obs.id),
+                    "observer_id": str(_get(obs, "id", f"obs_{lane_num}")),
                     "lane_number": float(lane_num),
                     "lane_index": float(lane_idx),
-                    "method": str(obs.method),
-                    "x": float(origin[0] - float(obs.back_offset_m)),
+                    "method": method,
+                    "x": float(origin[0] - back),
                     "y": float(origin[1] + lat),
-                    "z": float(origin[2] + float(obs.height_m)),
+                    "z": float(origin[2] + height),
                 }
             )
     else:

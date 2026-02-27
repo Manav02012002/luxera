@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Tuple
 from luxera.geometry.id import stable_id
 from luxera.geometry.param.model import FootprintParam, RoomParam, SharedWallParam
 from luxera.geometry.topology.adjacency import find_shared_edges
+from luxera.geometry.tolerance import EPS_WELD
 
 
 def build_shared_walls_from_rooms(rooms: list[RoomParam], thickness: float = 0.2) -> List[SharedWallParam]:
@@ -34,7 +35,7 @@ def build_shared_walls_from_rooms(rooms: list[RoomParam], thickness: float = 0.2
     return out
 
 
-def _near(a: Tuple[float, float], b: Tuple[float, float], eps: float = 1e-6) -> bool:
+def _near(a: Tuple[float, float], b: Tuple[float, float], eps: float = EPS_WELD) -> bool:
     return abs(float(a[0]) - float(b[0])) <= eps and abs(float(a[1]) - float(b[1])) <= eps
 
 

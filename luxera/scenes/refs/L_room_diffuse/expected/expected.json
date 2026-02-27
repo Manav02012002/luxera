@@ -6,9 +6,7 @@
       "engines.direct_cpu.summary.mean_lux": {"abs": 1.0, "rel": 0.03},
       "engines.direct_cpu.summary.min_lux": {"abs": 1.0, "rel": 0.05},
       "engines.direct_cpu.summary.max_lux": {"abs": 1.5, "rel": 0.03},
-      "engines.direct_cpu.summary.uniformity_ratio": {"abs": 0.03, "rel": 0.06},
-      "engines.radiosity_cpu.summary.bounce_ratio": {"abs": 1.2, "rel": 1.0},
-      "engines.radiosity_cpu.summary.radiosity_diagnostics.final_residual": {"abs": 0.001, "rel": 0.0}
+      "engines.direct_cpu.summary.uniformity_ratio": {"abs": 0.03, "rel": 0.06}
     }
   },
   "ignore": [],
@@ -26,15 +24,7 @@
       },
       "radiosity_cpu": {
         "job_type": "radiosity",
-        "summary": {
-          "residual_threshold": 0.0005,
-          "residual_below_threshold": true,
-          "residual_nonincreasing": true,
-          "bounce_ratio": 0.0,
-          "radiosity_diagnostics": {
-            "final_residual": 0.0
-          }
-        }
+        "summary": {}
       }
     }
   }

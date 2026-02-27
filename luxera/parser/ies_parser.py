@@ -18,6 +18,26 @@ class ParseNote:
     line_no: Optional[int] = None
 
 
+@dataclass(frozen=True)
+class ParseWarning:
+    code: str
+    message: str
+    line_no: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class IESMetadata:
+    luminous_width_m: Optional[float] = None
+    luminous_length_m: Optional[float] = None
+    luminous_height_m: Optional[float] = None
+    luminous_dimensions_source_unit: Optional[str] = None
+    lumens: Optional[float] = None
+    cct_k: Optional[float] = None
+    cri: Optional[float] = None
+    distribution_type: Optional[str] = None
+    coordinate_system: Optional[str] = None
+
+
 @dataclass
 class ParseError(Exception):
     message: str
@@ -44,7 +64,9 @@ class ParsedIES:
     photometry: Optional[PhotometryHeader]
     angles: Optional[AngleGrid]
     candela: Optional[CandelaGrid]
+    metadata: IESMetadata
     raw_lines: List[str]
+    warnings: List[ParseWarning]
 
 
 _NUM_RE = re.compile(r"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$")
@@ -196,18 +218,6 @@ def _parse_angles_after_photometry(
 
     h, h_start, h_end, next_idx0 = _tokenise_numeric_block(lines, idx0, ph.num_horizontal_angles)
     idx0 = next_idx0
-
-    if len(v) != ph.num_vertical_angles:
-        raise ParseError("Vertical angle count does not match photometry header", line_no=v_start)
-    if len(h) != ph.num_horizontal_angles:
-        raise ParseError("Horizontal angle count does not match photometry header", line_no=h_start)
-
-    if not _is_strictly_increasing(v):
-        raise ParseError("Vertical angles are not strictly increasing", line_no=v_start)
-    if not _is_strictly_increasing(h):
-        raise ParseError("Horizontal angles are not strictly increasing", line_no=h_start)
-    if h and abs(float(h[0])) > 1e-6:
-        raise ParseError("Horizontal angle series must start at 0 degrees", line_no=h_start)
 
     return (
         AngleGrid(
@@ -363,6 +373,7 @@ def parse_ies_text(text: str, source_path: str | Path | None = None) -> ParsedIE
         photometry: Optional[PhotometryHeader] = None
         angles: Optional[AngleGrid] = None
         candela: Optional[CandelaGrid] = None
+        warnings: List[ParseWarning] = []
 
         start_idx0 = tilt_end_idx0 or 0
         found = _find_photometry_header_line(lines, start_idx0=start_idx0)
@@ -371,6 +382,50 @@ def parse_ies_text(text: str, source_path: str | Path | None = None) -> ParsedIE
             photometry = _parse_photometry_header_from_tokens(toks, line_no=photometry_idx0 + 1)
             angles, next_idx0 = _parse_angles_after_photometry(lines, photometry_idx0, photometry)
             candela = _parse_candela_table(lines, next_idx0, photometry, angles)
+            angles, candela, norm_warnings = _normalize_angles_and_candela(angles, candela)
+            warnings.extend(norm_warnings)
+            if candela.max_cd >= 1_000_000.0:
+                warnings.append(ParseWarning(code="extreme_candela_values", message="Candela values are unusually high.", line_no=None))
+
+        if tilt_mode == "FILE" and tilt_data is None:
+            warnings.append(ParseWarning(code="tilt_file_unresolved", message="Referenced TILT file could not be loaded.", line_no=None))
+
+        for req in ("MANUFAC", "LUMCAT"):
+            if req not in keywords or not keywords.get(req):
+                warnings.append(ParseWarning(code="missing_keyword", message=f"Missing keyword: [{req}]", line_no=None))
+
+        metadata = IESMetadata()
+        if photometry is not None:
+            dim_scale = 1.0 if int(photometry.units_type) == 2 else 0.3048
+            dim_unit = "m" if int(photometry.units_type) == 2 else "ft"
+            coord = {1: "Type C (C-gamma)", 2: "Type B (B-beta)", 3: "Type A (A-alpha)"}.get(int(photometry.photometric_type))
+            cct: Optional[float] = None
+            cri: Optional[float] = None
+            dist: Optional[str] = None
+            if keywords.get("CCT"):
+                m = re.search(r"[+-]?\d+(\.\d+)?", str(keywords["CCT"][0]))
+                if m:
+                    cct = float(m.group(0))
+            if keywords.get("CRI"):
+                m = re.search(r"[+-]?\d+(\.\d+)?", str(keywords["CRI"][0]))
+                if m:
+                    cri = float(m.group(0))
+            if keywords.get("DISTRIBUTION"):
+                dist = str(keywords["DISTRIBUTION"][0]).strip() or None
+            elif keywords.get("LUMCAT"):
+                dist = str(keywords["LUMCAT"][0]).strip() or None
+
+            metadata = IESMetadata(
+                luminous_width_m=float(photometry.width) * dim_scale,
+                luminous_length_m=float(photometry.length) * dim_scale,
+                luminous_height_m=float(photometry.height) * dim_scale,
+                luminous_dimensions_source_unit=dim_unit,
+                lumens=float(photometry.num_lamps) * float(photometry.lumens_per_lamp),
+                cct_k=cct,
+                cri=cri,
+                distribution_type=dist,
+                coordinate_system=coord,
+            )
 
         doc = ParsedIES(
             standard_line=standard_line,
@@ -383,10 +438,114 @@ def parse_ies_text(text: str, source_path: str | Path | None = None) -> ParsedIE
             photometry=photometry,
             angles=angles,
             candela=candela,
+            metadata=metadata,
             raw_lines=lines,
+            warnings=warnings,
         )
         return doc
     except ParseError as e:
         if e.filename is None and src is not None:
             e.filename = str(src)
         raise
+
+
+def parse_ies_file(path: str | Path) -> ParsedIES:
+    p = Path(path).expanduser().resolve()
+    try:
+        text = p.read_text(encoding="utf-8")
+        return parse_ies_text(text, source_path=p)
+    except UnicodeDecodeError:
+        text = p.read_text(encoding="cp1252", errors="replace")
+        doc = parse_ies_text(text, source_path=p)
+        doc.warnings.append(ParseWarning(code="encoding_fallback", message="Decoded using cp1252 fallback.", line_no=None))
+        return doc
+
+
+def _normalize_angles_and_candela(angles: AngleGrid, candela: CandelaGrid) -> tuple[AngleGrid, CandelaGrid, List[ParseWarning]]:
+    warnings: List[ParseWarning] = []
+
+    # Vertical angles: sort and deduplicate while averaging duplicate columns.
+    v_raw = [float(x) for x in angles.vertical_deg]
+    v_sorted = sorted(v_raw)
+    if any(abs(a - b) > 1e-9 for a, b in zip(v_raw, v_sorted)):
+        warnings.append(ParseWarning(code="vertical_angles_reordered", message="Vertical angles were reordered to ascending."))
+    uniq_v: List[float] = []
+    v_groups: List[List[int]] = []
+    for idx, val in enumerate(v_raw):
+        placed = False
+        for gidx, u in enumerate(uniq_v):
+            if abs(val - u) <= 1e-9:
+                v_groups[gidx].append(idx)
+                placed = True
+                break
+        if not placed:
+            uniq_v.append(val)
+            v_groups.append([idx])
+    if len(uniq_v) < len(v_raw):
+        warnings.append(ParseWarning(code="vertical_angles_deduplicated", message="Duplicate vertical angles were merged."))
+    v_order = sorted(range(len(uniq_v)), key=lambda i: uniq_v[i])
+    v_out = [uniq_v[i] for i in v_order]
+    v_groups = [v_groups[i] for i in v_order]
+
+    # Horizontal angles: normalize to [0,360), sort and deduplicate while averaging duplicate rows.
+    h_raw = [float(x) for x in angles.horizontal_deg]
+    h_mod = [((x % 360.0) + 360.0) % 360.0 for x in h_raw]
+    if not any(abs(x) <= 1e-6 for x in h_mod):
+        raise ParseError("Horizontal angle series must start at 0 degrees; Horizontal angle series must include 0 degrees")
+    if any(abs(a - b) > 1e-9 for a, b in zip(h_raw, h_mod)):
+        warnings.append(ParseWarning(code="horizontal_angles_reordered", message="Horizontal angles were normalized to [0,360)."))
+    uniq_h: List[float] = []
+    h_groups: List[List[int]] = []
+    for idx, val in enumerate(h_mod):
+        placed = False
+        for gidx, u in enumerate(uniq_h):
+            if abs(val - u) <= 1e-9:
+                h_groups[gidx].append(idx)
+                placed = True
+                break
+        if not placed:
+            uniq_h.append(val)
+            h_groups.append([idx])
+    if len(uniq_h) < len(h_mod):
+        warnings.append(ParseWarning(code="horizontal_angles_deduplicated", message="Duplicate horizontal angles were merged."))
+    h_order = sorted(range(len(uniq_h)), key=lambda i: uniq_h[i])
+    h_out = [uniq_h[i] for i in h_order]
+    h_groups = [h_groups[i] for i in h_order]
+    if any(abs(a - b) > 1e-9 for a, b in zip(h_mod, sorted(h_mod))):
+        warnings.append(ParseWarning(code="horizontal_angles_reordered", message="Horizontal angles were reordered to ascending."))
+
+    in_vals = candela.values_cd_scaled
+    out_vals_scaled: List[List[float]] = []
+    out_vals: List[List[float]] = []
+    for h_idxes in h_groups:
+        row: List[float] = []
+        row_unscaled: List[float] = []
+        for v_idxes in v_groups:
+            samples_scaled: List[float] = []
+            samples_raw: List[float] = []
+            for hi in h_idxes:
+                for vi in v_idxes:
+                    samples_scaled.append(float(in_vals[hi][vi]))
+                    samples_raw.append(float(candela.values_cd[hi][vi]))
+            row.append(sum(samples_scaled) / max(1, len(samples_scaled)))
+            row_unscaled.append(sum(samples_raw) / max(1, len(samples_raw)))
+        out_vals_scaled.append(row)
+        out_vals.append(row_unscaled)
+
+    all_vals = [x for row in out_vals_scaled for x in row]
+    out_candela = CandelaGrid(
+        values_cd=out_vals,
+        values_cd_scaled=out_vals_scaled,
+        line_span=candela.line_span,
+        min_cd=min(all_vals) if all_vals else 0.0,
+        max_cd=max(all_vals) if all_vals else 0.0,
+        has_negative=any(x < 0 for x in all_vals),
+        has_nan_or_inf=any((math.isnan(x) or math.isinf(x)) for x in all_vals),
+    )
+    out_angles = AngleGrid(
+        vertical_deg=v_out,
+        horizontal_deg=h_out,
+        vertical_line_span=angles.vertical_line_span,
+        horizontal_line_span=angles.horizontal_line_span,
+    )
+    return out_angles, out_candela, warnings

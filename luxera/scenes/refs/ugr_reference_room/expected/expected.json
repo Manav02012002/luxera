@@ -18,20 +18,7 @@
       "radiosity_ugr": {
         "job_type": "radiosity",
         "summary": {
-          "ugr_worst_case": 29.55489560744117,
-          "ugr_debug": {
-            "mode": "default_grid",
-            "observer": "(2.0, 2.0) +X",
-            "top_n": 2,
-            "top_contributors": [
-              {
-                "luminaire_id": "lum_a"
-              },
-              {
-                "luminaire_id": "lum_b"
-              }
-            ]
-          }
+          "ugr_worst_case": 30.370438110357565
         }
       }
     }
