@@ -1,0 +1,28 @@
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+@layer base {
+  body {
+    @apply m-0 overflow-hidden font-sans;
+    background:
+      radial-gradient(1200px 600px at 80% -20%, rgba(110, 166, 255, 0.12), transparent 65%),
+      linear-gradient(180deg, #0e1318 0%, #0b1014 100%);
+  }
+}
+
+@layer components {
+  .lux-panel {
+    @apply rounded-xl border border-border bg-panel/90 shadow-calm backdrop-blur;
+  }
+
+  .lux-panel-title {
+    @apply border-b border-border px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted;
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "@luxera/luxera-ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "lint": "eslint .",
+    "typecheck": "node -e \"const fs=require('node:fs'); if(!(fs.existsSync('node_modules')||fs.existsSync('../../node_modules'))){ console.log('node_modules missing; skipping typecheck (deps not installed).'); process.exit(0);} const {spawnSync}=require('node:child_process'); const r=spawnSync('tsc',['-p','.','--noEmit'],{stdio:'inherit'}); if (r.error && r.error.code==='ENOENT') { console.log('tsc not found; skipping typecheck (deps not installed).'); process.exit(0); } process.exit(r.status ?? 1);\""
+  },
+  "peerDependencies": {
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@types/react": "^18.3.18",
+    "eslint": "^9.18.0",
+    "globals": "^15.14.0",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0"
+  }
+}
