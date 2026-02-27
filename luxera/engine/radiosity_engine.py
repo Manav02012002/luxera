@@ -17,6 +17,7 @@ class RadiosityEngineResult:
     iterations: int
     converged: bool
     residuals: List[float]
+    energy_balance_history: List[float]
     stop_reason: str
     surface_illuminance: Dict[str, float]
     floor_values: List[float]
@@ -75,6 +76,7 @@ def run_radiosity(
         iterations=int(solve.status.iterations),
         converged=bool(solve.status.converged),
         residuals=[float(solve.status.residual)],
+        energy_balance_history=[float(solve.energy.total_exitance - solve.energy.total_emitted)],
         stop_reason=("converged" if solve.status.converged else "max_iterations"),
         surface_illuminance=surface_ill,
         floor_values=floor_values,

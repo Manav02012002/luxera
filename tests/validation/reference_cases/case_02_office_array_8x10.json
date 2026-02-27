@@ -1,0 +1,39 @@
+{
+  "id": "case_02_office_array_8x10",
+  "room": {
+    "width": 8.0,
+    "length": 10.0,
+    "height": 3.0,
+    "wall_reflectance": 0.5,
+    "floor_reflectance": 0.2,
+    "ceiling_reflectance": 0.7
+  },
+  "luminaires": [
+    {"position": [1.3333333333, 2.5, 3.0], "rotation": [0.0, 0.0, 0.0], "ies_file": "assets/office_broad.ies"},
+    {"position": [4.0, 2.5, 3.0], "rotation": [0.0, 0.0, 0.0], "ies_file": "assets/office_broad.ies"},
+    {"position": [6.6666666667, 2.5, 3.0], "rotation": [0.0, 0.0, 0.0], "ies_file": "assets/office_broad.ies"},
+    {"position": [1.3333333333, 7.5, 3.0], "rotation": [0.0, 0.0, 0.0], "ies_file": "assets/office_broad.ies"},
+    {"position": [4.0, 7.5, 3.0], "rotation": [0.0, 0.0, 0.0], "ies_file": "assets/office_broad.ies"},
+    {"position": [6.6666666667, 7.5, 3.0], "rotation": [0.0, 0.0, 0.0], "ies_file": "assets/office_broad.ies"}
+  ],
+  "grid": {
+    "origin": [0.5, 0.5, 0.0],
+    "width": 7.0,
+    "height": 9.0,
+    "elevation": 0.8,
+    "nx": 17,
+    "ny": 21
+  },
+  "expected": {
+    "min_lux": 220.0,
+    "max_lux": 770.0,
+    "avg_lux": 500.0,
+    "uniformity_u0": 0.44,
+    "tolerances": {
+      "avg_lux_pct": 0.10,
+      "min_lux_pct": 0.15,
+      "max_lux_pct": 0.15,
+      "uniformity_u0_abs": 0.04
+    }
+  }
+}

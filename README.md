@@ -1,4 +1,5 @@
 # Luxera
+[![CI](https://github.com/Manav02012002/luxera/actions/workflows/ci.yml/badge.svg)](https://github.com/Manav02012002/luxera/actions/workflows/ci.yml)
 
 Luxera is a cross-platform, open-source lighting calculation and analysis tool. It provides photometric parsing, direct and interreflected illuminance computation, glare evaluation, compliance checking, geometry import/export, PDF reporting, and an interactive desktop GUI -- all built on a pure Python core with no OS-specific dependencies.
 

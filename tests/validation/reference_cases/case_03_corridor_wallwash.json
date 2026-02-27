@@ -1,0 +1,38 @@
+{
+  "id": "case_03_corridor_wallwash",
+  "room": {
+    "width": 2.5,
+    "length": 12.0,
+    "height": 3.0,
+    "wall_reflectance": 0.5,
+    "floor_reflectance": 0.2,
+    "ceiling_reflectance": 0.7
+  },
+  "luminaires": [
+    {
+      "position": [1.25, 1.5, 2.9],
+      "rotation": [90.0, 0.0, 0.0],
+      "ies_file": "assets/wallwash_asym.ies"
+    }
+  ],
+  "grid": {
+    "origin": [0.0, 0.0, 0.0],
+    "width": 2.5,
+    "height": 12.0,
+    "elevation": 0.8,
+    "nx": 7,
+    "ny": 25
+  },
+  "expected": {
+    "min_lux": 0.08,
+    "max_lux": 500.0,
+    "avg_lux": 52.0,
+    "uniformity_u0": 0.0015,
+    "tolerances": {
+      "avg_lux_pct": 0.10,
+      "min_lux_pct": 0.30,
+      "max_lux_pct": 0.15,
+      "uniformity_u0_abs": 0.001
+    }
+  }
+}

@@ -1,0 +1,8 @@
+IESNA:LM-63-2019
+[TEST] Synthetic broad office luminaire used for 2x3 array benchmark in 8x10x3 m room.
+[NOTE] Broad output with high overlap, intended to mimic practical office ambient/task lighting.
+TILT=NONE
+1 12000 1 7 1 1 2 1.20 0.30 0.08
+0 15 30 45 60 75 90
+0
+2520 2460 2280 2050 1760 1400 1050

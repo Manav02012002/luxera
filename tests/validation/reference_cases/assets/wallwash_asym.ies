@@ -1,0 +1,11 @@
+IESNA:LM-63-2019
+[TEST] Synthetic asymmetric wall-wash luminaire for corridor orientation sensitivity.
+[NOTE] C-plane asymmetry is intentional; rotation must change where illuminance concentrates.
+TILT=NONE
+1 8000 1 7 4 1 2 1.00 0.20 0.10
+0 15 30 45 60 75 90
+0 90 180 270
+2200 2100 1800 1200 600 150 0
+1600 1500 1200 800 350 80 0
+600 500 350 180 60 10 0
+1400 1300 1100 700 280 60 0

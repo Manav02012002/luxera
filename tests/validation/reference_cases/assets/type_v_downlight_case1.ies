@@ -1,0 +1,8 @@
+IESNA:LM-63-2019
+[TEST] Synthetic Type V downlight for AGi32/DIALux-style small-room reference case.
+[NOTE] Symmetric, broad distribution representative of recessed downlights in small rooms.
+TILT=NONE
+1 10000 1 7 1 1 2 0.30 0.30 0.10
+0 15 30 45 60 75 90
+0
+3650 3570 3390 3050 2610 2170 1740

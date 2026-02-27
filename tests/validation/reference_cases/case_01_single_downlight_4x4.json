@@ -1,0 +1,38 @@
+{
+  "id": "case_01_single_downlight_4x4",
+  "room": {
+    "width": 4.0,
+    "length": 4.0,
+    "height": 3.0,
+    "wall_reflectance": 0.5,
+    "floor_reflectance": 0.2,
+    "ceiling_reflectance": 0.7
+  },
+  "luminaires": [
+    {
+      "position": [2.0, 2.0, 3.0],
+      "rotation": [0.0, 0.0, 0.0],
+      "ies_file": "assets/type_v_downlight_case1.ies"
+    }
+  ],
+  "grid": {
+    "origin": [0.0, 0.0, 0.0],
+    "width": 4.0,
+    "height": 4.0,
+    "elevation": 0.8,
+    "nx": 9,
+    "ny": 9
+  },
+  "expected": {
+    "min_lux": 136.0,
+    "max_lux": 754.0,
+    "avg_lux": 350.0,
+    "uniformity_u0": 0.39,
+    "tolerances": {
+      "avg_lux_pct": 0.10,
+      "min_lux_pct": 0.15,
+      "max_lux_pct": 0.15,
+      "uniformity_u0_abs": 0.05
+    }
+  }
+}

@@ -39,4 +39,5 @@ markers = [
     "slow: slower integration/regression tests",
     "radiance: tests that require Radiance tooling or backend flows",
     "gui: tests that require GUI/Qt dependencies",
+    "validation: validation/reference regression tests against known benchmarks",
 ]
