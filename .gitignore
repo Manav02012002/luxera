@@ -58,3 +58,7 @@ apps/luxera-desktop/src-tauri/target/
 # Ignore all Luxera runtime state
 **/.luxera/
 **/.luxera-*
+
+# Dev/test bundles
+luxera_devtest/
+*.zip
