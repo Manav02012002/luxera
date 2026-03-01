@@ -86,6 +86,13 @@ export interface ExportOperationResult {
   outputPath: string;
 }
 
+export interface ToolOperationResult {
+  success: boolean;
+  message: string;
+  data: Record<string, unknown> | null;
+  project?: ProjectDocument | null;
+}
+
 export interface JobRunResponse {
   projectPath: string;
   jobId: string;
@@ -134,6 +141,16 @@ export interface RunHistoryEntry {
   stdout: string;
   stderr: string;
   resultDir?: string | null;
+}
+
+export interface AgentRunEntry {
+  atUnixMs: number;
+  intent: string;
+  approvalsJson: string;
+  ok: boolean;
+  actions: number;
+  warnings: number;
+  errors: number;
 }
 
 export interface AppState {
@@ -220,6 +237,95 @@ export interface AppState {
   agentLoading: boolean;
   agentError: string;
   agentResponse: Record<string, unknown> | null;
+  agentApprovalApplyDiff: boolean;
+  agentApprovalRunJob: boolean;
+  agentSelectedOptionIndex: string;
+  agentRunHistory: AgentRunEntry[];
+  materialIdInput: string;
+  materialSurfaceIdsCsv: string;
+  editRoomId: string;
+  editRoomName: string;
+  editRoomWidth: string;
+  editRoomLength: string;
+  editRoomHeight: string;
+  editRoomOriginX: string;
+  editRoomOriginY: string;
+  editRoomOriginZ: string;
+  apertureOpeningId: string;
+  apertureVt: string;
+  escapeRouteId: string;
+  escapeRoutePolylineCsv: string;
+  escapeRouteWidthM: string;
+  escapeRouteSpacingM: string;
+  escapeRouteHeightM: string;
+  escapeRouteEndMarginM: string;
+  arrayRoomId: string;
+  arrayAssetId: string;
+  arrayRows: string;
+  arrayCols: string;
+  arrayMarginM: string;
+  arrayMountHeightM: string;
+  aimLuminaireId: string;
+  aimYawDeg: string;
+  batchYawDeg: string;
+  batchMaintenanceFactor: string;
+  batchFluxMultiplier: string;
+  batchTiltDeg: string;
+  variantIdInput: string;
+  variantNameInput: string;
+  variantDescriptionInput: string;
+  variantDiffOpsJson: string;
+  variantCompareJobId: string;
+  variantCompareIdsCsv: string;
+  variantCompareBaselineId: string;
+  optimizationJobId: string;
+  optimizationConstraintsJson: string;
+  optimizationTopN: string;
+  designLoading: boolean;
+  designError: string;
+  designMessage: string;
+  designResult: Record<string, unknown> | null;
+  sceneZoom: number;
+  scenePanX: number;
+  scenePanY: number;
+  sceneViewMode: "plan" | "3d";
+  sceneCamYawDeg: string;
+  sceneCamPitchDeg: string;
+  sceneCamDistance: string;
+  sceneCamTargetX: string;
+  sceneCamTargetY: string;
+  sceneCamTargetZ: string;
+  layerRooms: boolean;
+  layerSurfaces: boolean;
+  layerOpenings: boolean;
+  layerGrids: boolean;
+  layerLuminaires: boolean;
+  layerTablePoints: boolean;
+  sceneSelectActive: boolean;
+  sceneSelectX0: number;
+  sceneSelectY0: number;
+  sceneSelectX1: number;
+  sceneSelectY1: number;
+  sceneSelectedLuminaireIdsCsv: string;
+  gizmoMoveStepM: string;
+  gizmoRotateStepDeg: string;
+  gizmoSnapEnabled: boolean;
+  gizmoMoveSnapM: string;
+  gizmoAngleSnapDeg: string;
+  gizmoAxisLock: "none" | "x" | "y";
+  gizmoMoveFrame: "world" | "local";
+  gizmoPreviewDx: number;
+  gizmoPreviewDy: number;
+  gizmoPreviewYawDeg: number;
+  gizmoPreviewTarget: "none" | "luminaire" | "opening";
+  inspectorLumTargetX: string;
+  inspectorLumTargetY: string;
+  inspectorLumTargetZ: string;
+  inspectorLumTargetYaw: string;
+  inspectorOpeningTargetX: string;
+  inspectorOpeningTargetY: string;
+  inspectorOpeningTargetZ: string;
+  inspectorOpeningTargetYaw: string;
   selectedTableTitle: string;
   selectedRowIndex: number;
   selectedRow: JsonRow | null;

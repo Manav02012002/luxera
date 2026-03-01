@@ -20,12 +20,18 @@ Files emitted by runner:
 
 ### Slice 0.5: Geometry Authoring
 - add rectangular room (project mutation via CLI) -> `wired`
+- edit room dimensions/origin/name -> `wired`
 - geometry import (DXF/OBJ/GLTF/FBX/SKP/IFC/DWG) -> `wired`
 - geometry clean + detect rooms -> `wired`
+- daylight aperture assignment on openings -> `wired`
+- emergency escape route authoring -> `wired`
 
 ### Slice 0.75: Luminaire Authoring
 - photometry asset import (IES/LDT) -> `wired`
 - luminaire placement with transform/maintenance/tilt -> `wired`
+- luminaire rectangular array placement -> `wired`
+- luminaire aiming (yaw) -> `wired`
+- batch luminaire edits from viewport selection (yaw/maintenance/multiplier/tilt) -> `wired`
 
 ### Slice 1.0: Calculation Setup
 - calc grid creation -> `wired`
@@ -40,6 +46,15 @@ Files emitted by runner:
 ### Slice 1.5: Agent Interface
 - agent intent execution (`AgentRuntime.execute`) -> `wired`
 - approvals payload + structured response inspection -> `wired`
+- approvals builder (`apply_diff`, `run_job`, `selected_option_index`) -> `wired`
+- agent run history + reuse prior intent/approvals -> `wired`
+
+### Slice 1.75: Design Iteration
+- assign material to explicit surface set -> `wired`
+- add project variants (id/name/description + diff ops JSON) -> `wired`
+- compare variants for selected job (rows + artifacts) -> `wired`
+- propose deterministic optimization options -> `wired`
+- apply selected optimization option as project diff -> `wired`
 
 ### Slice 1: Summary / Warnings / Compliance
 - `result.summary.mean_lux|min_lux|max_lux|uniformity_ratio` -> `wired`
@@ -73,6 +88,22 @@ Files emitted by runner:
 - energy accounting block (`total_emitted|absorbed|reflected`) -> `wired`
 - solver warnings and stop reason detailed panel -> `wired`
 
+### Slice 6: Authoring Viewport
+- project scene viewport (rooms/surfaces/openings/grids/luminaires) -> `wired`
+- click-to-bind selection from viewport into authoring controls -> `wired`
+- table-row to viewport marker link -> `wired`
+- viewport pan/zoom/fit controls -> `wired`
+- viewport layer toggles (rooms/surfaces/openings/grids/luminaires/table points) -> `wired`
+- viewport rectangle lasso selection (`Shift + drag`) for multi-surface and multi-luminaire selection -> `wired`
+- 3D perspective mode with orbit camera, depth-aware projection, and camera target controls -> `wired`
+- viewport transform gizmos for selected luminaires (move/rotate) -> `wired`
+- viewport transform gizmos for selected openings (move/rotate) -> `wired`
+- drag-based continuous gizmo interaction with commit-on-release -> `wired`
+- gizmo snapping constraints (move snap + angle snap) -> `wired`
+- gizmo axis-lock + local/world move frame constraints -> `wired`
+- numeric transform inspector (absolute XYZ/Yaw apply for selected luminaire/opening) -> `wired`
+- transform action undo/redo controls with stack depth indicators -> `wired`
+
 ## Next Work Order
 
-1. Add table column presets and saved views.
+1. Project diff history controls (undo/redo/apply previews) in desktop UI.

@@ -128,6 +128,15 @@ struct AgentRuntimeResult {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct ToolOperationResult {
+    success: bool,
+    message: String,
+    data: Value,
+    project: Option<ProjectDocument>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct JobRunResponse {
     project_path: String,
     job_id: String,
@@ -1180,6 +1189,1005 @@ print(json.dumps(res.to_dict()))
 }
 
 #[tauri::command]
+fn assign_material_in_project(
+    project_path: String,
+    material_id: String,
+    surface_ids_csv: String,
+) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if material_id.trim().is_empty() {
+        return Err("Material id is required".to_string());
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.agent.tools.api import AgentTools
+from luxera.project.io import save_project_schema
+project_path = str(Path(sys.argv[1]).expanduser().resolve())
+material_id = sys.argv[2].strip()
+surface_ids = [x.strip() for x in sys.argv[3].split(",") if x.strip()]
+tools = AgentTools()
+project, _ = tools.open_project(project_path)
+res = tools.assign_material(project, material_id=material_id, surface_ids=surface_ids, approved=True)
+if res.ok:
+    save_project_schema(project, Path(project_path))
+print(json.dumps({"ok": res.ok, "message": res.message, "data": res.data}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        material_id.trim().to_string(),
+        surface_ids_csv,
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Material assignment completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    let project_doc = if success {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: project_doc,
+    })
+}
+
+#[tauri::command]
+fn add_project_variant(
+    project_path: String,
+    variant_id: String,
+    name: String,
+    description: Option<String>,
+    diff_ops_json: Option<String>,
+) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if variant_id.trim().is_empty() {
+        return Err("Variant id is required".to_string());
+    }
+    if name.trim().is_empty() {
+        return Err("Variant name is required".to_string());
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.agent.tools.api import AgentTools
+from luxera.project.io import save_project_schema
+project_path = str(Path(sys.argv[1]).expanduser().resolve())
+variant_id = sys.argv[2].strip()
+name = sys.argv[3].strip()
+description = sys.argv[4] if len(sys.argv) > 4 else ""
+raw_ops = sys.argv[5] if len(sys.argv) > 5 else ""
+diff_ops = []
+if raw_ops.strip():
+    parsed = json.loads(raw_ops)
+    if not isinstance(parsed, list):
+        raise ValueError("diff_ops_json must be a JSON array")
+    diff_ops = parsed
+tools = AgentTools()
+project, _ = tools.open_project(project_path)
+res = tools.add_variant(project, variant_id=variant_id, name=name, description=description, diff_ops=diff_ops)
+if res.ok:
+    save_project_schema(project, Path(project_path))
+print(json.dumps({"ok": res.ok, "message": res.message, "data": res.data}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        variant_id.trim().to_string(),
+        name.trim().to_string(),
+        description.unwrap_or_default(),
+        diff_ops_json.unwrap_or_default(),
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Variant operation completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    let project_doc = if success {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: project_doc,
+    })
+}
+
+#[tauri::command]
+fn compare_project_variants(
+    project_path: String,
+    job_id: String,
+    variant_ids_csv: String,
+    baseline_variant_id: Option<String>,
+) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if job_id.trim().is_empty() {
+        return Err("Job id is required".to_string());
+    }
+    if variant_ids_csv.trim().is_empty() {
+        return Err("At least one variant id is required".to_string());
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.agent.tools.api import AgentTools
+project_path = str(Path(sys.argv[1]).expanduser().resolve())
+job_id = sys.argv[2].strip()
+variant_ids = [x.strip() for x in sys.argv[3].split(",") if x.strip()]
+baseline = sys.argv[4].strip() if len(sys.argv) > 4 else ""
+tools = AgentTools()
+project, _ = tools.open_project(project_path)
+res = tools.compare_variants(project, job_id=job_id, variant_ids=variant_ids, baseline_variant_id=(baseline or None))
+print(json.dumps({"ok": res.ok, "message": res.message, "data": res.data}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        job_id.trim().to_string(),
+        variant_ids_csv,
+        baseline_variant_id.unwrap_or_default(),
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Variant compare completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: None,
+    })
+}
+
+#[tauri::command]
+fn propose_project_optimizations(
+    project_path: String,
+    job_id: String,
+    constraints_json: Option<String>,
+    top_n: Option<i64>,
+) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if job_id.trim().is_empty() {
+        return Err("Job id is required".to_string());
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.agent.tools.api import AgentTools
+project_path = str(Path(sys.argv[1]).expanduser().resolve())
+job_id = sys.argv[2].strip()
+raw_constraints = sys.argv[3] if len(sys.argv) > 3 else ""
+top_n = int(sys.argv[4]) if len(sys.argv) > 4 else 5
+constraints = {}
+if raw_constraints.strip():
+    parsed = json.loads(raw_constraints)
+    if not isinstance(parsed, dict):
+        raise ValueError("constraints_json must be a JSON object")
+    constraints = parsed
+tools = AgentTools()
+project, _ = tools.open_project(project_path)
+res = tools.propose_optimizations(project, job_id=job_id, constraints=constraints, top_n=top_n)
+print(json.dumps({"ok": res.ok, "message": res.message, "data": res.data}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        job_id.trim().to_string(),
+        constraints_json.unwrap_or_default(),
+        top_n.unwrap_or(5).to_string(),
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Optimization proposal completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: None,
+    })
+}
+
+#[tauri::command]
+fn apply_project_optimization_option(project_path: String, option_json: String) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if option_json.trim().is_empty() {
+        return Err("Optimization option JSON is required".to_string());
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.agent.tools.api import AgentTools
+from luxera.project.io import save_project_schema
+project_path = str(Path(sys.argv[1]).expanduser().resolve())
+option = json.loads(sys.argv[2])
+if not isinstance(option, dict):
+    raise ValueError("option_json must be a JSON object")
+tools = AgentTools()
+project, _ = tools.open_project(project_path)
+diff_res = tools.optimization_option_diff(project, option=option)
+if not diff_res.ok:
+    print(json.dumps({"ok": False, "message": diff_res.message, "data": {"preview": diff_res.data.get("preview", {}) if isinstance(diff_res.data, dict) else {}}}))
+    raise SystemExit(0)
+diff_obj = diff_res.data.get("diff")
+apply_res = tools.apply_diff(project, diff=diff_obj, approved=True)
+if apply_res.ok:
+    save_project_schema(project, Path(project_path))
+print(json.dumps({
+    "ok": apply_res.ok,
+    "message": apply_res.message if apply_res.message else diff_res.message,
+    "data": {
+        "preview": diff_res.data.get("preview", {}) if isinstance(diff_res.data, dict) else {},
+        "apply": apply_res.data if isinstance(apply_res.data, dict) else {},
+    }
+}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        option_json,
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Optimization apply completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    let project_doc = if success {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: project_doc,
+    })
+}
+
+#[tauri::command]
+fn edit_room_in_project(
+    project_path: String,
+    room_id: String,
+    name: Option<String>,
+    width: Option<f64>,
+    length: Option<f64>,
+    height: Option<f64>,
+    origin_x: Option<f64>,
+    origin_y: Option<f64>,
+    origin_z: Option<f64>,
+) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if room_id.trim().is_empty() {
+        return Err("Room id is required".to_string());
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.agent.tools.api import AgentTools
+from luxera.project.io import save_project_schema
+project_path = str(Path(sys.argv[1]).expanduser().resolve())
+room_id = sys.argv[2].strip()
+raw_name, raw_w, raw_l, raw_h, raw_ox, raw_oy, raw_oz = sys.argv[3:10]
+updates = {}
+if raw_name.strip():
+    updates["name"] = raw_name.strip()
+if raw_w.strip():
+    updates["width"] = float(raw_w)
+if raw_l.strip():
+    updates["length"] = float(raw_l)
+if raw_h.strip():
+    updates["height"] = float(raw_h)
+if raw_ox.strip() or raw_oy.strip() or raw_oz.strip():
+    updates["origin"] = (
+        float(raw_ox) if raw_ox.strip() else 0.0,
+        float(raw_oy) if raw_oy.strip() else 0.0,
+        float(raw_oz) if raw_oz.strip() else 0.0,
+    )
+tools = AgentTools()
+project, _ = tools.open_project(project_path)
+res = tools.edit_room(project, room_id=room_id, updates=updates, approved=True)
+if res.ok:
+    save_project_schema(project, Path(project_path))
+print(json.dumps({"ok": res.ok, "message": res.message, "data": res.data}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        room_id.trim().to_string(),
+        name.unwrap_or_default(),
+        width.map(|v| v.to_string()).unwrap_or_default(),
+        length.map(|v| v.to_string()).unwrap_or_default(),
+        height.map(|v| v.to_string()).unwrap_or_default(),
+        origin_x.map(|v| v.to_string()).unwrap_or_default(),
+        origin_y.map(|v| v.to_string()).unwrap_or_default(),
+        origin_z.map(|v| v.to_string()).unwrap_or_default(),
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Room edit completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    let project_doc = if success {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: project_doc,
+    })
+}
+
+#[tauri::command]
+fn set_daylight_aperture_in_project(
+    project_path: String,
+    opening_id: String,
+    visible_transmittance: Option<f64>,
+) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if opening_id.trim().is_empty() {
+        return Err("Opening id is required".to_string());
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.agent.tools.api import AgentTools
+from luxera.project.io import save_project_schema
+project_path = str(Path(sys.argv[1]).expanduser().resolve())
+opening_id = sys.argv[2].strip()
+vt_raw = sys.argv[3] if len(sys.argv) > 3 else ""
+tools = AgentTools()
+project, _ = tools.open_project(project_path)
+vt = float(vt_raw) if vt_raw.strip() else None
+res = tools.set_daylight_aperture(project, opening_id=opening_id, vt=vt)
+if res.ok:
+    save_project_schema(project, Path(project_path))
+print(json.dumps({"ok": res.ok, "message": res.message, "data": res.data}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        opening_id.trim().to_string(),
+        visible_transmittance.map(|v| v.to_string()).unwrap_or_default(),
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Daylight aperture update completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    let project_doc = if success {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: project_doc,
+    })
+}
+
+#[tauri::command]
+fn add_escape_route_in_project(
+    project_path: String,
+    route_id: String,
+    polyline_csv: String,
+    width_m: Option<f64>,
+    spacing_m: Option<f64>,
+    height_m: Option<f64>,
+    end_margin_m: Option<f64>,
+) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if route_id.trim().is_empty() {
+        return Err("Route id is required".to_string());
+    }
+    if polyline_csv.trim().is_empty() {
+        return Err("Route polyline is required".to_string());
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.agent.tools.api import AgentTools
+from luxera.project.io import save_project_schema
+project_path = str(Path(sys.argv[1]).expanduser().resolve())
+route_id = sys.argv[2].strip()
+polyline_csv = sys.argv[3].strip()
+width_m = float(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4].strip() else 1.0
+spacing_m = float(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5].strip() else 0.5
+height_m = float(sys.argv[6]) if len(sys.argv) > 6 and sys.argv[6].strip() else 0.0
+end_margin_m = float(sys.argv[7]) if len(sys.argv) > 7 and sys.argv[7].strip() else 0.0
+pts = []
+for token in polyline_csv.split(";"):
+    token = token.strip()
+    if not token:
+        continue
+    parts = [p.strip() for p in token.split(",")]
+    if len(parts) != 3:
+        raise ValueError("Each polyline point must be 'x,y,z' and points separated by ';'")
+    pts.append((float(parts[0]), float(parts[1]), float(parts[2])))
+if len(pts) < 2:
+    raise ValueError("Escape route requires at least 2 points")
+tools = AgentTools()
+project, _ = tools.open_project(project_path)
+res = tools.add_escape_route(
+    project,
+    route_id=route_id,
+    polyline=pts,
+    width_m=width_m,
+    spacing_m=spacing_m,
+    height_m=height_m,
+    end_margin_m=end_margin_m,
+)
+if res.ok:
+    save_project_schema(project, Path(project_path))
+print(json.dumps({"ok": res.ok, "message": res.message, "data": res.data}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        route_id.trim().to_string(),
+        polyline_csv,
+        width_m.map(|v| v.to_string()).unwrap_or_default(),
+        spacing_m.map(|v| v.to_string()).unwrap_or_default(),
+        height_m.map(|v| v.to_string()).unwrap_or_default(),
+        end_margin_m.map(|v| v.to_string()).unwrap_or_default(),
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Escape route add completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    let project_doc = if success {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: project_doc,
+    })
+}
+
+#[tauri::command]
+fn array_luminaires_in_project(
+    project_path: String,
+    room_id: String,
+    asset_id: String,
+    rows: i64,
+    cols: i64,
+    margin_m: Option<f64>,
+    mount_height_m: Option<f64>,
+) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if room_id.trim().is_empty() || asset_id.trim().is_empty() {
+        return Err("Room id and asset id are required".to_string());
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.agent.tools.api import AgentTools
+from luxera.project.io import save_project_schema
+project_path = str(Path(sys.argv[1]).expanduser().resolve())
+room_id = sys.argv[2].strip()
+asset_id = sys.argv[3].strip()
+rows = int(sys.argv[4])
+cols = int(sys.argv[5])
+margin_m = float(sys.argv[6]) if len(sys.argv) > 6 and sys.argv[6].strip() else 0.5
+mount_height_m = float(sys.argv[7]) if len(sys.argv) > 7 and sys.argv[7].strip() else 2.8
+tools = AgentTools()
+project, _ = tools.open_project(project_path)
+res = tools.array_luminaires(
+    project,
+    room_id=room_id,
+    asset_id=asset_id,
+    rows=rows,
+    cols=cols,
+    margin_m=margin_m,
+    mount_height_m=mount_height_m,
+    approved=True,
+)
+if res.ok:
+    save_project_schema(project, Path(project_path))
+print(json.dumps({"ok": res.ok, "message": res.message, "data": res.data}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        room_id.trim().to_string(),
+        asset_id.trim().to_string(),
+        rows.to_string(),
+        cols.to_string(),
+        margin_m.map(|v| v.to_string()).unwrap_or_default(),
+        mount_height_m.map(|v| v.to_string()).unwrap_or_default(),
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Luminaire array operation completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    let project_doc = if success {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: project_doc,
+    })
+}
+
+#[tauri::command]
+fn aim_luminaire_in_project(
+    project_path: String,
+    luminaire_id: String,
+    yaw_deg: f64,
+) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if luminaire_id.trim().is_empty() {
+        return Err("Luminaire id is required".to_string());
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.agent.tools.api import AgentTools
+from luxera.project.io import save_project_schema
+project_path = str(Path(sys.argv[1]).expanduser().resolve())
+luminaire_id = sys.argv[2].strip()
+yaw_deg = float(sys.argv[3])
+tools = AgentTools()
+project, _ = tools.open_project(project_path)
+res = tools.aim_luminaire(project, luminaire_id=luminaire_id, yaw_deg=yaw_deg, approved=True)
+if res.ok:
+    save_project_schema(project, Path(project_path))
+print(json.dumps({"ok": res.ok, "message": res.message, "data": res.data}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        luminaire_id.trim().to_string(),
+        yaw_deg.to_string(),
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Luminaire aiming completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    let project_doc = if success {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: project_doc,
+    })
+}
+
+#[tauri::command]
+fn batch_update_luminaires_in_project(
+    project_path: String,
+    luminaire_ids_csv: String,
+    yaw_deg: Option<f64>,
+    maintenance_factor: Option<f64>,
+    flux_multiplier: Option<f64>,
+    tilt_deg: Option<f64>,
+) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if luminaire_ids_csv.trim().is_empty() {
+        return Err("At least one luminaire id is required".to_string());
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.project.io import load_project_schema, save_project_schema
+from luxera.project.schema import RotationSpec
+project_path = Path(sys.argv[1]).expanduser().resolve()
+ids = {x.strip() for x in sys.argv[2].split(",") if x.strip()}
+yaw = float(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3].strip() else None
+maintenance = float(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4].strip() else None
+multiplier = float(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5].strip() else None
+tilt = float(sys.argv[6]) if len(sys.argv) > 6 and sys.argv[6].strip() else None
+project = load_project_schema(project_path)
+from luxera.project.history import push_snapshot
+push_snapshot(project, label="batch_update_luminaires")
+updated = []
+for lum in project.luminaires:
+    if lum.id not in ids:
+        continue
+    if yaw is not None:
+        pitch = 0.0
+        roll = 0.0
+        if getattr(lum.transform.rotation, "type", None) == "euler_zyx" and getattr(lum.transform.rotation, "euler_deg", None):
+            _old_yaw, pitch, roll = lum.transform.rotation.euler_deg
+        lum.transform.rotation = RotationSpec(type="euler_zyx", euler_deg=(float(yaw), float(pitch), float(roll)))
+    if maintenance is not None:
+        lum.maintenance_factor = float(maintenance)
+    if multiplier is not None:
+        lum.flux_multiplier = float(multiplier)
+    if tilt is not None:
+        lum.tilt_deg = float(tilt)
+    updated.append(lum.id)
+save_project_schema(project, project_path)
+print(json.dumps({"ok": True, "message": "Luminaire batch update applied", "data": {"updated_count": len(updated), "updated_ids": updated}}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        luminaire_ids_csv,
+        yaw_deg.map(|v| v.to_string()).unwrap_or_default(),
+        maintenance_factor.map(|v| v.to_string()).unwrap_or_default(),
+        flux_multiplier.map(|v| v.to_string()).unwrap_or_default(),
+        tilt_deg.map(|v| v.to_string()).unwrap_or_default(),
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Luminaire batch update completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    let project_doc = if success {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: project_doc,
+    })
+}
+
+#[tauri::command]
+fn nudge_luminaire_in_project(
+    project_path: String,
+    luminaire_id: String,
+    delta_x: f64,
+    delta_y: f64,
+    delta_z: f64,
+    delta_yaw_deg: f64,
+) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if luminaire_id.trim().is_empty() {
+        return Err("Luminaire id is required".to_string());
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.project.io import load_project_schema, save_project_schema
+from luxera.project.schema import RotationSpec
+project_path = Path(sys.argv[1]).expanduser().resolve()
+luminaire_id = sys.argv[2].strip()
+dx = float(sys.argv[3]); dy = float(sys.argv[4]); dz = float(sys.argv[5]); dyaw = float(sys.argv[6])
+project = load_project_schema(project_path)
+lum = next((l for l in project.luminaires if l.id == luminaire_id), None)
+if lum is None:
+    print(json.dumps({"ok": False, "message": f"Luminaire not found: {luminaire_id}", "data": {}}))
+    raise SystemExit(0)
+from luxera.project.history import push_snapshot
+push_snapshot(project, label=f"nudge_luminaire:{luminaire_id}")
+px, py, pz = lum.transform.position
+yaw, pitch, roll = 0.0, 0.0, 0.0
+if getattr(lum.transform.rotation, "type", None) == "euler_zyx" and getattr(lum.transform.rotation, "euler_deg", None):
+    yaw, pitch, roll = lum.transform.rotation.euler_deg
+lum.transform.position = (float(px + dx), float(py + dy), float(pz + dz))
+lum.transform.rotation = RotationSpec(type="euler_zyx", euler_deg=(float(yaw + dyaw), float(pitch), float(roll)))
+save_project_schema(project, project_path)
+print(json.dumps({"ok": True, "message": "Luminaire nudged", "data": {"luminaire_id": luminaire_id, "position": lum.transform.position, "yaw_deg": yaw + dyaw}}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        luminaire_id.trim().to_string(),
+        delta_x.to_string(),
+        delta_y.to_string(),
+        delta_z.to_string(),
+        delta_yaw_deg.to_string(),
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Luminaire nudge completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    let project_doc = if success {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: project_doc,
+    })
+}
+
+#[tauri::command]
+fn transform_opening_in_project(
+    project_path: String,
+    opening_id: String,
+    delta_x: f64,
+    delta_y: f64,
+    delta_z: f64,
+    delta_yaw_deg: f64,
+) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if opening_id.trim().is_empty() {
+        return Err("Opening id is required".to_string());
+    }
+    let script = r#"
+import json, math, sys
+from pathlib import Path
+from luxera.project.io import load_project_schema, save_project_schema
+project_path = Path(sys.argv[1]).expanduser().resolve()
+opening_id = sys.argv[2].strip()
+dx = float(sys.argv[3]); dy = float(sys.argv[4]); dz = float(sys.argv[5]); dyaw = float(sys.argv[6])
+project = load_project_schema(project_path)
+op = next((o for o in project.geometry.openings if o.id == opening_id), None)
+if op is None:
+    print(json.dumps({"ok": False, "message": f"Opening not found: {opening_id}", "data": {}}))
+    raise SystemExit(0)
+from luxera.project.history import push_snapshot
+push_snapshot(project, label=f"transform_opening:{opening_id}")
+verts = [(float(v[0]), float(v[1]), float(v[2])) for v in (op.vertices or [])]
+if not verts:
+    print(json.dumps({"ok": False, "message": f"Opening has no vertices: {opening_id}", "data": {}}))
+    raise SystemExit(0)
+cx = sum(v[0] for v in verts) / len(verts)
+cy = sum(v[1] for v in verts) / len(verts)
+theta = math.radians(dyaw)
+ct = math.cos(theta); st = math.sin(theta)
+out = []
+for x, y, z in verts:
+    rx = x - cx
+    ry = y - cy
+    xr = cx + rx * ct - ry * st
+    yr = cy + rx * st + ry * ct
+    out.append((float(xr + dx), float(yr + dy), float(z + dz)))
+op.vertices = out
+save_project_schema(project, project_path)
+print(json.dumps({"ok": True, "message": "Opening transformed", "data": {"opening_id": opening_id, "vertex_count": len(out)}}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        opening_id.trim().to_string(),
+        delta_x.to_string(),
+        delta_y.to_string(),
+        delta_z.to_string(),
+        delta_yaw_deg.to_string(),
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Opening transform completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    let project_doc = if success {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: project_doc,
+    })
+}
+
+#[tauri::command]
+fn undo_project_change(project_path: String) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.project.io import load_project_schema, save_project_schema
+from luxera.project.history import undo as undo_project_history
+project_path = Path(sys.argv[1]).expanduser().resolve()
+project = load_project_schema(project_path)
+ok = undo_project_history(project)
+if ok:
+    save_project_schema(project, project_path)
+print(json.dumps({
+    "ok": bool(ok),
+    "message": "Undo applied" if ok else "No undo snapshot available",
+    "data": {
+        "undo_depth": len(getattr(project, "assistant_undo_stack", []) or []),
+        "redo_depth": len(getattr(project, "assistant_redo_stack", []) or []),
+    },
+}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Undo operation completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    let project_doc = if success {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    } else {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    };
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: project_doc,
+    })
+}
+
+#[tauri::command]
+fn redo_project_change(project_path: String) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.project.io import load_project_schema, save_project_schema
+from luxera.project.history import redo as redo_project_history
+project_path = Path(sys.argv[1]).expanduser().resolve()
+project = load_project_schema(project_path)
+ok = redo_project_history(project)
+if ok:
+    save_project_schema(project, project_path)
+print(json.dumps({
+    "ok": bool(ok),
+    "message": "Redo applied" if ok else "No redo snapshot available",
+    "data": {
+        "undo_depth": len(getattr(project, "assistant_undo_stack", []) or []),
+        "redo_depth": len(getattr(project, "assistant_redo_stack", []) or []),
+    },
+}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Redo operation completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    let project_doc = if success {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    } else {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    };
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: project_doc,
+    })
+}
+
+#[tauri::command]
 fn run_project_job(project_path: String, job_id: String) -> Result<JobRunResponse, String> {
     let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
     let raw_project = PathBuf::from(project_path.trim());
@@ -1558,6 +2566,21 @@ pub fn run() {
             export_backend_compare,
             export_roadway_report,
             execute_agent_intent,
+            assign_material_in_project,
+            add_project_variant,
+            compare_project_variants,
+            propose_project_optimizations,
+            apply_project_optimization_option,
+            edit_room_in_project,
+            set_daylight_aperture_in_project,
+            add_escape_route_in_project,
+            array_luminaires_in_project,
+            aim_luminaire_in_project,
+            batch_update_luminaires_in_project,
+            nudge_luminaire_in_project,
+            transform_opening_in_project,
+            undo_project_change,
+            redo_project_change,
             list_project_jobs,
             run_project_job,
             start_project_job_run,
