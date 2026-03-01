@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer } from "react";
 import {
   AppShell,
   ConsolePanel,
@@ -8,154 +8,23 @@ import {
   SidebarSection,
   ToolbarButton,
 } from "@luxera/luxera-ui";
-import { buildDesktopViewModel, type DesktopResultBundle, type DesktopViewModel } from "./resultContracts";
+import { DataTable } from "./components/DataTable";
+import { useArtifacts } from "./hooks/useArtifacts";
+import { useJobRunner } from "./hooks/useJobRunner";
+import { buildDesktopViewModel, type DesktopResultBundle } from "./resultContracts";
+import type {
+  AppState,
+  BackendContract,
+  JsonRow,
+  ProjectDocument,
+  ProjectJobsResponse,
+  ProjectValidationResult,
+  RecentRun,
+} from "./types";
+import { flattenJsonRows, firstNumeric, objectToRows, rowsToPoints } from "./utils/table";
+import { hasTauriRuntime, tauriInvoke } from "./utils/tauri";
 
 const projectItems = ["Project", "Geometry", "Luminaires", "Calculation", "Reports"];
-type JsonRow = Record<string, unknown>;
-type SortDir = "asc" | "desc";
-
-interface RecentRun {
-  resultDir: string;
-  modifiedUnixS: number;
-  jobId?: string | null;
-  jobType?: string | null;
-  contractVersion?: string | null;
-}
-
-interface ArtifactRead {
-  path: string;
-  sizeBytes: number;
-  truncated: boolean;
-  content: string;
-}
-
-interface ArtifactBinaryRead {
-  path: string;
-  sizeBytes: number;
-  truncated: boolean;
-  mimeType: string;
-  dataBase64: string;
-}
-
-interface ArtifactEntry {
-  path: string;
-  relativePath: string;
-  sizeBytes: number;
-  modifiedUnixS: number;
-}
-
-interface BackendContract {
-  contract_version: string;
-  required_files: string[];
-  optional_files: string[];
-  rendered_sections: string[];
-  max_read_artifact_bytes_default: number;
-}
-
-interface ProjectJob {
-  id: string;
-  jobType: string;
-  backend: string;
-  seed: number;
-}
-
-interface ProjectJobsResponse {
-  projectPath: string;
-  projectName?: string | null;
-  jobs: ProjectJob[];
-}
-
-interface JobRunResponse {
-  projectPath: string;
-  jobId: string;
-  success: boolean;
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-  resultDir?: string | null;
-}
-
-interface JobRunStartResponse {
-  runId: number;
-  projectPath: string;
-  jobId: string;
-}
-
-interface JobRunPollResponse {
-  runId: number;
-  done: boolean;
-  success: boolean;
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-  resultDir?: string | null;
-}
-
-type RunStatus = "idle" | "starting" | "running" | "completed" | "failed" | "cancelled";
-
-interface RunTimelineEvent {
-  atUnixMs: number;
-  status: RunStatus;
-  message: string;
-}
-
-interface RunHistoryEntry {
-  localId: number;
-  runId: number | null;
-  projectPath: string;
-  projectName: string;
-  jobId: string;
-  startedAtUnixMs: number;
-  endedAtUnixMs: number | null;
-  status: RunStatus;
-  success: boolean | null;
-  exitCode: number | null;
-  stdout: string;
-  stderr: string;
-  resultDir?: string | null;
-}
-
-interface AppState {
-  resultDir: string;
-  loading: boolean;
-  error: string;
-  bundle: DesktopResultBundle | null;
-  model: DesktopViewModel | null;
-  recentRuns: RecentRun[];
-  recentLoading: boolean;
-  contract: BackendContract | null;
-  artifactPath: string;
-  artifact: ArtifactRead | null;
-  artifactBinary: ArtifactBinaryRead | null;
-  artifactLoading: boolean;
-  artifactBinaryLoading: boolean;
-  artifactError: string;
-  artifactList: ArtifactEntry[];
-  artifactListLoading: boolean;
-  artifactListError: string;
-  selectedArtifactPath: string;
-  projectPath: string;
-  projectName: string;
-  projectJobs: ProjectJob[];
-  jobsLoading: boolean;
-  selectedJobId: string;
-  runLoading: boolean;
-  runResult: JobRunResponse | null;
-  runError: string;
-  activeRunId: number | null;
-  activeRunProjectPath: string;
-  activeRunProjectName: string;
-  activeRunJobId: string;
-  runStdout: string;
-  runStderr: string;
-  runStatus: RunStatus;
-  runTimeline: RunTimelineEvent[];
-  runHistory: RunHistoryEntry[];
-  runHistorySeq: number;
-  selectedTableTitle: string;
-  selectedRowIndex: number;
-  selectedRow: JsonRow | null;
-}
 
 function fmt(value: number | undefined, digits = 2): string {
   return typeof value === "number" ? value.toFixed(digits) : "N/A";
@@ -168,283 +37,39 @@ function fmtUnix(ts: number | undefined): string {
   return new Date(ts * 1000).toLocaleString();
 }
 
-async function tauriInvoke<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
-  const tauri = (window as Window & { __TAURI__?: { core?: { invoke?: (c: string, a: unknown) => Promise<unknown> } } })
-    .__TAURI__;
-  const invokeFn = tauri?.core?.invoke;
-  if (!invokeFn) {
-    throw new Error("Tauri runtime API unavailable.");
-  }
-  return (await invokeFn(cmd, args)) as T;
-}
+const initialState: AppState = {
+  resultDir: "",
+  loading: false,
+  error: "",
+  bundle: null,
+  model: null,
+  recentRuns: [],
+  recentLoading: false,
+  contract: null,
+  projectPath: "",
+  projectName: "",
+  projectJobs: [],
+  jobsLoading: false,
+  selectedJobId: "",
+  projectDoc: null,
+  projectDocContent: "",
+  projectDocDirty: false,
+  projectValidation: null,
+  projectLifecycleLoading: false,
+  projectLifecycleError: "",
+  selectedTableTitle: "",
+  selectedRowIndex: -1,
+  selectedRow: null,
+};
 
-function scalarText(value: unknown): string {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value.toFixed(Math.abs(value) >= 100 ? 1 : 3) : "NaN";
-  }
-  if (typeof value === "boolean") {
-    return value ? "true" : "false";
-  }
-  if (typeof value === "string") {
-    return value;
-  }
-  if (value === null || value === undefined) {
-    return "-";
-  }
-  return JSON.stringify(value);
-}
-
-function DataTable({
-  title,
-  rows,
-  onSelectRow,
-  selectedTableTitle,
-  selectedRowIndex,
-}: {
-  title: string;
-  rows: JsonRow[];
-  onSelectRow?: (title: string, row: JsonRow, index: number) => void;
-  selectedTableTitle?: string;
-  selectedRowIndex?: number;
-}) {
-  const [query, setQuery] = useState("");
-  const [sortKey, setSortKey] = useState<string>("");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
-
-  const columns = useMemo(() => {
-    const keys = new Set<string>();
-    for (const row of rows) {
-      for (const key of Object.keys(row)) {
-        keys.add(key);
-      }
-    }
-    return Array.from(keys);
-  }, [rows]);
-
-  const filteredRows = useMemo(() => {
-    if (!query.trim()) {
-      return rows;
-    }
-    const q = query.trim().toLowerCase();
-    return rows.filter((row) => Object.values(row).some((v) => scalarText(v).toLowerCase().includes(q)));
-  }, [rows, query]);
-
-  const orderedRows = useMemo(() => {
-    if (!sortKey) {
-      return filteredRows;
-    }
-    const out = [...filteredRows];
-    out.sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      const an = typeof av === "number" ? av : Number.NaN;
-      const bn = typeof bv === "number" ? bv : Number.NaN;
-      if (Number.isFinite(an) && Number.isFinite(bn)) {
-        return sortDir === "asc" ? an - bn : bn - an;
-      }
-      const as = scalarText(av).toLowerCase();
-      const bs = scalarText(bv).toLowerCase();
-      if (as < bs) {
-        return sortDir === "asc" ? -1 : 1;
-      }
-      if (as > bs) {
-        return sortDir === "asc" ? 1 : -1;
-      }
-      return 0;
-    });
-    return out;
-  }, [filteredRows, sortDir, sortKey]);
-
-  const toggleSort = (key: string) => {
-    if (sortKey === key) {
-      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
-      return;
-    }
-    setSortKey(key);
-    setSortDir("asc");
-  };
-
-  const selectable = typeof onSelectRow === "function";
-
-  return (
-    <section className="rounded-md border border-border bg-panel p-3">
-      <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">
-        {title} ({orderedRows.length}/{rows.length})
-      </div>
-      <div className="mb-2">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Filter rows..."
-          className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none focus:ring-2 focus:ring-blue-400/30"
-        />
-      </div>
-      {rows.length === 0 ? (
-        <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">No rows.</div>
-      ) : (
-        <div className="max-h-56 overflow-auto rounded border border-border/60">
-          <table className="min-w-full text-xs">
-            <thead className="sticky top-0 bg-panel">
-              <tr>
-                {columns.map((col) => (
-                  <th key={col} className="border-b border-border/70 px-2 py-1 text-left font-semibold text-muted">
-                    <button type="button" className="text-left" onClick={() => toggleSort(col)}>
-                      {col}
-                      {sortKey === col ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
-                    </button>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {orderedRows.map((row, idx) => (
-                <tr
-                  key={`${title}-${idx}`}
-                  className={`odd:bg-panelSoft/30 ${selectable ? "cursor-pointer hover:bg-blue-900/20" : ""} ${
-                    selectedTableTitle === title && selectedRowIndex === idx ? "bg-blue-900/30 ring-1 ring-blue-400/40" : ""
-                  }`}
-                  onClick={() => {
-                    if (onSelectRow) {
-                      onSelectRow(title, row, idx);
-                    }
-                  }}
-                >
-                  {columns.map((col) => (
-                    <td key={`${title}-${idx}-${col}`} className="border-b border-border/50 px-2 py-1 align-top text-text">
-                      {scalarText(row[col])}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function objectToRows(obj: JsonRow | null | undefined): JsonRow[] {
-  if (!obj) {
-    return [];
-  }
-  return Object.entries(obj).map(([key, value]) => ({ key, value: scalarText(value) }));
-}
-
-function flattenJsonRows(root: unknown, rootLabel: string, maxRows = 5000): JsonRow[] {
-  const rows: JsonRow[] = [];
-  const queue: Array<{ value: unknown; path: string }> = [{ value: root, path: rootLabel }];
-  while (queue.length > 0 && rows.length < maxRows) {
-    const item = queue.shift();
-    if (!item) {
-      break;
-    }
-    const { value, path } = item;
-    if (Array.isArray(value)) {
-      rows.push({ path, type: "array", size: value.length, value: "" });
-      value.forEach((entry, idx) => queue.push({ value: entry, path: `${path}[${idx}]` }));
-      continue;
-    }
-    if (value !== null && typeof value === "object") {
-      const rec = value as Record<string, unknown>;
-      rows.push({ path, type: "object", size: Object.keys(rec).length, value: "" });
-      for (const [k, v] of Object.entries(rec)) {
-        queue.push({ value: v, path: `${path}.${k}` });
-      }
-      continue;
-    }
-    rows.push({ path, type: typeof value, size: "", value: scalarText(value) });
-  }
-  return rows;
-}
-
-function asFiniteNumber(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value === "string") {
-    const n = Number(value);
-    if (Number.isFinite(n)) {
-      return n;
-    }
-  }
-  return undefined;
-}
-
-function firstNumeric(row: JsonRow | null | undefined, keys: string[]): number | undefined {
-  if (!row) {
-    return undefined;
-  }
-  for (const key of keys) {
-    const v = asFiniteNumber(row[key]);
-    if (v !== undefined) {
-      return v;
-    }
-  }
-  return undefined;
-}
-
-type Point2 = { x: number; y: number; label: string };
-
-function rowsToPoints(rows: JsonRow[]): Point2[] {
-  const out: Point2[] = [];
-  for (const row of rows) {
-    const x = firstNumeric(row, ["x", "observer_x", "point_x"]);
-    const y = firstNumeric(row, ["y", "observer_y", "point_y", "lane_number"]);
-    if (x === undefined || y === undefined) {
-      continue;
-    }
-    const label = (typeof row.id === "string" && row.id) || (typeof row.name === "string" && row.name) || "row";
-    out.push({ x, y, label });
-  }
-  return out;
+function appReducer(state: AppState, patch: Partial<AppState>): AppState {
+  return { ...state, ...patch };
 }
 
 export default function App() {
-  const [state, setState] = useState<AppState>({
-    resultDir: "",
-    loading: false,
-    error: "",
-    bundle: null,
-    model: null,
-    recentRuns: [],
-    recentLoading: false,
-    contract: null,
-    artifactPath: "",
-    artifact: null,
-    artifactBinary: null,
-    artifactLoading: false,
-    artifactBinaryLoading: false,
-    artifactError: "",
-    artifactList: [],
-    artifactListLoading: false,
-    artifactListError: "",
-    selectedArtifactPath: "",
-    projectPath: "",
-    projectName: "",
-    projectJobs: [],
-    jobsLoading: false,
-    selectedJobId: "",
-    runLoading: false,
-    runResult: null,
-    runError: "",
-    activeRunId: null,
-    activeRunProjectPath: "",
-    activeRunProjectName: "",
-    activeRunJobId: "",
-    runStdout: "",
-    runStderr: "",
-    runStatus: "idle",
-    runTimeline: [],
-    runHistory: [],
-    runHistorySeq: 0,
-    selectedTableTitle: "",
-    selectedRowIndex: -1,
-    selectedRow: null,
-  });
-  const hasTauri = "__TAURI_INTERNALS__" in window;
-  const pollTimerRef = useRef<number | null>(null);
-  const startRunLockRef = useRef(false);
+  const [state, patchState] = useReducer(appReducer, initialState);
+  const hasTauri = hasTauriRuntime();
+  const artifacts = useArtifacts({ hasTauri });
 
   const model = state.model;
   const rawResultRows = useMemo(() => flattenJsonRows(model?.raw.result ?? null, "result"), [model?.raw.result]);
@@ -497,17 +122,20 @@ export default function App() {
     }
     return { minX, minY, maxX, maxY };
   }, [viewportPoints]);
+  const selectRow = (title: string, row: JsonRow, index: number): void => {
+    patchState({ selectedTableTitle: title, selectedRow: row, selectedRowIndex: index });
+  };
 
   const refreshRecentRuns = async (): Promise<void> => {
     if (!hasTauri) {
       return;
     }
-    setState((s) => ({ ...s, recentLoading: true }));
+    patchState({ recentLoading: true });
     try {
       const runs = await tauriInvoke<RecentRun[]>("list_recent_runs", { limit: 20 });
-      setState((s) => ({ ...s, recentRuns: runs, recentLoading: false }));
+      patchState({ recentRuns: runs, recentLoading: false });
     } catch {
-      setState((s) => ({ ...s, recentLoading: false }));
+      patchState({ recentLoading: false });
     }
   };
 
@@ -517,66 +145,39 @@ export default function App() {
     }
     try {
       const contract = await tauriInvoke<BackendContract>("desktop_backend_contract", {});
-      setState((s) => ({ ...s, contract }));
+      patchState({ contract });
     } catch {
       // Best effort only.
     }
   };
 
-  const loadArtifactInventory = async (resultDir: string): Promise<void> => {
-    if (!hasTauri || !resultDir.trim()) {
-      return;
-    }
-    setState((s) => ({ ...s, artifactListLoading: true, artifactListError: "" }));
-    try {
-      const artifacts = await tauriInvoke<ArtifactEntry[]>("list_result_artifacts", { resultDir, limit: 500 });
-      setState((s) => ({
-        ...s,
-        artifactList: artifacts,
-        artifactListLoading: false,
-        selectedArtifactPath: artifacts.length > 0 ? artifacts[0].path : "",
-      }));
-    } catch (err) {
-      setState((s) => ({
-        ...s,
-        artifactListLoading: false,
-        artifactListError: err instanceof Error ? err.message : String(err),
-      }));
-    }
-  };
-
   const loadOutputs = async (explicitDir?: string): Promise<void> => {
     if (!hasTauri) {
-      setState((s) => ({
-        ...s,
-        error: "Backend loading requires Tauri runtime (use `pnpm --filter luxera-desktop tauri:dev`).",
-      }));
+      patchState({ error: "Backend loading requires Tauri runtime (use `pnpm --filter luxera-desktop tauri:dev`)." });
       return;
     }
-    setState((s) => ({ ...s, loading: true, error: "" }));
+    patchState({ loading: true, error: "" });
     try {
       const payload = await tauriInvoke<DesktopResultBundle>("load_backend_outputs", {
         resultDir: explicitDir?.trim() ? explicitDir.trim() : null,
       });
       const nextModel = buildDesktopViewModel(payload);
-      setState((s) => ({
-        ...s,
+      patchState({
         bundle: payload,
         model: nextModel,
         resultDir: payload.sourceDir,
         loading: false,
-        artifactPath: `${payload.sourceDir}/result.json`,
-      }));
-      await loadArtifactInventory(payload.sourceDir);
+      });
+      artifacts.primeArtifactPath(`${payload.sourceDir}/result.json`);
+      await artifacts.loadArtifactInventory(payload.sourceDir);
       await refreshRecentRuns();
     } catch (err) {
-      setState((s) => ({
-        ...s,
+      patchState({
         bundle: null,
         model: null,
         loading: false,
         error: err instanceof Error ? err.message : String(err),
-      }));
+      });
     }
   };
 
@@ -587,338 +188,174 @@ export default function App() {
     try {
       await tauriInvoke<void>("open_result_dir", { path });
     } catch (err) {
-      setState((s) => ({ ...s, error: err instanceof Error ? err.message : String(err) }));
+      patchState({ error: err instanceof Error ? err.message : String(err) });
     }
   };
 
   const loadProjectJobs = async (): Promise<void> => {
     if (!hasTauri) {
-      setState((s) => ({ ...s, runError: "Project/job loading requires Tauri runtime." }));
+      // surfaced in run control panel
       return;
     }
     const path = state.projectPath.trim();
     if (!path) {
-      setState((s) => ({ ...s, runError: "Project path is empty." }));
       return;
     }
-    setState((s) => ({ ...s, jobsLoading: true, runError: "", runResult: null }));
+    patchState({ jobsLoading: true });
     try {
       const payload = await tauriInvoke<ProjectJobsResponse>("list_project_jobs", { projectPath: path });
       const selectedJobId = payload.jobs.length > 0 ? payload.jobs[0].id : "";
-      setState((s) => ({
-        ...s,
+      patchState({
         jobsLoading: false,
         projectPath: payload.projectPath,
         projectName: payload.projectName ?? "",
         projectJobs: payload.jobs,
         selectedJobId,
-      }));
+      });
     } catch (err) {
-      setState((s) => ({
-        ...s,
+      patchState({
         jobsLoading: false,
-        runError: err instanceof Error ? err.message : String(err),
-      }));
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
-  const runSelectedJob = async (): Promise<void> => {
+  const openProjectDocument = async (pathOverride?: string): Promise<void> => {
     if (!hasTauri) {
-      setState((s) => ({ ...s, runError: "Running jobs requires Tauri runtime." }));
+      patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
       return;
     }
-    if (startRunLockRef.current || state.runLoading || state.activeRunId !== null) {
-      setState((s) => ({ ...s, runError: "A run is already in progress." }));
+    const projectPath = (pathOverride ?? state.projectPath).trim();
+    if (!projectPath) {
+      patchState({ projectLifecycleError: "Project path is empty." });
+      return;
+    }
+    patchState({ projectLifecycleLoading: true, projectLifecycleError: "", projectValidation: null });
+    try {
+      const doc = await tauriInvoke<ProjectDocument>("open_project_file", { projectPath });
+      patchState({
+        projectLifecycleLoading: false,
+        projectDoc: doc,
+        projectDocContent: doc.content,
+        projectDocDirty: false,
+        projectPath: doc.path,
+        projectName: doc.name,
+      });
+      await loadProjectJobs();
+    } catch (err) {
+      patchState({
+        projectLifecycleLoading: false,
+        projectLifecycleError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const initProjectDocument = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
       return;
     }
     const projectPath = state.projectPath.trim();
-    const jobId = state.selectedJobId.trim();
-    if (!projectPath || !jobId) {
-      setState((s) => ({ ...s, runError: "Project path and selected job are required." }));
+    if (!projectPath) {
+      patchState({ projectLifecycleError: "Project path is empty." });
       return;
     }
-    startRunLockRef.current = true;
-    const startedAtUnixMs = Date.now();
-    const localId = state.runHistorySeq + 1;
-    setState((s) => ({
-      ...s,
-      runLoading: true,
-      runError: "",
-      runResult: null,
-      runStdout: "",
-      runStderr: "",
-      activeRunId: null,
-      activeRunProjectPath: projectPath,
-      activeRunProjectName: s.projectName,
-      activeRunJobId: jobId,
-      runStatus: "starting",
-      runTimeline: [...s.runTimeline, { atUnixMs: startedAtUnixMs, status: "starting", message: `Starting ${jobId}` }],
-      runHistorySeq: localId,
-      runHistory: [
-        {
-          localId,
-          runId: null,
-          projectPath,
-          projectName: s.projectName,
-          jobId,
-          startedAtUnixMs,
-          endedAtUnixMs: null,
-          status: "starting",
-          success: null,
-          exitCode: null,
-          stdout: "",
-          stderr: "",
-          resultDir: null,
-        },
-        ...s.runHistory.slice(0, 24),
-      ],
-    }));
+    patchState({ projectLifecycleLoading: true, projectLifecycleError: "", projectValidation: null });
     try {
-      const start = await tauriInvoke<JobRunStartResponse>("start_project_job_run", { projectPath, jobId });
-      setState((s) => ({
-        ...s,
-        activeRunId: start.runId,
-        runStatus: "running",
-        runTimeline: [...s.runTimeline, { atUnixMs: Date.now(), status: "running", message: `Run #${start.runId} started` }],
-        runHistory: s.runHistory.map((entry) =>
-          entry.localId === localId ? { ...entry, runId: start.runId, status: "running" } : entry,
-        ),
-      }));
+      const doc = await tauriInvoke<ProjectDocument>("init_project_file", {
+        projectPath,
+        name: state.projectName.trim() ? state.projectName.trim() : null,
+      });
+      patchState({
+        projectLifecycleLoading: false,
+        projectDoc: doc,
+        projectDocContent: doc.content,
+        projectDocDirty: false,
+        projectPath: doc.path,
+        projectName: doc.name,
+      });
+      await loadProjectJobs();
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setState((s) => ({
-        ...s,
-        runLoading: false,
-        runError: message,
-        runStatus: "failed",
-        runTimeline: [...s.runTimeline, { atUnixMs: Date.now(), status: "failed", message: `Start failed: ${message}` }],
-        runHistory: s.runHistory.map((entry) =>
-          entry.localId === localId
-            ? { ...entry, endedAtUnixMs: Date.now(), status: "failed", stderr: message, success: false }
-            : entry,
-        ),
-      }));
-    } finally {
-      startRunLockRef.current = false;
+      patchState({
+        projectLifecycleLoading: false,
+        projectLifecycleError: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
-  const cancelActiveRun = async (): Promise<void> => {
-    if (!hasTauri || state.activeRunId === null) {
-      return;
-    }
-    try {
-      const payload = await tauriInvoke<JobRunPollResponse>("cancel_project_job_run", { runId: state.activeRunId });
-      const runResult: JobRunResponse = {
-        projectPath: state.activeRunProjectPath || state.projectPath,
-        jobId: state.activeRunJobId || state.selectedJobId,
-        success: payload.success,
-        exitCode: payload.exitCode,
-        stdout: payload.stdout,
-        stderr: payload.stderr,
-        resultDir: payload.resultDir ?? null,
-      };
-      setState((s) => ({
-        ...s,
-        runLoading: false,
-        activeRunId: null,
-        runResult,
-        runStdout: payload.stdout,
-        runStderr: payload.stderr,
-        runStatus: "cancelled",
-        runTimeline: [...s.runTimeline, { atUnixMs: Date.now(), status: "cancelled", message: `Run #${payload.runId} cancelled` }],
-        runHistory: s.runHistory.map((entry) =>
-          entry.runId === payload.runId
-            ? {
-                ...entry,
-                endedAtUnixMs: Date.now(),
-                status: "cancelled",
-                success: payload.success,
-                exitCode: payload.exitCode,
-                stdout: payload.stdout,
-                stderr: payload.stderr,
-                resultDir: payload.resultDir ?? null,
-              }
-            : entry,
-        ),
-      }));
-    } catch (err) {
-      setState((s) => ({
-        ...s,
-        runLoading: false,
-        activeRunId: null,
-        runError: err instanceof Error ? err.message : String(err),
-        runStatus: "failed",
-        runTimeline: [...s.runTimeline, { atUnixMs: Date.now(), status: "failed", message: "Cancel failed" }],
-      }));
-    }
-  };
-
-  useEffect(() => {
-    if (!hasTauri || state.activeRunId === null) {
-      if (pollTimerRef.current !== null) {
-        window.clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-      return;
-    }
-
-    const pollOnce = async (): Promise<void> => {
-      try {
-        const payload = await tauriInvoke<JobRunPollResponse>("poll_project_job_run", { runId: state.activeRunId });
-        setState((s) => ({
-          ...s,
-          runStdout: payload.stdout,
-          runStderr: payload.stderr,
-          runHistory: s.runHistory.map((entry) =>
-            entry.runId === payload.runId ? { ...entry, stdout: payload.stdout, stderr: payload.stderr } : entry,
-          ),
-        }));
-
-        if (payload.done) {
-          const projectPath = state.activeRunProjectPath || state.projectPath;
-          const jobId = state.activeRunJobId || state.selectedJobId;
-          const doneStatus: RunStatus = payload.success ? "completed" : "failed";
-          const runResult: JobRunResponse = {
-            projectPath,
-            jobId,
-            success: payload.success,
-            exitCode: payload.exitCode,
-            stdout: payload.stdout,
-            stderr: payload.stderr,
-            resultDir: payload.resultDir ?? null,
-          };
-          setState((s) => ({
-            ...s,
-            runLoading: false,
-            activeRunId: null,
-            runResult,
-            runStdout: payload.stdout,
-            runStderr: payload.stderr,
-            runStatus: doneStatus,
-            runTimeline: [
-              ...s.runTimeline,
-              {
-                atUnixMs: Date.now(),
-                status: doneStatus,
-                message: `Run #${payload.runId} ${doneStatus} (exit ${payload.exitCode})`,
-              },
-            ],
-            runHistory: s.runHistory.map((entry) =>
-              entry.runId === payload.runId
-                ? {
-                    ...entry,
-                    endedAtUnixMs: Date.now(),
-                    status: doneStatus,
-                    success: payload.success,
-                    exitCode: payload.exitCode,
-                    stdout: payload.stdout,
-                    stderr: payload.stderr,
-                    resultDir: payload.resultDir ?? null,
-                  }
-                : entry,
-            ),
-          }));
-          if (payload.resultDir) {
-            await loadOutputs(payload.resultDir);
-          } else {
-            await refreshRecentRuns();
-          }
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setState((s) => ({
-          ...s,
-          runLoading: false,
-          activeRunId: null,
-          runError: message,
-          runStatus: "failed",
-          runTimeline: [...s.runTimeline, { atUnixMs: Date.now(), status: "failed", message: `Polling failed: ${message}` }],
-        }));
-      }
-    };
-
-    void pollOnce();
-    pollTimerRef.current = window.setInterval(() => {
-      void pollOnce();
-    }, 750);
-
-    return () => {
-      if (pollTimerRef.current !== null) {
-        window.clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.activeRunId, state.activeRunJobId, state.activeRunProjectPath, state.projectPath, state.selectedJobId, hasTauri]);
-
-  const readArtifactAtPath = async (path: string): Promise<void> => {
+  const saveProjectDocument = async (): Promise<void> => {
     if (!hasTauri) {
-      setState((s) => ({ ...s, artifactError: "Artifact reading requires Tauri runtime." }));
+      patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
       return;
     }
-    const cleanPath = path.trim();
-    if (!cleanPath) {
-      setState((s) => ({ ...s, artifactError: "Artifact path is empty." }));
+    const projectPath = state.projectPath.trim();
+    if (!projectPath) {
+      patchState({ projectLifecycleError: "Project path is empty." });
       return;
     }
-    setState((s) => ({ ...s, artifactLoading: true, artifactError: "", artifact: null }));
+    patchState({ projectLifecycleLoading: true, projectLifecycleError: "" });
     try {
-      const artifact = await tauriInvoke<ArtifactRead>("read_artifact", { path: cleanPath, maxBytes: null });
-      setState((s) => ({ ...s, artifact, artifactLoading: false }));
+      const doc = await tauriInvoke<ProjectDocument>("save_project_file", {
+        projectPath,
+        content: state.projectDocContent,
+      });
+      patchState({
+        projectLifecycleLoading: false,
+        projectDoc: doc,
+        projectDocContent: doc.content,
+        projectDocDirty: false,
+        projectPath: doc.path,
+        projectName: doc.name,
+      });
+      await loadProjectJobs();
     } catch (err) {
-      setState((s) => ({
-        ...s,
-        artifactLoading: false,
-        artifactError: err instanceof Error ? err.message : String(err),
-      }));
+      patchState({
+        projectLifecycleLoading: false,
+        projectLifecycleError: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
-  const readArtifact = async (): Promise<void> => {
-    await readArtifactAtPath(state.artifactPath);
-  };
-
-  const readArtifactBinaryAtPath = async (path: string): Promise<void> => {
+  const validateProjectDocument = async (): Promise<void> => {
     if (!hasTauri) {
-      setState((s) => ({ ...s, artifactError: "Artifact preview requires Tauri runtime." }));
+      patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
       return;
     }
-    const cleanPath = path.trim();
-    if (!cleanPath) {
-      setState((s) => ({ ...s, artifactError: "Artifact path is empty." }));
+    const projectPath = state.projectPath.trim();
+    if (!projectPath) {
+      patchState({ projectLifecycleError: "Project path is empty." });
       return;
     }
-    setState((s) => ({ ...s, artifactBinaryLoading: true, artifactError: "", artifactBinary: null }));
+    patchState({ projectLifecycleLoading: true, projectLifecycleError: "" });
     try {
-      const artifactBinary = await tauriInvoke<ArtifactBinaryRead>("read_artifact_binary", { path: cleanPath, maxBytes: null });
-      setState((s) => ({ ...s, artifactBinary, artifactBinaryLoading: false }));
+      const validation = await tauriInvoke<ProjectValidationResult>("validate_project_file", {
+        projectPath,
+        jobId: state.selectedJobId.trim() ? state.selectedJobId.trim() : null,
+      });
+      patchState({
+        projectLifecycleLoading: false,
+        projectValidation: validation,
+      });
     } catch (err) {
-      setState((s) => ({
-        ...s,
-        artifactBinaryLoading: false,
-        artifactError: err instanceof Error ? err.message : String(err),
-      }));
+      patchState({
+        projectLifecycleLoading: false,
+        projectLifecycleError: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
-  const readSelectedArtifact = async (): Promise<void> => {
-    if (!state.selectedArtifactPath) {
-      setState((s) => ({ ...s, artifactError: "No artifact selected." }));
-      return;
-    }
-    setState((s) => ({ ...s, artifactPath: state.selectedArtifactPath }));
-    await readArtifactAtPath(state.selectedArtifactPath);
-  };
-
-  const previewSelectedArtifact = async (): Promise<void> => {
-    if (!state.selectedArtifactPath) {
-      setState((s) => ({ ...s, artifactError: "No artifact selected." }));
-      return;
-    }
-    setState((s) => ({ ...s, artifactPath: state.selectedArtifactPath }));
-    await readArtifactBinaryAtPath(state.selectedArtifactPath);
-  };
+  const runner = useJobRunner({
+    hasTauri,
+    projectPath: state.projectPath,
+    selectedJobId: state.selectedJobId,
+    projectName: state.projectName,
+    onResultDir: async (resultDir) => {
+      await loadOutputs(resultDir);
+    },
+    onNoResultDir: async () => {
+      await refreshRecentRuns();
+    },
+  });
 
   useEffect(() => {
     void refreshRecentRuns();
@@ -1017,7 +454,7 @@ export default function App() {
                 <span className="mb-1 block text-xs uppercase tracking-[0.12em] text-muted">Result Directory</span>
                 <input
                   value={state.resultDir}
-                  onChange={(e) => setState((s) => ({ ...s, resultDir: e.target.value }))}
+                  onChange={(e) => patchState({ resultDir: e.target.value })}
                   placeholder="Absolute path to job output folder (contains result.json)"
                   className="w-full rounded-md border border-border bg-panel px-3 py-2 text-sm text-text outline-none focus:ring-2 focus:ring-blue-400/30"
                 />
@@ -1035,28 +472,91 @@ export default function App() {
               </div>
             </div>
             <section className="rounded-md border border-border bg-panel p-3">
+              <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Project Lifecycle</div>
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr]">
+                <input
+                  value={state.projectPath}
+                  onChange={(e) => patchState({ projectPath: e.target.value })}
+                  placeholder="Project file path (.json)"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none focus:ring-2 focus:ring-blue-400/30"
+                />
+                <input
+                  value={state.projectName}
+                  onChange={(e) => patchState({ projectName: e.target.value })}
+                  placeholder="Project name (for init)"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none focus:ring-2 focus:ring-blue-400/30"
+                />
+                <ToolbarButton onClick={() => void initProjectDocument()} disabled={state.projectLifecycleLoading}>
+                  {state.projectLifecycleLoading ? "Working..." : "New"}
+                </ToolbarButton>
+                <ToolbarButton onClick={() => void openProjectDocument()} disabled={state.projectLifecycleLoading}>
+                  Open
+                </ToolbarButton>
+                <ToolbarButton onClick={() => void saveProjectDocument()} disabled={state.projectLifecycleLoading || !state.projectDocDirty}>
+                  Save
+                </ToolbarButton>
+                <ToolbarButton onClick={() => void validateProjectDocument()} disabled={state.projectLifecycleLoading}>
+                  Validate
+                </ToolbarButton>
+              </div>
+              {state.projectLifecycleError ? <div className="mb-2 text-xs text-rose-300">{state.projectLifecycleError}</div> : null}
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-4">
+                <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
+                  Loaded: {state.projectDoc ? state.projectDoc.path : "N/A"}
+                </div>
+                <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
+                  Schema: {state.projectDoc ? String(state.projectDoc.schemaVersion) : "N/A"}
+                </div>
+                <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
+                  Jobs: {state.projectDoc ? String(state.projectDoc.jobCount) : "N/A"}
+                </div>
+                <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
+                  Dirty: {state.projectDocDirty ? "yes" : "no"}
+                </div>
+              </div>
+              <textarea
+                value={state.projectDocContent}
+                onChange={(e) => patchState({ projectDocContent: e.target.value, projectDocDirty: true })}
+                placeholder="Project JSON editor"
+                className="min-h-36 w-full rounded border border-border bg-panelSoft/50 px-2 py-2 font-mono text-[11px] text-text outline-none focus:ring-2 focus:ring-blue-400/30"
+              />
+              {state.projectValidation ? (
+                <div className="mt-2 rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
+                  <div className="text-text">
+                    Validation: {state.projectValidation.valid ? "PASS" : "FAIL"} / checked jobs: {state.projectValidation.checkedJobs}
+                  </div>
+                  {state.projectValidation.warnings.length > 0 ? (
+                    <div className="mt-1 text-amber-200">{state.projectValidation.warnings.join(" | ")}</div>
+                  ) : null}
+                  {state.projectValidation.errors.length > 0 ? (
+                    <div className="mt-1 text-rose-300">{state.projectValidation.errors.join(" | ")}</div>
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+            <section className="rounded-md border border-border bg-panel p-3">
               <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Run Control</div>
               <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr]">
                 <input
                   value={state.projectPath}
-                  onChange={(e) => setState((s) => ({ ...s, projectPath: e.target.value }))}
+                  onChange={(e) => patchState({ projectPath: e.target.value })}
                   placeholder="Project file path (.json)"
                   className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none focus:ring-2 focus:ring-blue-400/30"
                 />
-                <ToolbarButton onClick={() => void loadProjectJobs()} disabled={state.jobsLoading || state.runLoading}>
+                <ToolbarButton onClick={() => void loadProjectJobs()} disabled={state.jobsLoading || runner.runLoading}>
                   {state.jobsLoading ? "Loading Jobs..." : "Load Jobs"}
                 </ToolbarButton>
-                <ToolbarButton onClick={() => void runSelectedJob()} disabled={state.runLoading || state.jobsLoading}>
-                  {state.runLoading ? "Running..." : "Run Selected Job"}
+                <ToolbarButton onClick={() => void runner.runSelectedJob()} disabled={runner.runLoading || state.jobsLoading}>
+                  {runner.runLoading ? "Running..." : "Run Selected Job"}
                 </ToolbarButton>
-                <ToolbarButton onClick={() => void cancelActiveRun()} disabled={!state.runLoading || state.activeRunId === null}>
+                <ToolbarButton onClick={() => void runner.cancelActiveRun()} disabled={!runner.runLoading || runner.activeRunId === null}>
                   Cancel
                 </ToolbarButton>
               </div>
               <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
                 <select
                   value={state.selectedJobId}
-                  onChange={(e) => setState((s) => ({ ...s, selectedJobId: e.target.value }))}
+                  onChange={(e) => patchState({ selectedJobId: e.target.value })}
                   className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
                 >
                   {state.projectJobs.length > 0 ? (
@@ -1076,34 +576,34 @@ export default function App() {
                   Jobs: {state.projectJobs.length}
                 </div>
                 <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
-                  Last exit: {state.runResult ? String(state.runResult.exitCode) : "N/A"}
+                  Last exit: {runner.runResult ? String(runner.runResult.exitCode) : "N/A"}
                 </div>
                 <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
-                  Status: {state.runStatus}
+                  Status: {runner.runStatus}
                 </div>
               </div>
-              {state.runError ? <div className="mb-2 text-xs text-rose-300">{state.runError}</div> : null}
-              {state.runLoading || state.runResult ? (
+              {runner.runError ? <div className="mb-2 text-xs text-rose-300">{runner.runError}</div> : null}
+              {runner.runLoading || runner.runResult ? (
                 <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
                   <div className="rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
                     <div className="mb-1 text-text">stdout</div>
                     <pre className="max-h-40 overflow-auto whitespace-pre-wrap">
-                      {(state.runLoading ? state.runStdout : state.runResult?.stdout) || "(empty)"}
+                      {(runner.runLoading ? runner.runStdout : runner.runResult?.stdout) || "(empty)"}
                     </pre>
                   </div>
                   <div className="rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
                     <div className="mb-1 text-text">stderr</div>
                     <pre className="max-h-40 overflow-auto whitespace-pre-wrap">
-                      {(state.runLoading ? state.runStderr : state.runResult?.stderr) || "(empty)"}
+                      {(runner.runLoading ? runner.runStderr : runner.runResult?.stderr) || "(empty)"}
                     </pre>
                   </div>
                 </div>
               ) : null}
-              {state.runTimeline.length > 0 ? (
+              {runner.runTimeline.length > 0 ? (
                 <div className="mt-2 rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
                   <div className="mb-1 text-text">Run Timeline</div>
                   <div className="max-h-32 space-y-1 overflow-auto">
-                    {state.runTimeline
+                    {runner.runTimeline
                       .slice()
                       .reverse()
                       .slice(0, 24)
@@ -1116,11 +616,11 @@ export default function App() {
                   </div>
                 </div>
               ) : null}
-              {state.runHistory.length > 0 ? (
+              {runner.runHistory.length > 0 ? (
                 <div className="mt-2 rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
                   <div className="mb-1 text-text">Run History</div>
                   <div className="max-h-48 space-y-1 overflow-auto">
-                    {state.runHistory.map((entry) => (
+                    {runner.runHistory.map((entry) => (
                       <div key={entry.localId} className="rounded border border-border/60 bg-panel px-2 py-1">
                         <div className="truncate text-text">
                           {entry.jobId} [{entry.status}] {entry.exitCode !== null ? `exit ${entry.exitCode}` : ""}
@@ -1241,7 +741,7 @@ export default function App() {
                   <DataTable
                     title="UGR Views"
                     rows={model.ugr.views}
-                    onSelectRow={(title, row, index) => setState((s) => ({ ...s, selectedTableTitle: title, selectedRow: row, selectedRowIndex: index }))}
+                    onSelectRow={selectRow}
                     selectedTableTitle={state.selectedTableTitle}
                     selectedRowIndex={state.selectedRowIndex}
                   />
@@ -1278,14 +778,14 @@ export default function App() {
                 <DataTable
                   title="Roadway Lane Metrics"
                   rows={model.roadway.laneMetrics}
-                  onSelectRow={(title, row, index) => setState((s) => ({ ...s, selectedTableTitle: title, selectedRow: row, selectedRowIndex: index }))}
+                  onSelectRow={selectRow}
                   selectedTableTitle={state.selectedTableTitle}
                   selectedRowIndex={state.selectedRowIndex}
                 />
                 <DataTable
                   title="Roadway Observer Luminance Views"
                   rows={model.roadway.observerLuminanceViews}
-                  onSelectRow={(title, row, index) => setState((s) => ({ ...s, selectedTableTitle: title, selectedRow: row, selectedRowIndex: index }))}
+                  onSelectRow={selectRow}
                   selectedTableTitle={state.selectedTableTitle}
                   selectedRowIndex={state.selectedRowIndex}
                 />
@@ -1293,7 +793,7 @@ export default function App() {
                 <DataTable
                   title="Roadway Observer Glare Views"
                   rows={model.roadway.observerGlareViews}
-                  onSelectRow={(title, row, index) => setState((s) => ({ ...s, selectedTableTitle: title, selectedRow: row, selectedRowIndex: index }))}
+                  onSelectRow={selectRow}
                   selectedTableTitle={state.selectedTableTitle}
                   selectedRowIndex={state.selectedRowIndex}
                 />
@@ -1384,21 +884,21 @@ export default function App() {
             <DataTable
               title="Grids"
               rows={(model?.tables.grids ?? []) as JsonRow[]}
-              onSelectRow={(title, row, index) => setState((s) => ({ ...s, selectedTableTitle: title, selectedRow: row, selectedRowIndex: index }))}
+              onSelectRow={selectRow}
               selectedTableTitle={state.selectedTableTitle}
               selectedRowIndex={state.selectedRowIndex}
             />
             <DataTable
               title="Vertical Planes"
               rows={(model?.tables.verticalPlanes ?? []) as JsonRow[]}
-              onSelectRow={(title, row, index) => setState((s) => ({ ...s, selectedTableTitle: title, selectedRow: row, selectedRowIndex: index }))}
+              onSelectRow={selectRow}
               selectedTableTitle={state.selectedTableTitle}
               selectedRowIndex={state.selectedRowIndex}
             />
             <DataTable
               title="Point Sets"
               rows={(model?.tables.pointSets ?? []) as JsonRow[]}
-              onSelectRow={(title, row, index) => setState((s) => ({ ...s, selectedTableTitle: title, selectedRow: row, selectedRowIndex: index }))}
+              onSelectRow={selectRow}
               selectedTableTitle={state.selectedTableTitle}
               selectedRowIndex={state.selectedRowIndex}
             />
@@ -1408,18 +908,18 @@ export default function App() {
               <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Artifact Inventory</div>
               <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_1fr]">
                 <ToolbarButton
-                  onClick={() => void loadArtifactInventory(state.resultDir)}
-                  disabled={state.artifactListLoading || !state.resultDir.trim()}
+                  onClick={() => void artifacts.loadArtifactInventory(state.resultDir)}
+                  disabled={artifacts.artifactListLoading || !state.resultDir.trim()}
                 >
-                  {state.artifactListLoading ? "Refreshing..." : "Refresh Artifacts"}
+                  {artifacts.artifactListLoading ? "Refreshing..." : "Refresh Artifacts"}
                 </ToolbarButton>
                 <select
-                  value={state.selectedArtifactPath}
-                  onChange={(e) => setState((s) => ({ ...s, selectedArtifactPath: e.target.value }))}
+                  value={artifacts.selectedArtifactPath}
+                  onChange={(e) => artifacts.setSelectedArtifactPath(e.target.value)}
                   className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
                 >
-                  {state.artifactList.length > 0 ? (
-                    state.artifactList.map((entry) => (
+                  {artifacts.artifactList.length > 0 ? (
+                    artifacts.artifactList.map((entry) => (
                       <option key={entry.path} value={entry.path}>
                         {entry.relativePath}
                       </option>
@@ -1428,20 +928,20 @@ export default function App() {
                     <option value="">No artifacts listed</option>
                   )}
                 </select>
-                <ToolbarButton onClick={() => void readSelectedArtifact()} disabled={state.artifactLoading || !state.selectedArtifactPath}>
-                  {state.artifactLoading ? "Reading..." : "Read Selected"}
+                <ToolbarButton onClick={() => void artifacts.readSelectedArtifact()} disabled={artifacts.artifactLoading || !artifacts.selectedArtifactPath}>
+                  {artifacts.artifactLoading ? "Reading..." : "Read Selected"}
                 </ToolbarButton>
                 <ToolbarButton
-                  onClick={() => void previewSelectedArtifact()}
-                  disabled={state.artifactBinaryLoading || !state.selectedArtifactPath}
+                  onClick={() => void artifacts.previewSelectedArtifact()}
+                  disabled={artifacts.artifactBinaryLoading || !artifacts.selectedArtifactPath}
                 >
-                  {state.artifactBinaryLoading ? "Previewing..." : "Preview Selected"}
+                  {artifacts.artifactBinaryLoading ? "Previewing..." : "Preview Selected"}
                 </ToolbarButton>
               </div>
-              {state.artifactListError ? <div className="mb-2 text-xs text-rose-300">{state.artifactListError}</div> : null}
+              {artifacts.artifactListError ? <div className="mb-2 text-xs text-rose-300">{artifacts.artifactListError}</div> : null}
               <DataTable
                 title="Artifacts"
-                rows={state.artifactList.map((entry) => ({
+                rows={artifacts.artifactList.map((entry) => ({
                   relative_path: entry.relativePath,
                   size_bytes: entry.sizeBytes,
                   modified: fmtUnix(entry.modifiedUnixS),
@@ -1452,39 +952,39 @@ export default function App() {
               <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Artifact Reader</div>
               <div className="mb-2 flex gap-2">
                 <input
-                  value={state.artifactPath}
-                  onChange={(e) => setState((s) => ({ ...s, artifactPath: e.target.value }))}
+                  value={artifacts.artifactPath}
+                  onChange={(e) => artifacts.setArtifactPath(e.target.value)}
                   placeholder="Path to artifact file"
                   className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none focus:ring-2 focus:ring-blue-400/30"
                 />
-                <ToolbarButton onClick={() => void readArtifact()} disabled={state.artifactLoading}>
-                  {state.artifactLoading ? "Reading..." : "Read"}
+                <ToolbarButton onClick={() => void artifacts.readArtifact()} disabled={artifacts.artifactLoading}>
+                  {artifacts.artifactLoading ? "Reading..." : "Read"}
                 </ToolbarButton>
-                <ToolbarButton onClick={() => void readArtifactBinaryAtPath(state.artifactPath)} disabled={state.artifactBinaryLoading}>
-                  {state.artifactBinaryLoading ? "Previewing..." : "Preview"}
+                <ToolbarButton onClick={() => void artifacts.readArtifactBinaryAtPath(artifacts.artifactPath)} disabled={artifacts.artifactBinaryLoading}>
+                  {artifacts.artifactBinaryLoading ? "Previewing..." : "Preview"}
                 </ToolbarButton>
               </div>
-              {state.artifactError ? <div className="mb-2 text-xs text-rose-300">{state.artifactError}</div> : null}
-              {state.artifact ? (
+              {artifacts.artifactError ? <div className="mb-2 text-xs text-rose-300">{artifacts.artifactError}</div> : null}
+              {artifacts.artifact ? (
                 <div className="text-xs text-muted">
-                  <div className="mb-1">{state.artifact.path} ({state.artifact.sizeBytes} bytes){state.artifact.truncated ? " [truncated]" : ""}</div>
+                  <div className="mb-1">{artifacts.artifact.path} ({artifacts.artifact.sizeBytes} bytes){artifacts.artifact.truncated ? " [truncated]" : ""}</div>
                   <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded border border-border/60 bg-panelSoft/50 p-2 text-[11px] text-text">
-                    {state.artifact.content}
+                    {artifacts.artifact.content}
                   </pre>
                 </div>
               ) : null}
             </section>
             <section className="rounded-md border border-border bg-panel p-3">
               <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Artifact Image Preview</div>
-              {state.artifactBinary ? (
+              {artifacts.artifactBinary ? (
                 <div className="text-xs text-muted">
                   <div className="mb-2">
-                    {state.artifactBinary.path} ({state.artifactBinary.sizeBytes} bytes){state.artifactBinary.truncated ? " [truncated]" : ""}{" "}
-                    / {state.artifactBinary.mimeType}
+                    {artifacts.artifactBinary.path} ({artifacts.artifactBinary.sizeBytes} bytes){artifacts.artifactBinary.truncated ? " [truncated]" : ""}{" "}
+                    / {artifacts.artifactBinary.mimeType}
                   </div>
-                  {state.artifactBinary.mimeType.startsWith("image/") ? (
+                  {artifacts.artifactBinary.mimeType.startsWith("image/") ? (
                     <img
-                      src={`data:${state.artifactBinary.mimeType};base64,${state.artifactBinary.dataBase64}`}
+                      src={`data:${artifacts.artifactBinary.mimeType};base64,${artifacts.artifactBinary.dataBase64}`}
                       alt="Artifact preview"
                       className="max-h-[420px] rounded border border-border/60 bg-panelSoft/50"
                     />

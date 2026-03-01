@@ -81,6 +81,27 @@ struct ProjectJobsResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct ProjectDocument {
+    path: String,
+    name: String,
+    schema_version: i64,
+    job_count: usize,
+    content: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectValidationResult {
+    valid: bool,
+    project_name: Option<String>,
+    schema_version: Option<i64>,
+    checked_jobs: usize,
+    errors: Vec<String>,
+    warnings: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct JobRunResponse {
     project_path: String,
     job_id: String,
@@ -208,6 +229,28 @@ fn parse_result_dir(stdout: &str, stderr: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn run_python_json(args: &[String]) -> Result<Value, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let repo_root = find_repo_root(&cwd)
+        .ok_or_else(|| "Could not locate repository root (pyproject.toml) from current directory".to_string())?;
+    let python = resolve_python_executable();
+    let output = Command::new(&python)
+        .args(args)
+        .current_dir(&repo_root)
+        .output()
+        .map_err(|e| format!("Failed to execute Python via {}: {}", python, e))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    if !output.status.success() {
+        return Err(format!(
+            "Python command failed (exit {}): {}",
+            output.status.code().unwrap_or(-1),
+            if stderr.trim().is_empty() { stdout.trim() } else { stderr.trim() }
+        ));
+    }
+    serde_json::from_str::<Value>(stdout.trim()).map_err(|e| format!("Invalid JSON from Python: {}", e))
 }
 
 fn spawn_stream_reader<R: std::io::Read + Send + 'static>(reader: R, dst: Arc<Mutex<String>>) {
@@ -387,6 +430,184 @@ fn list_project_jobs(project_path: String) -> Result<ProjectJobsResponse, String
         project_path: resolved.to_string_lossy().to_string(),
         project_name,
         jobs,
+    })
+}
+
+#[tauri::command]
+fn init_project_file(project_path: String, name: Option<String>) -> Result<ProjectDocument, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw = PathBuf::from(project_path.trim());
+    if raw.as_os_str().is_empty() {
+        return Err("Project path is empty".to_string());
+    }
+    let resolved = resolve_repo_relative(&raw, &cwd)?;
+    if let Some(parent) = resolved.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Cannot create {}: {}", parent.display(), e))?;
+    }
+
+    let resolved_project = resolved.to_string_lossy().to_string();
+    let mut init_cmd = vec![
+        "-m".to_string(),
+        "luxera.cli".to_string(),
+        "init".to_string(),
+        resolved_project.clone(),
+    ];
+    let owned_name = name.unwrap_or_default();
+    if !owned_name.trim().is_empty() {
+        init_cmd.push("--name".to_string());
+        init_cmd.push(owned_name.trim().to_string());
+    }
+    let python = resolve_python_executable();
+    let output = Command::new(&python)
+        .args(&init_cmd)
+        .output()
+        .map_err(|e| format!("Failed to run init command via {}: {}", python, e))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        return Err(format!(
+            "Project init failed: {}",
+            if stderr.trim().is_empty() { stdout.trim() } else { stderr.trim() }
+        ));
+    }
+    open_project_file(resolved.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn open_project_file(project_path: String) -> Result<ProjectDocument, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw = PathBuf::from(project_path.trim());
+    if raw.as_os_str().is_empty() {
+        return Err("Project path is empty".to_string());
+    }
+    let resolved = resolve_repo_relative(&raw, &cwd)?;
+    let content = fs::read_to_string(&resolved).map_err(|e| format!("Cannot read {}: {}", resolved.display(), e))?;
+    let root: Value =
+        serde_json::from_str(&content).map_err(|e| format!("Invalid project JSON {}: {}", resolved.display(), e))?;
+    let name = root
+        .get("name")
+        .and_then(|x| x.as_str())
+        .unwrap_or(resolved.file_stem().and_then(|x| x.to_str()).unwrap_or("project"))
+        .to_string();
+    let schema_version = root.get("schema_version").and_then(|x| x.as_i64()).unwrap_or(0);
+    let job_count = root.get("jobs").and_then(|x| x.as_array()).map(|x| x.len()).unwrap_or(0);
+    Ok(ProjectDocument {
+        path: resolved.to_string_lossy().to_string(),
+        name,
+        schema_version,
+        job_count,
+        content,
+    })
+}
+
+#[tauri::command]
+fn save_project_file(project_path: String, content: String) -> Result<ProjectDocument, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw = PathBuf::from(project_path.trim());
+    if raw.as_os_str().is_empty() {
+        return Err("Project path is empty".to_string());
+    }
+    let resolved = resolve_repo_relative(&raw, &cwd)?;
+    if let Some(parent) = resolved.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Cannot create {}: {}", parent.display(), e))?;
+    }
+    serde_json::from_str::<Value>(&content).map_err(|e| format!("Invalid JSON: {}", e))?;
+    fs::write(&resolved, content).map_err(|e| format!("Cannot write {}: {}", resolved.display(), e))?;
+    open_project_file(resolved.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn validate_project_file(project_path: String, job_id: Option<String>) -> Result<ProjectValidationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw = PathBuf::from(project_path.trim());
+    if raw.as_os_str().is_empty() {
+        return Err("Project path is empty".to_string());
+    }
+    let resolved = resolve_repo_relative(&raw, &cwd)?;
+    if !resolved.exists() || !resolved.is_file() {
+        return Err(format!("Project file not found: {}", resolved.display()));
+    }
+
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.project.io import load_project_schema
+from luxera.project.validator import validate_project_for_job
+path = Path(sys.argv[1])
+job_id = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
+errors = []
+warnings = []
+checked = 0
+project_name = None
+schema_version = None
+try:
+    project = load_project_schema(path)
+    project_name = getattr(project, "name", None)
+    schema_version = int(getattr(project, "schema_version", 0))
+    jobs = list(getattr(project, "jobs", []) or [])
+    if job_id:
+        jobs = [j for j in jobs if getattr(j, "id", "") == job_id]
+        if not jobs:
+            errors.append(f"job not found: {job_id}")
+    if not jobs:
+        warnings.append("project has no jobs to validate")
+    for j in jobs:
+        checked += 1
+        try:
+            validate_project_for_job(project, j)
+        except Exception as e:
+            errors.append(f"{getattr(j,'id','<unknown>')}: {e}")
+except Exception as e:
+    errors.append(str(e))
+out = {
+    'valid': len(errors) == 0,
+    'project_name': project_name,
+    'schema_version': schema_version,
+    'checked_jobs': checked,
+    'errors': errors,
+    'warnings': warnings,
+}
+print(json.dumps(out))
+"#;
+    let mut args: Vec<String> = vec![
+        "-c".to_string(),
+        script.to_string(),
+        resolved.to_string_lossy().to_string(),
+    ];
+    let owned_job = job_id.unwrap_or_default();
+    if !owned_job.trim().is_empty() {
+        args.push(owned_job.trim().to_string());
+    }
+    let payload = run_python_json(&args)?;
+    let valid = payload.get("valid").and_then(|x| x.as_bool()).unwrap_or(false);
+    let project_name = payload.get("project_name").and_then(|x| x.as_str()).map(|x| x.to_string());
+    let schema_version = payload.get("schema_version").and_then(|x| x.as_i64());
+    let checked_jobs = payload.get("checked_jobs").and_then(|x| x.as_u64()).unwrap_or(0) as usize;
+    let errors = payload
+        .get("errors")
+        .and_then(|x| x.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect::<Vec<String>>()
+        })
+        .unwrap_or_default();
+    let warnings = payload
+        .get("warnings")
+        .and_then(|x| x.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect::<Vec<String>>()
+        })
+        .unwrap_or_default();
+    Ok(ProjectValidationResult {
+        valid,
+        project_name,
+        schema_version,
+        checked_jobs,
+        errors,
+        warnings,
     })
 }
 
@@ -753,6 +974,10 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             load_backend_outputs,
+            init_project_file,
+            open_project_file,
+            save_project_file,
+            validate_project_file,
             list_project_jobs,
             run_project_job,
             start_project_job_run,

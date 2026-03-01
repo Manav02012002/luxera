@@ -14,6 +14,10 @@ Files emitted by runner:
 
 ## Mapping Status
 
+### Slice 0: Project Lifecycle
+- project init/open/save flow (desktop command surface + editor) -> `wired`
+- project schema validation (all jobs or selected job) -> `wired`
+
 ### Slice 1: Summary / Warnings / Compliance
 - `result.summary.mean_lux|min_lux|max_lux|uniformity_ratio` -> `wired`
 - `result.summary.highest_ugr|ugr_worst_case` -> `wired`
