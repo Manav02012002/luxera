@@ -15,6 +15,8 @@ import { buildDesktopViewModel, type DesktopResultBundle } from "./resultContrac
 import type {
   AppState,
   BackendContract,
+  ExportOperationResult,
+  GeometryOperationResult,
   JsonRow,
   ProjectDocument,
   ProjectJobsResponse,
@@ -57,6 +59,70 @@ const initialState: AppState = {
   projectValidation: null,
   projectLifecycleLoading: false,
   projectLifecycleError: "",
+  geomRoomName: "",
+  geomRoomWidth: "4",
+  geomRoomLength: "4",
+  geomRoomHeight: "3",
+  geomOriginX: "0",
+  geomOriginY: "0",
+  geomOriginZ: "0",
+  geomImportPath: "",
+  geomImportFormat: "",
+  geomCleanSnapTolerance: "0.001",
+  geomCleanDetectRooms: true,
+  geomCleanMergeCoplanar: true,
+  geomLoading: false,
+  geomLogStdout: "",
+  geomLogStderr: "",
+  geomError: "",
+  photometryFilePath: "",
+  photometryAssetId: "",
+  photometryFormat: "",
+  luminaireAssetId: "",
+  luminaireId: "",
+  luminaireName: "",
+  luminaireX: "0",
+  luminaireY: "0",
+  luminaireZ: "3",
+  luminaireYaw: "0",
+  luminairePitch: "0",
+  luminaireRoll: "0",
+  luminaireMaintenance: "1",
+  luminaireMultiplier: "1",
+  luminaireTilt: "0",
+  luminaireLoading: false,
+  luminaireLogStdout: "",
+  luminaireLogStderr: "",
+  luminaireError: "",
+  gridName: "",
+  gridWidth: "4",
+  gridHeight: "4",
+  gridElevation: "0.8",
+  gridNx: "9",
+  gridNy: "9",
+  gridOriginX: "0",
+  gridOriginY: "0",
+  gridOriginZ: "0",
+  gridRoomId: "",
+  jobIdInput: "",
+  jobTypeInput: "direct",
+  jobBackendInput: "cpu",
+  jobSeedInput: "0",
+  calcSetupLoading: false,
+  calcSetupLogStdout: "",
+  calcSetupLogStderr: "",
+  calcSetupError: "",
+  exportJobId: "",
+  exportOutputPath: "out/export_artifact",
+  exportLoading: false,
+  exportLogStdout: "",
+  exportLogStderr: "",
+  exportError: "",
+  agentIntent: "",
+  agentApprovalsJson: "{}",
+  agentLoading: false,
+  agentError: "",
+  agentResponse: null,
   selectedTableTitle: "",
   selectedRowIndex: -1,
   selectedRow: null,
@@ -80,6 +146,7 @@ export default function App() {
     () => flattenJsonRows(model?.raw.roadwaySubmission ?? null, "roadwaySubmission"),
     [model?.raw.roadwaySubmission],
   );
+  const agentResponseRows = useMemo(() => flattenJsonRows(state.agentResponse ?? null, "agent"), [state.agentResponse]);
   const selectedPoint = useMemo(() => {
     const row = state.selectedRow;
     const x = firstNumeric(row, ["x", "observer_x", "point_x"]);
@@ -344,6 +411,371 @@ export default function App() {
     }
   };
 
+  const applyGeometryResult = async (res: GeometryOperationResult): Promise<void> => {
+    patchState({
+      geomLoading: false,
+      geomLogStdout: res.stdout,
+      geomLogStderr: res.stderr,
+      geomError: res.success ? "" : `Geometry operation failed (exit ${res.exitCode}).`,
+    });
+    if (res.project) {
+      patchState({
+        projectDoc: res.project,
+        projectDocContent: res.project.content,
+        projectDocDirty: false,
+        projectPath: res.project.path,
+        projectName: res.project.name,
+      });
+      await loadProjectJobs();
+    }
+  };
+
+  const addRoomGeometry = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ geomError: "Geometry authoring requires Tauri runtime." });
+      return;
+    }
+    const width = Number(state.geomRoomWidth);
+    const length = Number(state.geomRoomLength);
+    const height = Number(state.geomRoomHeight);
+    const ox = Number(state.geomOriginX);
+    const oy = Number(state.geomOriginY);
+    const oz = Number(state.geomOriginZ);
+    if (!Number.isFinite(width) || !Number.isFinite(length) || !Number.isFinite(height) || width <= 0 || length <= 0 || height <= 0) {
+      patchState({ geomError: "Room dimensions must be positive numbers." });
+      return;
+    }
+    patchState({ geomLoading: true, geomError: "", geomLogStdout: "", geomLogStderr: "" });
+    try {
+      const res = await tauriInvoke<GeometryOperationResult>("add_room_to_project", {
+        projectPath: state.projectPath,
+        name: state.geomRoomName.trim() ? state.geomRoomName.trim() : null,
+        width,
+        length,
+        height,
+        originX: Number.isFinite(ox) ? ox : 0,
+        originY: Number.isFinite(oy) ? oy : 0,
+        originZ: Number.isFinite(oz) ? oz : 0,
+        floorReflectance: null,
+        wallReflectance: null,
+        ceilingReflectance: null,
+      });
+      await applyGeometryResult(res);
+    } catch (err) {
+      patchState({
+        geomLoading: false,
+        geomError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const importGeometry = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ geomError: "Geometry authoring requires Tauri runtime." });
+      return;
+    }
+    if (!state.geomImportPath.trim()) {
+      patchState({ geomError: "Geometry import path is empty." });
+      return;
+    }
+    patchState({ geomLoading: true, geomError: "", geomLogStdout: "", geomLogStderr: "" });
+    try {
+      const res = await tauriInvoke<GeometryOperationResult>("import_geometry_to_project", {
+        projectPath: state.projectPath,
+        filePath: state.geomImportPath.trim(),
+        format: state.geomImportFormat.trim() ? state.geomImportFormat.trim() : null,
+      });
+      await applyGeometryResult(res);
+    } catch (err) {
+      patchState({
+        geomLoading: false,
+        geomError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const cleanGeometry = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ geomError: "Geometry authoring requires Tauri runtime." });
+      return;
+    }
+    const snap = Number(state.geomCleanSnapTolerance);
+    if (!Number.isFinite(snap) || snap <= 0) {
+      patchState({ geomError: "Snap tolerance must be a positive number." });
+      return;
+    }
+    patchState({ geomLoading: true, geomError: "", geomLogStdout: "", geomLogStderr: "" });
+    try {
+      const res = await tauriInvoke<GeometryOperationResult>("clean_geometry_in_project", {
+        projectPath: state.projectPath,
+        snapTolerance: snap,
+        mergeCoplanar: state.geomCleanMergeCoplanar,
+        detectRooms: state.geomCleanDetectRooms,
+      });
+      await applyGeometryResult(res);
+    } catch (err) {
+      patchState({
+        geomLoading: false,
+        geomError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const applyLuminaireResult = async (res: GeometryOperationResult): Promise<void> => {
+    patchState({
+      luminaireLoading: false,
+      luminaireLogStdout: res.stdout,
+      luminaireLogStderr: res.stderr,
+      luminaireError: res.success ? "" : `Luminaire operation failed (exit ${res.exitCode}).`,
+    });
+    if (res.project) {
+      patchState({
+        projectDoc: res.project,
+        projectDocContent: res.project.content,
+        projectDocDirty: false,
+        projectPath: res.project.path,
+        projectName: res.project.name,
+      });
+      await loadProjectJobs();
+    }
+  };
+
+  const addPhotometryAsset = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ luminaireError: "Luminaire authoring requires Tauri runtime." });
+      return;
+    }
+    if (!state.photometryFilePath.trim()) {
+      patchState({ luminaireError: "Photometry file path is empty." });
+      return;
+    }
+    patchState({ luminaireLoading: true, luminaireError: "", luminaireLogStdout: "", luminaireLogStderr: "" });
+    try {
+      const res = await tauriInvoke<GeometryOperationResult>("add_photometry_to_project", {
+        projectPath: state.projectPath,
+        filePath: state.photometryFilePath.trim(),
+        assetId: state.photometryAssetId.trim() ? state.photometryAssetId.trim() : null,
+        format: state.photometryFormat.trim() ? state.photometryFormat.trim() : null,
+      });
+      await applyLuminaireResult(res);
+    } catch (err) {
+      patchState({
+        luminaireLoading: false,
+        luminaireError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const addLuminaire = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ luminaireError: "Luminaire authoring requires Tauri runtime." });
+      return;
+    }
+    if (!state.luminaireAssetId.trim()) {
+      patchState({ luminaireError: "Luminaire asset id is required." });
+      return;
+    }
+    const x = Number(state.luminaireX);
+    const y = Number(state.luminaireY);
+    const z = Number(state.luminaireZ);
+    const yaw = Number(state.luminaireYaw);
+    const pitch = Number(state.luminairePitch);
+    const roll = Number(state.luminaireRoll);
+    const maintenance = Number(state.luminaireMaintenance);
+    const multiplier = Number(state.luminaireMultiplier);
+    const tilt = Number(state.luminaireTilt);
+    if (![x, y, z, yaw, pitch, roll, maintenance, multiplier, tilt].every(Number.isFinite)) {
+      patchState({ luminaireError: "Luminaire numeric fields are invalid." });
+      return;
+    }
+    patchState({ luminaireLoading: true, luminaireError: "", luminaireLogStdout: "", luminaireLogStderr: "" });
+    try {
+      const res = await tauriInvoke<GeometryOperationResult>("add_luminaire_to_project", {
+        projectPath: state.projectPath,
+        assetId: state.luminaireAssetId.trim(),
+        luminaireId: state.luminaireId.trim() ? state.luminaireId.trim() : null,
+        name: state.luminaireName.trim() ? state.luminaireName.trim() : null,
+        x,
+        y,
+        z,
+        yaw,
+        pitch,
+        roll,
+        maintenance,
+        multiplier,
+        tilt,
+      });
+      await applyLuminaireResult(res);
+    } catch (err) {
+      patchState({
+        luminaireLoading: false,
+        luminaireError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const applyCalcSetupResult = async (res: GeometryOperationResult): Promise<void> => {
+    patchState({
+      calcSetupLoading: false,
+      calcSetupLogStdout: res.stdout,
+      calcSetupLogStderr: res.stderr,
+      calcSetupError: res.success ? "" : `Calculation setup operation failed (exit ${res.exitCode}).`,
+    });
+    if (res.project) {
+      patchState({
+        projectDoc: res.project,
+        projectDocContent: res.project.content,
+        projectDocDirty: false,
+        projectPath: res.project.path,
+        projectName: res.project.name,
+      });
+      await loadProjectJobs();
+    }
+  };
+
+  const addGrid = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ calcSetupError: "Calculation setup requires Tauri runtime." });
+      return;
+    }
+    const width = Number(state.gridWidth);
+    const height = Number(state.gridHeight);
+    const elevation = Number(state.gridElevation);
+    const nx = Number(state.gridNx);
+    const ny = Number(state.gridNy);
+    const ox = Number(state.gridOriginX);
+    const oy = Number(state.gridOriginY);
+    const oz = Number(state.gridOriginZ);
+    if (![width, height, elevation, nx, ny, ox, oy, oz].every(Number.isFinite) || width <= 0 || height <= 0 || nx < 2 || ny < 2) {
+      patchState({ calcSetupError: "Grid inputs are invalid." });
+      return;
+    }
+    patchState({ calcSetupLoading: true, calcSetupError: "", calcSetupLogStdout: "", calcSetupLogStderr: "" });
+    try {
+      const res = await tauriInvoke<GeometryOperationResult>("add_grid_to_project", {
+        projectPath: state.projectPath,
+        name: state.gridName.trim() ? state.gridName.trim() : null,
+        width,
+        height,
+        elevation,
+        nx: Math.round(nx),
+        ny: Math.round(ny),
+        originX: ox,
+        originY: oy,
+        originZ: oz,
+        roomId: state.gridRoomId.trim() ? state.gridRoomId.trim() : null,
+      });
+      await applyCalcSetupResult(res);
+    } catch (err) {
+      patchState({
+        calcSetupLoading: false,
+        calcSetupError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const addJob = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ calcSetupError: "Calculation setup requires Tauri runtime." });
+      return;
+    }
+    if (!state.jobTypeInput.trim()) {
+      patchState({ calcSetupError: "Job type is required." });
+      return;
+    }
+    const seed = Number(state.jobSeedInput);
+    if (!Number.isFinite(seed)) {
+      patchState({ calcSetupError: "Job seed is invalid." });
+      return;
+    }
+    patchState({ calcSetupLoading: true, calcSetupError: "", calcSetupLogStdout: "", calcSetupLogStderr: "" });
+    try {
+      const res = await tauriInvoke<GeometryOperationResult>("add_job_to_project", {
+        projectPath: state.projectPath,
+        jobId: state.jobIdInput.trim() ? state.jobIdInput.trim() : null,
+        jobType: state.jobTypeInput.trim(),
+        backend: state.jobBackendInput.trim() ? state.jobBackendInput.trim() : "cpu",
+        seed: Math.round(seed),
+      });
+      await applyCalcSetupResult(res);
+    } catch (err) {
+      patchState({
+        calcSetupLoading: false,
+        calcSetupError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const runExportAction = async (cmd: "export_debug_bundle" | "export_client_bundle" | "export_backend_compare" | "export_roadway_report"): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ exportError: "Export requires Tauri runtime." });
+      return;
+    }
+    const jobId = (state.exportJobId || state.selectedJobId).trim();
+    if (!jobId) {
+      patchState({ exportError: "Export job id is required." });
+      return;
+    }
+    const out = state.exportOutputPath.trim();
+    if (!out) {
+      patchState({ exportError: "Export output path is required." });
+      return;
+    }
+    patchState({ exportLoading: true, exportError: "", exportLogStdout: "", exportLogStderr: "" });
+    try {
+      const res = await tauriInvoke<ExportOperationResult>(cmd, {
+        projectPath: state.projectPath,
+        jobId,
+        outputPath: out,
+      });
+      patchState({
+        exportLoading: false,
+        exportLogStdout: res.stdout,
+        exportLogStderr: res.stderr,
+        exportError: res.success ? "" : `Export failed (exit ${res.exitCode})`,
+        exportOutputPath: res.outputPath,
+      });
+    } catch (err) {
+      patchState({
+        exportLoading: false,
+        exportError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const runAgentIntent = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ agentError: "Agent runtime requires Tauri runtime." });
+      return;
+    }
+    if (!state.projectPath.trim()) {
+      patchState({ agentError: "Project path is required for agent runtime." });
+      return;
+    }
+    if (!state.agentIntent.trim()) {
+      patchState({ agentError: "Agent intent is empty." });
+      return;
+    }
+    patchState({ agentLoading: true, agentError: "", agentResponse: null });
+    try {
+      const payload = await tauriInvoke<{ response: Record<string, unknown> }>("execute_agent_intent", {
+        projectPath: state.projectPath,
+        intent: state.agentIntent,
+        approvalsJson: state.agentApprovalsJson,
+      });
+      patchState({
+        agentLoading: false,
+        agentResponse: payload.response,
+      });
+      await openProjectDocument(state.projectPath);
+    } catch (err) {
+      patchState({
+        agentLoading: false,
+        agentError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
   const runner = useJobRunner({
     hasTauri,
     projectPath: state.projectPath,
@@ -531,6 +963,347 @@ export default function App() {
                   {state.projectValidation.errors.length > 0 ? (
                     <div className="mt-1 text-rose-300">{state.projectValidation.errors.join(" | ")}</div>
                   ) : null}
+                </div>
+              ) : null}
+            </section>
+            <section className="rounded-md border border-border bg-panel p-3">
+              <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Geometry Authoring</div>
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]">
+                <input
+                  value={state.geomRoomName}
+                  onChange={(e) => patchState({ geomRoomName: e.target.value })}
+                  placeholder="Room name"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.geomRoomWidth}
+                  onChange={(e) => patchState({ geomRoomWidth: e.target.value })}
+                  placeholder="Width"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.geomRoomLength}
+                  onChange={(e) => patchState({ geomRoomLength: e.target.value })}
+                  placeholder="Length"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.geomRoomHeight}
+                  onChange={(e) => patchState({ geomRoomHeight: e.target.value })}
+                  placeholder="Height"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.geomOriginX}
+                  onChange={(e) => patchState({ geomOriginX: e.target.value })}
+                  placeholder="Origin X"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.geomOriginY}
+                  onChange={(e) => patchState({ geomOriginY: e.target.value })}
+                  placeholder="Origin Y"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.geomOriginZ}
+                  onChange={(e) => patchState({ geomOriginZ: e.target.value })}
+                  placeholder="Origin Z"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <ToolbarButton onClick={() => void addRoomGeometry()} disabled={state.geomLoading}>
+                  {state.geomLoading ? "Working..." : "Add Room"}
+                </ToolbarButton>
+              </div>
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr]">
+                <input
+                  value={state.geomImportPath}
+                  onChange={(e) => patchState({ geomImportPath: e.target.value })}
+                  placeholder="Geometry file path (DXF/OBJ/GLTF/FBX/SKP/IFC/DWG)"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.geomImportFormat}
+                  onChange={(e) => patchState({ geomImportFormat: e.target.value })}
+                  placeholder="Optional format override"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <ToolbarButton onClick={() => void importGeometry()} disabled={state.geomLoading}>
+                  {state.geomLoading ? "Working..." : "Import Geometry"}
+                </ToolbarButton>
+              </div>
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_1fr_1fr]">
+                <input
+                  value={state.geomCleanSnapTolerance}
+                  onChange={(e) => patchState({ geomCleanSnapTolerance: e.target.value })}
+                  placeholder="Snap tolerance"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <label className="flex items-center gap-2 rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
+                  <input
+                    type="checkbox"
+                    checked={state.geomCleanDetectRooms}
+                    onChange={(e) => patchState({ geomCleanDetectRooms: e.target.checked })}
+                  />
+                  Detect rooms
+                </label>
+                <label className="flex items-center gap-2 rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
+                  <input
+                    type="checkbox"
+                    checked={state.geomCleanMergeCoplanar}
+                    onChange={(e) => patchState({ geomCleanMergeCoplanar: e.target.checked })}
+                  />
+                  Merge coplanar
+                </label>
+                <ToolbarButton onClick={() => void cleanGeometry()} disabled={state.geomLoading}>
+                  {state.geomLoading ? "Working..." : "Clean Geometry"}
+                </ToolbarButton>
+              </div>
+              {state.geomError ? <div className="mb-2 text-xs text-rose-300">{state.geomError}</div> : null}
+              {(state.geomLogStdout || state.geomLogStderr) ? (
+                <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+                  <div className="rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
+                    <div className="mb-1 text-text">Geometry stdout</div>
+                    <pre className="max-h-32 overflow-auto whitespace-pre-wrap">{state.geomLogStdout || "(empty)"}</pre>
+                  </div>
+                  <div className="rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
+                    <div className="mb-1 text-text">Geometry stderr</div>
+                    <pre className="max-h-32 overflow-auto whitespace-pre-wrap">{state.geomLogStderr || "(empty)"}</pre>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+            <section className="rounded-md border border-border bg-panel p-3">
+              <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Luminaire Authoring</div>
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
+                <input
+                  value={state.photometryFilePath}
+                  onChange={(e) => patchState({ photometryFilePath: e.target.value })}
+                  placeholder="Photometry file path (.ies/.ldt)"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.photometryAssetId}
+                  onChange={(e) => patchState({ photometryAssetId: e.target.value })}
+                  placeholder="Optional asset id"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.photometryFormat}
+                  onChange={(e) => patchState({ photometryFormat: e.target.value })}
+                  placeholder="Optional format (IES/LDT)"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <ToolbarButton onClick={() => void addPhotometryAsset()} disabled={state.luminaireLoading}>
+                  {state.luminaireLoading ? "Working..." : "Add Photometry"}
+                </ToolbarButton>
+              </div>
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]">
+                <input
+                  value={state.luminaireAssetId}
+                  onChange={(e) => patchState({ luminaireAssetId: e.target.value })}
+                  placeholder="Asset id"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.luminaireId}
+                  onChange={(e) => patchState({ luminaireId: e.target.value })}
+                  placeholder="Optional luminaire id"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.luminaireName}
+                  onChange={(e) => patchState({ luminaireName: e.target.value })}
+                  placeholder="Optional luminaire name"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.luminaireX}
+                  onChange={(e) => patchState({ luminaireX: e.target.value })}
+                  placeholder="X"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.luminaireY}
+                  onChange={(e) => patchState({ luminaireY: e.target.value })}
+                  placeholder="Y"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.luminaireZ}
+                  onChange={(e) => patchState({ luminaireZ: e.target.value })}
+                  placeholder="Z"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.luminaireYaw}
+                  onChange={(e) => patchState({ luminaireYaw: e.target.value })}
+                  placeholder="Yaw"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <ToolbarButton onClick={() => void addLuminaire()} disabled={state.luminaireLoading}>
+                  {state.luminaireLoading ? "Working..." : "Add Luminaire"}
+                </ToolbarButton>
+              </div>
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr]">
+                <input
+                  value={state.luminairePitch}
+                  onChange={(e) => patchState({ luminairePitch: e.target.value })}
+                  placeholder="Pitch"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.luminaireRoll}
+                  onChange={(e) => patchState({ luminaireRoll: e.target.value })}
+                  placeholder="Roll"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.luminaireMaintenance}
+                  onChange={(e) => patchState({ luminaireMaintenance: e.target.value })}
+                  placeholder="Maintenance"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.luminaireMultiplier}
+                  onChange={(e) => patchState({ luminaireMultiplier: e.target.value })}
+                  placeholder="Multiplier"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.luminaireTilt}
+                  onChange={(e) => patchState({ luminaireTilt: e.target.value })}
+                  placeholder="Tilt"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+              </div>
+              {state.luminaireError ? <div className="mb-2 text-xs text-rose-300">{state.luminaireError}</div> : null}
+              {(state.luminaireLogStdout || state.luminaireLogStderr) ? (
+                <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+                  <div className="rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
+                    <div className="mb-1 text-text">Luminaire stdout</div>
+                    <pre className="max-h-32 overflow-auto whitespace-pre-wrap">{state.luminaireLogStdout || "(empty)"}</pre>
+                  </div>
+                  <div className="rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
+                    <div className="mb-1 text-text">Luminaire stderr</div>
+                    <pre className="max-h-32 overflow-auto whitespace-pre-wrap">{state.luminaireLogStderr || "(empty)"}</pre>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+            <section className="rounded-md border border-border bg-panel p-3">
+              <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Calculation Setup</div>
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]">
+                <input
+                  value={state.gridName}
+                  onChange={(e) => patchState({ gridName: e.target.value })}
+                  placeholder="Grid name"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input value={state.gridWidth} onChange={(e) => patchState({ gridWidth: e.target.value })} placeholder="Width" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
+                <input value={state.gridHeight} onChange={(e) => patchState({ gridHeight: e.target.value })} placeholder="Height" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
+                <input value={state.gridElevation} onChange={(e) => patchState({ gridElevation: e.target.value })} placeholder="Elevation" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
+                <input value={state.gridNx} onChange={(e) => patchState({ gridNx: e.target.value })} placeholder="NX" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
+                <input value={state.gridNy} onChange={(e) => patchState({ gridNy: e.target.value })} placeholder="NY" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
+                <input value={state.gridOriginX} onChange={(e) => patchState({ gridOriginX: e.target.value })} placeholder="Origin X" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
+                <input value={state.gridOriginY} onChange={(e) => patchState({ gridOriginY: e.target.value })} placeholder="Origin Y" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
+                <input value={state.gridOriginZ} onChange={(e) => patchState({ gridOriginZ: e.target.value })} placeholder="Origin Z" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
+                <input value={state.gridRoomId} onChange={(e) => patchState({ gridRoomId: e.target.value })} placeholder="Room id (opt)" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
+                <ToolbarButton onClick={() => void addGrid()} disabled={state.calcSetupLoading}>
+                  {state.calcSetupLoading ? "Working..." : "Add Grid"}
+                </ToolbarButton>
+              </div>
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr]">
+                <input value={state.jobIdInput} onChange={(e) => patchState({ jobIdInput: e.target.value })} placeholder="Job id (opt)" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
+                <input value={state.jobTypeInput} onChange={(e) => patchState({ jobTypeInput: e.target.value })} placeholder="Job type (direct/radiosity/...)" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
+                <input value={state.jobBackendInput} onChange={(e) => patchState({ jobBackendInput: e.target.value })} placeholder="Backend (cpu/df/radiance)" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
+                <input value={state.jobSeedInput} onChange={(e) => patchState({ jobSeedInput: e.target.value })} placeholder="Seed" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
+                <ToolbarButton onClick={() => void addJob()} disabled={state.calcSetupLoading}>
+                  {state.calcSetupLoading ? "Working..." : "Add Job"}
+                </ToolbarButton>
+              </div>
+              {state.calcSetupError ? <div className="mb-2 text-xs text-rose-300">{state.calcSetupError}</div> : null}
+              {(state.calcSetupLogStdout || state.calcSetupLogStderr) ? (
+                <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+                  <div className="rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
+                    <div className="mb-1 text-text">Setup stdout</div>
+                    <pre className="max-h-32 overflow-auto whitespace-pre-wrap">{state.calcSetupLogStdout || "(empty)"}</pre>
+                  </div>
+                  <div className="rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
+                    <div className="mb-1 text-text">Setup stderr</div>
+                    <pre className="max-h-32 overflow-auto whitespace-pre-wrap">{state.calcSetupLogStderr || "(empty)"}</pre>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+            <section className="rounded-md border border-border bg-panel p-3">
+              <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Export / Reporting</div>
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_2fr_1fr_1fr_1fr_1fr]">
+                <input
+                  value={state.exportJobId}
+                  onChange={(e) => patchState({ exportJobId: e.target.value })}
+                  placeholder={`Job id (default: ${state.selectedJobId || "selected"})`}
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.exportOutputPath}
+                  onChange={(e) => patchState({ exportOutputPath: e.target.value })}
+                  placeholder="Output file path"
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <ToolbarButton onClick={() => void runExportAction("export_debug_bundle")} disabled={state.exportLoading}>
+                  Debug Bundle
+                </ToolbarButton>
+                <ToolbarButton onClick={() => void runExportAction("export_client_bundle")} disabled={state.exportLoading}>
+                  Client Bundle
+                </ToolbarButton>
+                <ToolbarButton onClick={() => void runExportAction("export_backend_compare")} disabled={state.exportLoading}>
+                  Backend Compare
+                </ToolbarButton>
+                <ToolbarButton onClick={() => void runExportAction("export_roadway_report")} disabled={state.exportLoading}>
+                  Roadway Report
+                </ToolbarButton>
+              </div>
+              {state.exportError ? <div className="mb-2 text-xs text-rose-300">{state.exportError}</div> : null}
+              {(state.exportLogStdout || state.exportLogStderr) ? (
+                <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+                  <div className="rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
+                    <div className="mb-1 text-text">Export stdout</div>
+                    <pre className="max-h-32 overflow-auto whitespace-pre-wrap">{state.exportLogStdout || "(empty)"}</pre>
+                  </div>
+                  <div className="rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
+                    <div className="mb-1 text-text">Export stderr</div>
+                    <pre className="max-h-32 overflow-auto whitespace-pre-wrap">{state.exportLogStderr || "(empty)"}</pre>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+            <section className="rounded-md border border-border bg-panel p-3">
+              <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Agent Console</div>
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[3fr_2fr_1fr]">
+                <input
+                  value={state.agentIntent}
+                  onChange={(e) => patchState({ agentIntent: e.target.value })}
+                  placeholder='Intent (example: "import file.dxf detect rooms and add grid")'
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                />
+                <input
+                  value={state.agentApprovalsJson}
+                  onChange={(e) => patchState({ agentApprovalsJson: e.target.value })}
+                  placeholder='Approvals JSON (example: {"apply_diff":true,"run_job":true})'
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 font-mono text-xs text-text outline-none"
+                />
+                <ToolbarButton onClick={() => void runAgentIntent()} disabled={state.agentLoading}>
+                  {state.agentLoading ? "Running..." : "Execute Intent"}
+                </ToolbarButton>
+              </div>
+              {state.agentError ? <div className="mb-2 text-xs text-rose-300">{state.agentError}</div> : null}
+              {state.agentResponse ? (
+                <div className="space-y-2">
+                  <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
+                    Plan: {(state.agentResponse.plan as string) ?? "N/A"}
+                  </div>
+                  <DataTable title="Agent Response Paths" rows={agentResponseRows} />
                 </div>
               ) : null}
             </section>

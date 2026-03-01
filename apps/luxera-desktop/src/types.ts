@@ -70,6 +70,22 @@ export interface ProjectValidationResult {
   warnings: string[];
 }
 
+export interface GeometryOperationResult {
+  success: boolean;
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  project?: ProjectDocument | null;
+}
+
+export interface ExportOperationResult {
+  success: boolean;
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  outputPath: string;
+}
+
 export interface JobRunResponse {
   projectPath: string;
   jobId: string;
@@ -140,6 +156,70 @@ export interface AppState {
   projectValidation: ProjectValidationResult | null;
   projectLifecycleLoading: boolean;
   projectLifecycleError: string;
+  geomRoomName: string;
+  geomRoomWidth: string;
+  geomRoomLength: string;
+  geomRoomHeight: string;
+  geomOriginX: string;
+  geomOriginY: string;
+  geomOriginZ: string;
+  geomImportPath: string;
+  geomImportFormat: string;
+  geomCleanSnapTolerance: string;
+  geomCleanDetectRooms: boolean;
+  geomCleanMergeCoplanar: boolean;
+  geomLoading: boolean;
+  geomLogStdout: string;
+  geomLogStderr: string;
+  geomError: string;
+  photometryFilePath: string;
+  photometryAssetId: string;
+  photometryFormat: string;
+  luminaireAssetId: string;
+  luminaireId: string;
+  luminaireName: string;
+  luminaireX: string;
+  luminaireY: string;
+  luminaireZ: string;
+  luminaireYaw: string;
+  luminairePitch: string;
+  luminaireRoll: string;
+  luminaireMaintenance: string;
+  luminaireMultiplier: string;
+  luminaireTilt: string;
+  luminaireLoading: boolean;
+  luminaireLogStdout: string;
+  luminaireLogStderr: string;
+  luminaireError: string;
+  gridName: string;
+  gridWidth: string;
+  gridHeight: string;
+  gridElevation: string;
+  gridNx: string;
+  gridNy: string;
+  gridOriginX: string;
+  gridOriginY: string;
+  gridOriginZ: string;
+  gridRoomId: string;
+  jobIdInput: string;
+  jobTypeInput: string;
+  jobBackendInput: string;
+  jobSeedInput: string;
+  calcSetupLoading: boolean;
+  calcSetupLogStdout: string;
+  calcSetupLogStderr: string;
+  calcSetupError: string;
+  exportJobId: string;
+  exportOutputPath: string;
+  exportLoading: boolean;
+  exportLogStdout: string;
+  exportLogStderr: string;
+  exportError: string;
+  agentIntent: string;
+  agentApprovalsJson: string;
+  agentLoading: boolean;
+  agentError: string;
+  agentResponse: Record<string, unknown> | null;
   selectedTableTitle: string;
   selectedRowIndex: number;
   selectedRow: JsonRow | null;

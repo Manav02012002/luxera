@@ -18,6 +18,29 @@ Files emitted by runner:
 - project init/open/save flow (desktop command surface + editor) -> `wired`
 - project schema validation (all jobs or selected job) -> `wired`
 
+### Slice 0.5: Geometry Authoring
+- add rectangular room (project mutation via CLI) -> `wired`
+- geometry import (DXF/OBJ/GLTF/FBX/SKP/IFC/DWG) -> `wired`
+- geometry clean + detect rooms -> `wired`
+
+### Slice 0.75: Luminaire Authoring
+- photometry asset import (IES/LDT) -> `wired`
+- luminaire placement with transform/maintenance/tilt -> `wired`
+
+### Slice 1.0: Calculation Setup
+- calc grid creation -> `wired`
+- job creation (type/backend/seed) -> `wired`
+
+### Slice 1.25: Export / Reporting
+- debug bundle export -> `wired`
+- client bundle export -> `wired`
+- backend comparison export -> `wired`
+- roadway report export -> `wired`
+
+### Slice 1.5: Agent Interface
+- agent intent execution (`AgentRuntime.execute`) -> `wired`
+- approvals payload + structured response inspection -> `wired`
+
 ### Slice 1: Summary / Warnings / Compliance
 - `result.summary.mean_lux|min_lux|max_lux|uniformity_ratio` -> `wired`
 - `result.summary.highest_ugr|ugr_worst_case` -> `wired`

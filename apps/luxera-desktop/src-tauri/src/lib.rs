@@ -102,6 +102,32 @@ struct ProjectValidationResult {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct GeometryOperationResult {
+    success: bool,
+    exit_code: i32,
+    stdout: String,
+    stderr: String,
+    project: Option<ProjectDocument>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExportOperationResult {
+    success: bool,
+    exit_code: i32,
+    stdout: String,
+    stderr: String,
+    output_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AgentRuntimeResult {
+    response: Value,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct JobRunResponse {
     project_path: String,
     job_id: String,
@@ -251,6 +277,25 @@ fn run_python_json(args: &[String]) -> Result<Value, String> {
         ));
     }
     serde_json::from_str::<Value>(stdout.trim()).map_err(|e| format!("Invalid JSON from Python: {}", e))
+}
+
+fn run_luxera_cli(args: &[String]) -> Result<(bool, i32, String, String), String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let repo_root = find_repo_root(&cwd)
+        .ok_or_else(|| "Could not locate repository root (pyproject.toml) from current directory".to_string())?;
+    let python = resolve_python_executable();
+    let mut cmd_args = vec!["-m".to_string(), "luxera.cli".to_string()];
+    cmd_args.extend_from_slice(args);
+    let output = Command::new(&python)
+        .args(&cmd_args)
+        .current_dir(&repo_root)
+        .output()
+        .map_err(|e| format!("Failed to execute Luxera CLI via {}: {}", python, e))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let success = output.status.success();
+    let exit_code = output.status.code().unwrap_or(-1);
+    Ok((success, exit_code, stdout, stderr))
 }
 
 fn spawn_stream_reader<R: std::io::Read + Send + 'static>(reader: R, dst: Arc<Mutex<String>>) {
@@ -609,6 +654,529 @@ print(json.dumps(out))
         errors,
         warnings,
     })
+}
+
+#[tauri::command]
+fn add_room_to_project(
+    project_path: String,
+    name: Option<String>,
+    width: f64,
+    length: f64,
+    height: f64,
+    origin_x: Option<f64>,
+    origin_y: Option<f64>,
+    origin_z: Option<f64>,
+    floor_reflectance: Option<f64>,
+    wall_reflectance: Option<f64>,
+    ceiling_reflectance: Option<f64>,
+) -> Result<GeometryOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw = PathBuf::from(project_path.trim());
+    if raw.as_os_str().is_empty() {
+        return Err("Project path is empty".to_string());
+    }
+    let resolved = resolve_repo_relative(&raw, &cwd)?;
+    let mut args = vec![
+        "add-room".to_string(),
+        resolved.to_string_lossy().to_string(),
+        "--width".to_string(),
+        width.to_string(),
+        "--length".to_string(),
+        length.to_string(),
+        "--height".to_string(),
+        height.to_string(),
+        "--origin-x".to_string(),
+        origin_x.unwrap_or(0.0).to_string(),
+        "--origin-y".to_string(),
+        origin_y.unwrap_or(0.0).to_string(),
+        "--origin-z".to_string(),
+        origin_z.unwrap_or(0.0).to_string(),
+        "--floor-reflectance".to_string(),
+        floor_reflectance.unwrap_or(0.2).to_string(),
+        "--wall-reflectance".to_string(),
+        wall_reflectance.unwrap_or(0.5).to_string(),
+        "--ceiling-reflectance".to_string(),
+        ceiling_reflectance.unwrap_or(0.7).to_string(),
+    ];
+    if let Some(n) = name {
+        if !n.trim().is_empty() {
+            args.push("--name".to_string());
+            args.push(n.trim().to_string());
+        }
+    }
+    let (success, exit_code, stdout, stderr) = run_luxera_cli(&args)?;
+    let project = if success {
+        Some(open_project_file(resolved.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(GeometryOperationResult {
+        success,
+        exit_code,
+        stdout,
+        stderr,
+        project,
+    })
+}
+
+#[tauri::command]
+fn import_geometry_to_project(
+    project_path: String,
+    file_path: String,
+    format: Option<String>,
+) -> Result<GeometryOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw_project = PathBuf::from(project_path.trim());
+    if raw_project.as_os_str().is_empty() {
+        return Err("Project path is empty".to_string());
+    }
+    let resolved_project = resolve_repo_relative(&raw_project, &cwd)?;
+    let raw_file = PathBuf::from(file_path.trim());
+    if raw_file.as_os_str().is_empty() {
+        return Err("Geometry file path is empty".to_string());
+    }
+    let resolved_file = resolve_repo_relative(&raw_file, &cwd)?;
+    let mut args = vec![
+        "geometry".to_string(),
+        "import".to_string(),
+        resolved_project.to_string_lossy().to_string(),
+        resolved_file.to_string_lossy().to_string(),
+    ];
+    if let Some(fmt) = format {
+        if !fmt.trim().is_empty() {
+            args.push("--format".to_string());
+            args.push(fmt.trim().to_string());
+        }
+    }
+    let (success, exit_code, stdout, stderr) = run_luxera_cli(&args)?;
+    let project = if success {
+        Some(open_project_file(resolved_project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(GeometryOperationResult {
+        success,
+        exit_code,
+        stdout,
+        stderr,
+        project,
+    })
+}
+
+#[tauri::command]
+fn clean_geometry_in_project(
+    project_path: String,
+    snap_tolerance: Option<f64>,
+    merge_coplanar: Option<bool>,
+    detect_rooms: Option<bool>,
+) -> Result<GeometryOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw_project = PathBuf::from(project_path.trim());
+    if raw_project.as_os_str().is_empty() {
+        return Err("Project path is empty".to_string());
+    }
+    let resolved_project = resolve_repo_relative(&raw_project, &cwd)?;
+    let mut args = vec![
+        "geometry".to_string(),
+        "clean".to_string(),
+        resolved_project.to_string_lossy().to_string(),
+        "--snap-tolerance".to_string(),
+        snap_tolerance.unwrap_or(1e-3).to_string(),
+    ];
+    if detect_rooms.unwrap_or(false) {
+        args.push("--detect-rooms".to_string());
+    }
+    if !merge_coplanar.unwrap_or(true) {
+        args.push("--no-merge".to_string());
+    }
+    let (success, exit_code, stdout, stderr) = run_luxera_cli(&args)?;
+    let project = if success {
+        Some(open_project_file(resolved_project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(GeometryOperationResult {
+        success,
+        exit_code,
+        stdout,
+        stderr,
+        project,
+    })
+}
+
+#[tauri::command]
+fn add_photometry_to_project(
+    project_path: String,
+    file_path: String,
+    asset_id: Option<String>,
+    format: Option<String>,
+) -> Result<GeometryOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw_project = PathBuf::from(project_path.trim());
+    if raw_project.as_os_str().is_empty() {
+        return Err("Project path is empty".to_string());
+    }
+    let resolved_project = resolve_repo_relative(&raw_project, &cwd)?;
+    let raw_file = PathBuf::from(file_path.trim());
+    if raw_file.as_os_str().is_empty() {
+        return Err("Photometry file path is empty".to_string());
+    }
+    let resolved_file = resolve_repo_relative(&raw_file, &cwd)?;
+
+    let mut args = vec![
+        "add-photometry".to_string(),
+        resolved_project.to_string_lossy().to_string(),
+        resolved_file.to_string_lossy().to_string(),
+    ];
+    if let Some(v) = asset_id {
+        if !v.trim().is_empty() {
+            args.push("--id".to_string());
+            args.push(v.trim().to_string());
+        }
+    }
+    if let Some(v) = format {
+        if !v.trim().is_empty() {
+            args.push("--format".to_string());
+            args.push(v.trim().to_string());
+        }
+    }
+    let (success, exit_code, stdout, stderr) = run_luxera_cli(&args)?;
+    let project = if success {
+        Some(open_project_file(resolved_project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(GeometryOperationResult {
+        success,
+        exit_code,
+        stdout,
+        stderr,
+        project,
+    })
+}
+
+#[tauri::command]
+fn add_luminaire_to_project(
+    project_path: String,
+    asset_id: String,
+    luminaire_id: Option<String>,
+    name: Option<String>,
+    x: f64,
+    y: f64,
+    z: f64,
+    yaw: Option<f64>,
+    pitch: Option<f64>,
+    roll: Option<f64>,
+    maintenance: Option<f64>,
+    multiplier: Option<f64>,
+    tilt: Option<f64>,
+) -> Result<GeometryOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw_project = PathBuf::from(project_path.trim());
+    if raw_project.as_os_str().is_empty() {
+        return Err("Project path is empty".to_string());
+    }
+    let resolved_project = resolve_repo_relative(&raw_project, &cwd)?;
+    if asset_id.trim().is_empty() {
+        return Err("Photometry asset id is required".to_string());
+    }
+    let mut args = vec![
+        "add-luminaire".to_string(),
+        resolved_project.to_string_lossy().to_string(),
+        "--asset".to_string(),
+        asset_id.trim().to_string(),
+        "--x".to_string(),
+        x.to_string(),
+        "--y".to_string(),
+        y.to_string(),
+        "--z".to_string(),
+        z.to_string(),
+        "--yaw".to_string(),
+        yaw.unwrap_or(0.0).to_string(),
+        "--pitch".to_string(),
+        pitch.unwrap_or(0.0).to_string(),
+        "--roll".to_string(),
+        roll.unwrap_or(0.0).to_string(),
+        "--maintenance".to_string(),
+        maintenance.unwrap_or(1.0).to_string(),
+        "--multiplier".to_string(),
+        multiplier.unwrap_or(1.0).to_string(),
+        "--tilt".to_string(),
+        tilt.unwrap_or(0.0).to_string(),
+    ];
+    if let Some(v) = luminaire_id {
+        if !v.trim().is_empty() {
+            args.push("--id".to_string());
+            args.push(v.trim().to_string());
+        }
+    }
+    if let Some(v) = name {
+        if !v.trim().is_empty() {
+            args.push("--name".to_string());
+            args.push(v.trim().to_string());
+        }
+    }
+    let (success, exit_code, stdout, stderr) = run_luxera_cli(&args)?;
+    let project = if success {
+        Some(open_project_file(resolved_project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(GeometryOperationResult {
+        success,
+        exit_code,
+        stdout,
+        stderr,
+        project,
+    })
+}
+
+#[tauri::command]
+fn add_grid_to_project(
+    project_path: String,
+    name: Option<String>,
+    width: f64,
+    height: f64,
+    elevation: f64,
+    nx: i64,
+    ny: i64,
+    origin_x: Option<f64>,
+    origin_y: Option<f64>,
+    origin_z: Option<f64>,
+    room_id: Option<String>,
+) -> Result<GeometryOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw_project = PathBuf::from(project_path.trim());
+    if raw_project.as_os_str().is_empty() {
+        return Err("Project path is empty".to_string());
+    }
+    let resolved_project = resolve_repo_relative(&raw_project, &cwd)?;
+    let mut args = vec![
+        "add-grid".to_string(),
+        resolved_project.to_string_lossy().to_string(),
+        "--width".to_string(),
+        width.to_string(),
+        "--height".to_string(),
+        height.to_string(),
+        "--elevation".to_string(),
+        elevation.to_string(),
+        "--nx".to_string(),
+        nx.to_string(),
+        "--ny".to_string(),
+        ny.to_string(),
+        "--origin-x".to_string(),
+        origin_x.unwrap_or(0.0).to_string(),
+        "--origin-y".to_string(),
+        origin_y.unwrap_or(0.0).to_string(),
+        "--origin-z".to_string(),
+        origin_z.unwrap_or(0.0).to_string(),
+    ];
+    if let Some(v) = name {
+        if !v.trim().is_empty() {
+            args.push("--name".to_string());
+            args.push(v.trim().to_string());
+        }
+    }
+    if let Some(v) = room_id {
+        if !v.trim().is_empty() {
+            args.push("--room-id".to_string());
+            args.push(v.trim().to_string());
+        }
+    }
+    let (success, exit_code, stdout, stderr) = run_luxera_cli(&args)?;
+    let project = if success {
+        Some(open_project_file(resolved_project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(GeometryOperationResult {
+        success,
+        exit_code,
+        stdout,
+        stderr,
+        project,
+    })
+}
+
+#[tauri::command]
+fn add_job_to_project(
+    project_path: String,
+    job_id: Option<String>,
+    job_type: String,
+    backend: Option<String>,
+    seed: Option<i64>,
+) -> Result<GeometryOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw_project = PathBuf::from(project_path.trim());
+    if raw_project.as_os_str().is_empty() {
+        return Err("Project path is empty".to_string());
+    }
+    let resolved_project = resolve_repo_relative(&raw_project, &cwd)?;
+    if job_type.trim().is_empty() {
+        return Err("Job type is required".to_string());
+    }
+    let mut args = vec![
+        "add-job".to_string(),
+        resolved_project.to_string_lossy().to_string(),
+        "--type".to_string(),
+        job_type.trim().to_string(),
+        "--backend".to_string(),
+        backend.unwrap_or_else(|| "cpu".to_string()),
+        "--seed".to_string(),
+        seed.unwrap_or(0).to_string(),
+    ];
+    if let Some(v) = job_id {
+        if !v.trim().is_empty() {
+            args.push("--id".to_string());
+            args.push(v.trim().to_string());
+        }
+    }
+    let (success, exit_code, stdout, stderr) = run_luxera_cli(&args)?;
+    let project = if success {
+        Some(open_project_file(resolved_project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(GeometryOperationResult {
+        success,
+        exit_code,
+        stdout,
+        stderr,
+        project,
+    })
+}
+
+#[tauri::command]
+fn export_debug_bundle(project_path: String, job_id: String, output_path: String) -> Result<ExportOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    let out = resolve_repo_relative(&PathBuf::from(output_path.trim()), &cwd)?;
+    if let Some(parent) = out.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Cannot create {}: {}", parent.display(), e))?;
+    }
+    let args = vec![
+        "export-debug".to_string(),
+        project.to_string_lossy().to_string(),
+        job_id.trim().to_string(),
+        "--out".to_string(),
+        out.to_string_lossy().to_string(),
+    ];
+    let (success, exit_code, stdout, stderr) = run_luxera_cli(&args)?;
+    Ok(ExportOperationResult {
+        success,
+        exit_code,
+        stdout,
+        stderr,
+        output_path: out.to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+fn export_client_bundle(project_path: String, job_id: String, output_path: String) -> Result<ExportOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    let out = resolve_repo_relative(&PathBuf::from(output_path.trim()), &cwd)?;
+    if let Some(parent) = out.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Cannot create {}: {}", parent.display(), e))?;
+    }
+    let args = vec![
+        "export-client".to_string(),
+        project.to_string_lossy().to_string(),
+        job_id.trim().to_string(),
+        "--out".to_string(),
+        out.to_string_lossy().to_string(),
+    ];
+    let (success, exit_code, stdout, stderr) = run_luxera_cli(&args)?;
+    Ok(ExportOperationResult {
+        success,
+        exit_code,
+        stdout,
+        stderr,
+        output_path: out.to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+fn export_backend_compare(project_path: String, job_id: String, output_path: String) -> Result<ExportOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    let out = resolve_repo_relative(&PathBuf::from(output_path.trim()), &cwd)?;
+    if let Some(parent) = out.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Cannot create {}: {}", parent.display(), e))?;
+    }
+    let args = vec![
+        "export-backend-compare".to_string(),
+        project.to_string_lossy().to_string(),
+        job_id.trim().to_string(),
+        "--out".to_string(),
+        out.to_string_lossy().to_string(),
+    ];
+    let (success, exit_code, stdout, stderr) = run_luxera_cli(&args)?;
+    Ok(ExportOperationResult {
+        success,
+        exit_code,
+        stdout,
+        stderr,
+        output_path: out.to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+fn export_roadway_report(project_path: String, job_id: String, output_path: String) -> Result<ExportOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    let out = resolve_repo_relative(&PathBuf::from(output_path.trim()), &cwd)?;
+    if let Some(parent) = out.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Cannot create {}: {}", parent.display(), e))?;
+    }
+    let args = vec![
+        "export-roadway-report".to_string(),
+        project.to_string_lossy().to_string(),
+        job_id.trim().to_string(),
+        "--out".to_string(),
+        out.to_string_lossy().to_string(),
+    ];
+    let (success, exit_code, stdout, stderr) = run_luxera_cli(&args)?;
+    Ok(ExportOperationResult {
+        success,
+        exit_code,
+        stdout,
+        stderr,
+        output_path: out.to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+fn execute_agent_intent(project_path: String, intent: String, approvals_json: Option<String>) -> Result<AgentRuntimeResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if intent.trim().is_empty() {
+        return Err("Intent is empty".to_string());
+    }
+    let script = r#"
+import json, sys
+from luxera.agent.runtime import AgentRuntime
+project_path = sys.argv[1]
+intent = sys.argv[2]
+approvals = {}
+if len(sys.argv) > 3 and sys.argv[3].strip():
+    approvals = json.loads(sys.argv[3])
+rt = AgentRuntime()
+res = rt.execute(project_path=project_path, intent=intent, approvals=approvals)
+print(json.dumps(res.to_dict()))
+"#;
+    let args = vec![
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        intent,
+        approvals_json.unwrap_or_else(|| "{}".to_string()),
+    ];
+    let payload = run_python_json(&args)?;
+    Ok(AgentRuntimeResult { response: payload })
 }
 
 #[tauri::command]
@@ -978,6 +1546,18 @@ pub fn run() {
             open_project_file,
             save_project_file,
             validate_project_file,
+            add_room_to_project,
+            import_geometry_to_project,
+            clean_geometry_in_project,
+            add_photometry_to_project,
+            add_luminaire_to_project,
+            add_grid_to_project,
+            add_job_to_project,
+            export_debug_bundle,
+            export_client_bundle,
+            export_backend_compare,
+            export_roadway_report,
+            execute_agent_intent,
             list_project_jobs,
             run_project_job,
             start_project_job_run,
