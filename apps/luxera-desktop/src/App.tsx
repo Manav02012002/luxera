@@ -29,6 +29,21 @@ interface ArtifactRead {
   content: string;
 }
 
+interface ArtifactBinaryRead {
+  path: string;
+  sizeBytes: number;
+  truncated: boolean;
+  mimeType: string;
+  dataBase64: string;
+}
+
+interface ArtifactEntry {
+  path: string;
+  relativePath: string;
+  sizeBytes: number;
+  modifiedUnixS: number;
+}
+
 interface BackendContract {
   contract_version: string;
   required_files: string[];
@@ -111,8 +126,14 @@ interface AppState {
   contract: BackendContract | null;
   artifactPath: string;
   artifact: ArtifactRead | null;
+  artifactBinary: ArtifactBinaryRead | null;
   artifactLoading: boolean;
+  artifactBinaryLoading: boolean;
   artifactError: string;
+  artifactList: ArtifactEntry[];
+  artifactListLoading: boolean;
+  artifactListError: string;
+  selectedArtifactPath: string;
   projectPath: string;
   projectName: string;
   projectJobs: ProjectJob[];
@@ -131,6 +152,9 @@ interface AppState {
   runTimeline: RunTimelineEvent[];
   runHistory: RunHistoryEntry[];
   runHistorySeq: number;
+  selectedTableTitle: string;
+  selectedRowIndex: number;
+  selectedRow: JsonRow | null;
 }
 
 function fmt(value: number | undefined, digits = 2): string {
@@ -170,7 +194,19 @@ function scalarText(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function DataTable({ title, rows }: { title: string; rows: JsonRow[] }) {
+function DataTable({
+  title,
+  rows,
+  onSelectRow,
+  selectedTableTitle,
+  selectedRowIndex,
+}: {
+  title: string;
+  rows: JsonRow[];
+  onSelectRow?: (title: string, row: JsonRow, index: number) => void;
+  selectedTableTitle?: string;
+  selectedRowIndex?: number;
+}) {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<string>("");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -228,6 +264,8 @@ function DataTable({ title, rows }: { title: string; rows: JsonRow[] }) {
     setSortDir("asc");
   };
 
+  const selectable = typeof onSelectRow === "function";
+
   return (
     <section className="rounded-md border border-border bg-panel p-3">
       <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">
@@ -260,7 +298,17 @@ function DataTable({ title, rows }: { title: string; rows: JsonRow[] }) {
             </thead>
             <tbody>
               {orderedRows.map((row, idx) => (
-                <tr key={`${title}-${idx}`} className="odd:bg-panelSoft/30">
+                <tr
+                  key={`${title}-${idx}`}
+                  className={`odd:bg-panelSoft/30 ${selectable ? "cursor-pointer hover:bg-blue-900/20" : ""} ${
+                    selectedTableTitle === title && selectedRowIndex === idx ? "bg-blue-900/30 ring-1 ring-blue-400/40" : ""
+                  }`}
+                  onClick={() => {
+                    if (onSelectRow) {
+                      onSelectRow(title, row, idx);
+                    }
+                  }}
+                >
                   {columns.map((col) => (
                     <td key={`${title}-${idx}-${col}`} className="border-b border-border/50 px-2 py-1 align-top text-text">
                       {scalarText(row[col])}
@@ -283,6 +331,75 @@ function objectToRows(obj: JsonRow | null | undefined): JsonRow[] {
   return Object.entries(obj).map(([key, value]) => ({ key, value: scalarText(value) }));
 }
 
+function flattenJsonRows(root: unknown, rootLabel: string, maxRows = 5000): JsonRow[] {
+  const rows: JsonRow[] = [];
+  const queue: Array<{ value: unknown; path: string }> = [{ value: root, path: rootLabel }];
+  while (queue.length > 0 && rows.length < maxRows) {
+    const item = queue.shift();
+    if (!item) {
+      break;
+    }
+    const { value, path } = item;
+    if (Array.isArray(value)) {
+      rows.push({ path, type: "array", size: value.length, value: "" });
+      value.forEach((entry, idx) => queue.push({ value: entry, path: `${path}[${idx}]` }));
+      continue;
+    }
+    if (value !== null && typeof value === "object") {
+      const rec = value as Record<string, unknown>;
+      rows.push({ path, type: "object", size: Object.keys(rec).length, value: "" });
+      for (const [k, v] of Object.entries(rec)) {
+        queue.push({ value: v, path: `${path}.${k}` });
+      }
+      continue;
+    }
+    rows.push({ path, type: typeof value, size: "", value: scalarText(value) });
+  }
+  return rows;
+}
+
+function asFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const n = Number(value);
+    if (Number.isFinite(n)) {
+      return n;
+    }
+  }
+  return undefined;
+}
+
+function firstNumeric(row: JsonRow | null | undefined, keys: string[]): number | undefined {
+  if (!row) {
+    return undefined;
+  }
+  for (const key of keys) {
+    const v = asFiniteNumber(row[key]);
+    if (v !== undefined) {
+      return v;
+    }
+  }
+  return undefined;
+}
+
+type Point2 = { x: number; y: number; label: string };
+
+function rowsToPoints(rows: JsonRow[]): Point2[] {
+  const out: Point2[] = [];
+  for (const row of rows) {
+    const x = firstNumeric(row, ["x", "observer_x", "point_x"]);
+    const y = firstNumeric(row, ["y", "observer_y", "point_y", "lane_number"]);
+    if (x === undefined || y === undefined) {
+      continue;
+    }
+    const label = (typeof row.id === "string" && row.id) || (typeof row.name === "string" && row.name) || "row";
+    out.push({ x, y, label });
+  }
+  return out;
+}
+
 export default function App() {
   const [state, setState] = useState<AppState>({
     resultDir: "",
@@ -295,8 +412,14 @@ export default function App() {
     contract: null,
     artifactPath: "",
     artifact: null,
+    artifactBinary: null,
     artifactLoading: false,
+    artifactBinaryLoading: false,
     artifactError: "",
+    artifactList: [],
+    artifactListLoading: false,
+    artifactListError: "",
+    selectedArtifactPath: "",
     projectPath: "",
     projectName: "",
     projectJobs: [],
@@ -315,12 +438,65 @@ export default function App() {
     runTimeline: [],
     runHistory: [],
     runHistorySeq: 0,
+    selectedTableTitle: "",
+    selectedRowIndex: -1,
+    selectedRow: null,
   });
   const hasTauri = "__TAURI_INTERNALS__" in window;
   const pollTimerRef = useRef<number | null>(null);
   const startRunLockRef = useRef(false);
 
   const model = state.model;
+  const rawResultRows = useMemo(() => flattenJsonRows(model?.raw.result ?? null, "result"), [model?.raw.result]);
+  const rawTablesRows = useMemo(() => flattenJsonRows(model?.raw.tables ?? null, "tables"), [model?.raw.tables]);
+  const rawResultsRows = useMemo(() => flattenJsonRows(model?.raw.results ?? null, "results"), [model?.raw.results]);
+  const rawRoadSummaryRows = useMemo(() => flattenJsonRows(model?.raw.roadSummary ?? null, "roadSummary"), [model?.raw.roadSummary]);
+  const rawRoadwaySubmissionRows = useMemo(
+    () => flattenJsonRows(model?.raw.roadwaySubmission ?? null, "roadwaySubmission"),
+    [model?.raw.roadwaySubmission],
+  );
+  const selectedPoint = useMemo(() => {
+    const row = state.selectedRow;
+    const x = firstNumeric(row, ["x", "observer_x", "point_x"]);
+    const y = firstNumeric(row, ["y", "observer_y", "point_y", "lane_number"]);
+    const z = firstNumeric(row, ["z", "observer_z", "point_z", "elevation"]);
+    if (x === undefined || y === undefined) {
+      return null;
+    }
+    return { x, y, z };
+  }, [state.selectedRow]);
+  const selectableRowsByTitle = useMemo<Record<string, JsonRow[]>>(
+    () => ({
+      Grids: (model?.tables.grids ?? []) as JsonRow[],
+      "Vertical Planes": (model?.tables.verticalPlanes ?? []) as JsonRow[],
+      "Point Sets": (model?.tables.pointSets ?? []) as JsonRow[],
+      "Roadway Lane Metrics": (model?.roadway.laneMetrics ?? []) as JsonRow[],
+      "Roadway Observer Luminance Views": (model?.roadway.observerLuminanceViews ?? []) as JsonRow[],
+      "Roadway Observer Glare Views": (model?.roadway.observerGlareViews ?? []) as JsonRow[],
+      "UGR Views": (model?.ugr.views ?? []) as JsonRow[],
+    }),
+    [model],
+  );
+  const viewportPoints = useMemo(
+    () => rowsToPoints(selectableRowsByTitle[state.selectedTableTitle] ?? []),
+    [state.selectedTableTitle, selectableRowsByTitle],
+  );
+  const viewportBounds = useMemo(() => {
+    if (viewportPoints.length === 0) {
+      return null;
+    }
+    let minX = viewportPoints[0].x;
+    let minY = viewportPoints[0].y;
+    let maxX = viewportPoints[0].x;
+    let maxY = viewportPoints[0].y;
+    for (const p of viewportPoints) {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    }
+    return { minX, minY, maxX, maxY };
+  }, [viewportPoints]);
 
   const refreshRecentRuns = async (): Promise<void> => {
     if (!hasTauri) {
@@ -347,6 +523,28 @@ export default function App() {
     }
   };
 
+  const loadArtifactInventory = async (resultDir: string): Promise<void> => {
+    if (!hasTauri || !resultDir.trim()) {
+      return;
+    }
+    setState((s) => ({ ...s, artifactListLoading: true, artifactListError: "" }));
+    try {
+      const artifacts = await tauriInvoke<ArtifactEntry[]>("list_result_artifacts", { resultDir, limit: 500 });
+      setState((s) => ({
+        ...s,
+        artifactList: artifacts,
+        artifactListLoading: false,
+        selectedArtifactPath: artifacts.length > 0 ? artifacts[0].path : "",
+      }));
+    } catch (err) {
+      setState((s) => ({
+        ...s,
+        artifactListLoading: false,
+        artifactListError: err instanceof Error ? err.message : String(err),
+      }));
+    }
+  };
+
   const loadOutputs = async (explicitDir?: string): Promise<void> => {
     if (!hasTauri) {
       setState((s) => ({
@@ -369,6 +567,7 @@ export default function App() {
         loading: false,
         artifactPath: `${payload.sourceDir}/result.json`,
       }));
+      await loadArtifactInventory(payload.sourceDir);
       await refreshRecentRuns();
     } catch (err) {
       setState((s) => ({
@@ -653,19 +852,19 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.activeRunId, state.activeRunJobId, state.activeRunProjectPath, state.projectPath, state.selectedJobId, hasTauri]);
 
-  const readArtifact = async (): Promise<void> => {
+  const readArtifactAtPath = async (path: string): Promise<void> => {
     if (!hasTauri) {
       setState((s) => ({ ...s, artifactError: "Artifact reading requires Tauri runtime." }));
       return;
     }
-    const path = state.artifactPath.trim();
-    if (!path) {
+    const cleanPath = path.trim();
+    if (!cleanPath) {
       setState((s) => ({ ...s, artifactError: "Artifact path is empty." }));
       return;
     }
     setState((s) => ({ ...s, artifactLoading: true, artifactError: "", artifact: null }));
     try {
-      const artifact = await tauriInvoke<ArtifactRead>("read_artifact", { path, maxBytes: null });
+      const artifact = await tauriInvoke<ArtifactRead>("read_artifact", { path: cleanPath, maxBytes: null });
       setState((s) => ({ ...s, artifact, artifactLoading: false }));
     } catch (err) {
       setState((s) => ({
@@ -674,6 +873,51 @@ export default function App() {
         artifactError: err instanceof Error ? err.message : String(err),
       }));
     }
+  };
+
+  const readArtifact = async (): Promise<void> => {
+    await readArtifactAtPath(state.artifactPath);
+  };
+
+  const readArtifactBinaryAtPath = async (path: string): Promise<void> => {
+    if (!hasTauri) {
+      setState((s) => ({ ...s, artifactError: "Artifact preview requires Tauri runtime." }));
+      return;
+    }
+    const cleanPath = path.trim();
+    if (!cleanPath) {
+      setState((s) => ({ ...s, artifactError: "Artifact path is empty." }));
+      return;
+    }
+    setState((s) => ({ ...s, artifactBinaryLoading: true, artifactError: "", artifactBinary: null }));
+    try {
+      const artifactBinary = await tauriInvoke<ArtifactBinaryRead>("read_artifact_binary", { path: cleanPath, maxBytes: null });
+      setState((s) => ({ ...s, artifactBinary, artifactBinaryLoading: false }));
+    } catch (err) {
+      setState((s) => ({
+        ...s,
+        artifactBinaryLoading: false,
+        artifactError: err instanceof Error ? err.message : String(err),
+      }));
+    }
+  };
+
+  const readSelectedArtifact = async (): Promise<void> => {
+    if (!state.selectedArtifactPath) {
+      setState((s) => ({ ...s, artifactError: "No artifact selected." }));
+      return;
+    }
+    setState((s) => ({ ...s, artifactPath: state.selectedArtifactPath }));
+    await readArtifactAtPath(state.selectedArtifactPath);
+  };
+
+  const previewSelectedArtifact = async (): Promise<void> => {
+    if (!state.selectedArtifactPath) {
+      setState((s) => ({ ...s, artifactError: "No artifact selected." }));
+      return;
+    }
+    setState((s) => ({ ...s, artifactPath: state.selectedArtifactPath }));
+    await readArtifactBinaryAtPath(state.selectedArtifactPath);
   };
 
   useEffect(() => {
@@ -721,6 +965,53 @@ export default function App() {
         <div>
           <div className="lux-panel-title">Result Mapping</div>
           <div className="m-4 h-[calc(100%-2rem)] space-y-4 overflow-auto rounded-lg border border-border bg-panelSoft/60 p-4">
+            <section className="rounded-md border border-border bg-panel p-3">
+              <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Viewport Link</div>
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-[2fr_1fr]">
+                <div className="rounded border border-border/60 bg-panelSoft/50 p-2">
+                  <svg viewBox="0 0 100 70" className="h-44 w-full rounded bg-panel">
+                    <rect x="0" y="0" width="100" height="70" fill="transparent" stroke="rgba(120,130,150,0.4)" />
+                    {viewportPoints.length > 0 && viewportBounds
+                      ? viewportPoints.map((p, i) => {
+                          const spanX = Math.max(viewportBounds.maxX - viewportBounds.minX, 1e-9);
+                          const spanY = Math.max(viewportBounds.maxY - viewportBounds.minY, 1e-9);
+                          const px = 6 + ((p.x - viewportBounds.minX) / spanX) * 88;
+                          const py = 64 - ((p.y - viewportBounds.minY) / spanY) * 58;
+                          const isSelected = selectedPoint && Math.abs(selectedPoint.x - p.x) < 1e-9 && Math.abs(selectedPoint.y - p.y) < 1e-9;
+                          return (
+                            <circle
+                              key={`${p.label}-${i}`}
+                              cx={px}
+                              cy={py}
+                              r={isSelected ? 2.6 : 1.6}
+                              fill={isSelected ? "#60a5fa" : "#94a3b8"}
+                            />
+                          );
+                        })
+                      : null}
+                  </svg>
+                </div>
+                <div className="space-y-2 text-xs text-muted">
+                  <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1">
+                    Source Table: {state.selectedTableTitle || "None"}
+                  </div>
+                  <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1">
+                    Selected Row: {state.selectedRowIndex >= 0 ? String(state.selectedRowIndex + 1) : "None"}
+                  </div>
+                  <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1">
+                    Coordinates:{" "}
+                    {selectedPoint
+                      ? `x=${selectedPoint.x.toFixed(3)}, y=${selectedPoint.y.toFixed(3)}${
+                          selectedPoint.z !== undefined ? `, z=${selectedPoint.z.toFixed(3)}` : ""
+                        }`
+                      : "N/A"}
+                  </div>
+                  <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1">
+                    Rows Plotted: {String(viewportPoints.length)}
+                  </div>
+                </div>
+              </div>
+            </section>
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-[2fr_1fr]">
               <label className="block">
                 <span className="mb-1 block text-xs uppercase tracking-[0.12em] text-muted">Result Directory</span>
@@ -905,10 +1196,32 @@ export default function App() {
                   <DataTable title="Radiosity Solver Status" rows={objectToRows(model.radiosity.solverStatus)} />
                   <DataTable title="Radiosity Energy" rows={objectToRows(model.radiosity.energy)} />
                 </div>
+                <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
+                  <DataTable title="Radiosity Diagnostics" rows={objectToRows(model.radiosity.diagnostics)} />
+                  <DataTable
+                    title="Radiosity Quality Flags"
+                    rows={[
+                      {
+                        residual_threshold: model.radiosity.residualThreshold ?? "N/A",
+                        residual_below_threshold: model.radiosity.residualBelowThreshold ?? "N/A",
+                        residual_nonincreasing: model.radiosity.residualNonincreasing ?? "N/A",
+                      },
+                    ]}
+                  />
+                </div>
                 {model.radiosity.residuals.length > 0 ? (
                   <DataTable
                     title="Radiosity Residual Trace"
                     rows={model.radiosity.residuals.map((value, index) => ({ iteration: index + 1, residual: value }))}
+                  />
+                ) : null}
+                {model.radiosity.energyBalanceHistory.length > 0 ? (
+                  <DataTable
+                    title="Radiosity Energy Balance Trace"
+                    rows={model.radiosity.energyBalanceHistory.map((value, index) => ({
+                      iteration: index + 1,
+                      energy_balance_rel: value,
+                    }))}
                   />
                 ) : null}
               </section>
@@ -921,10 +1234,22 @@ export default function App() {
                   <MetricCard label="Worst Case UGR" value={fmt(model.ugr.worstCase)} />
                   <MetricCard label="UGR Views" value={String(model.ugr.views.length)} />
                   <MetricCard label="UGR Debug" value={model.ugr.debug ? "Present" : "Absent"} />
+                  <MetricCard label="Debug Contributors" value={String(model.ugr.debugTopContributors.length)} />
+                  <MetricCard label="View Contributors" value={String(model.ugr.viewTopContributors.length)} />
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
-                  <DataTable title="UGR Views" rows={model.ugr.views} />
+                  <DataTable
+                    title="UGR Views"
+                    rows={model.ugr.views}
+                    onSelectRow={(title, row, index) => setState((s) => ({ ...s, selectedTableTitle: title, selectedRow: row, selectedRowIndex: index }))}
+                    selectedTableTitle={state.selectedTableTitle}
+                    selectedRowIndex={state.selectedRowIndex}
+                  />
                   <DataTable title="UGR Debug" rows={objectToRows(model.ugr.debug)} />
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
+                  <DataTable title="UGR Debug Top Contributors" rows={model.ugr.debugTopContributors} />
+                  <DataTable title="UGR View Top Contributors" rows={model.ugr.viewTopContributors} />
                 </div>
               </section>
             ) : null}
@@ -937,12 +1262,81 @@ export default function App() {
                   <MetricCard label="Profile Present" value={model.roadway.roadwayProfile ? "Yes" : "No"} />
                   <MetricCard label="Roadway Block" value={model.roadway.roadway ? "Yes" : "No"} />
                   <MetricCard label="Glare Views" value={String(model.roadway.observerGlareViews.length)} />
+                  <MetricCard label="Lane Metrics" value={String(model.roadway.laneMetrics.length)} />
+                  <MetricCard label="Observer Views" value={String(model.roadway.observerLuminanceViews.length)} />
+                  <MetricCard label="TI Observers" value={String(model.roadway.tiObservers.length)} />
+                  <MetricCard label="Compliance" value={model.roadway.compliance ? "Present" : "Absent"} />
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
                   <DataTable title="Roadway Profile" rows={objectToRows(model.roadway.roadwayProfile)} />
                   <DataTable title="Roadway Summary Block" rows={objectToRows(model.roadway.roadway)} />
                 </div>
-                <DataTable title="Roadway Observer Glare Views" rows={model.roadway.observerGlareViews} />
+                <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
+                  <DataTable title="Roadway Compliance" rows={objectToRows(model.roadway.compliance)} />
+                  <DataTable title="Roadway Luminance Model" rows={objectToRows(model.roadway.luminanceModel)} />
+                </div>
+                <DataTable
+                  title="Roadway Lane Metrics"
+                  rows={model.roadway.laneMetrics}
+                  onSelectRow={(title, row, index) => setState((s) => ({ ...s, selectedTableTitle: title, selectedRow: row, selectedRowIndex: index }))}
+                  selectedTableTitle={state.selectedTableTitle}
+                  selectedRowIndex={state.selectedRowIndex}
+                />
+                <DataTable
+                  title="Roadway Observer Luminance Views"
+                  rows={model.roadway.observerLuminanceViews}
+                  onSelectRow={(title, row, index) => setState((s) => ({ ...s, selectedTableTitle: title, selectedRow: row, selectedRowIndex: index }))}
+                  selectedTableTitle={state.selectedTableTitle}
+                  selectedRowIndex={state.selectedRowIndex}
+                />
+                <DataTable title="Roadway TI Observers" rows={model.roadway.tiObservers} />
+                <DataTable
+                  title="Roadway Observer Glare Views"
+                  rows={model.roadway.observerGlareViews}
+                  onSelectRow={(title, row, index) => setState((s) => ({ ...s, selectedTableTitle: title, selectedRow: row, selectedRowIndex: index }))}
+                  selectedTableTitle={state.selectedTableTitle}
+                  selectedRowIndex={state.selectedRowIndex}
+                />
+              </section>
+            ) : null}
+
+            {model?.roadwaySubmission.available ? (
+              <section className="rounded-md border border-border bg-panel p-3">
+                <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Roadway Submission (Typed)</div>
+                <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                  <MetricCard label="Source" value={model.roadwaySubmission.source} />
+                  <MetricCard label="Status" value={model.roadwaySubmission.status ?? "N/A"} />
+                  <MetricCard label="Checks" value={String(model.roadwaySubmission.checks.length)} />
+                  <MetricCard label="Validation Issues" value={String(model.roadwaySubmission.validationIssues.length)} />
+                </div>
+                {model.roadwaySubmission.title ? (
+                  <div className="mt-2 rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-text">
+                    {model.roadwaySubmission.title}
+                  </div>
+                ) : null}
+                <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
+                  <DataTable title="Submission Profile" rows={objectToRows(model.roadwaySubmission.profile)} />
+                  <DataTable title="Submission Overall" rows={objectToRows(model.roadwaySubmission.overall)} />
+                </div>
+                <DataTable title="Submission Checks" rows={model.roadwaySubmission.checks} />
+                {model.roadwaySubmission.validationIssues.length > 0 ? (
+                  <div className="mt-2 rounded border border-amber-500/40 bg-amber-950/25 p-2 text-xs text-amber-100">
+                    {model.roadwaySubmission.validationIssues.map((issue) => (
+                      <div key={issue}>{issue}</div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-2 rounded border border-emerald-500/40 bg-emerald-950/25 p-2 text-xs text-emerald-100">
+                    Submission payload validated against required typed fields.
+                  </div>
+                )}
+              </section>
+            ) : null}
+
+            {model?.engines.available ? (
+              <section className="rounded-md border border-border bg-panel p-3">
+                <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Results Engines</div>
+                <DataTable title="Engines and Summary Keys" rows={model.engines.summaries} />
               </section>
             ) : null}
 
@@ -987,11 +1381,73 @@ export default function App() {
                 )}
               </div>
             </section>
-            <DataTable title="Grids" rows={(model?.tables.grids ?? []) as JsonRow[]} />
-            <DataTable title="Vertical Planes" rows={(model?.tables.verticalPlanes ?? []) as JsonRow[]} />
-            <DataTable title="Point Sets" rows={(model?.tables.pointSets ?? []) as JsonRow[]} />
+            <DataTable
+              title="Grids"
+              rows={(model?.tables.grids ?? []) as JsonRow[]}
+              onSelectRow={(title, row, index) => setState((s) => ({ ...s, selectedTableTitle: title, selectedRow: row, selectedRowIndex: index }))}
+              selectedTableTitle={state.selectedTableTitle}
+              selectedRowIndex={state.selectedRowIndex}
+            />
+            <DataTable
+              title="Vertical Planes"
+              rows={(model?.tables.verticalPlanes ?? []) as JsonRow[]}
+              onSelectRow={(title, row, index) => setState((s) => ({ ...s, selectedTableTitle: title, selectedRow: row, selectedRowIndex: index }))}
+              selectedTableTitle={state.selectedTableTitle}
+              selectedRowIndex={state.selectedRowIndex}
+            />
+            <DataTable
+              title="Point Sets"
+              rows={(model?.tables.pointSets ?? []) as JsonRow[]}
+              onSelectRow={(title, row, index) => setState((s) => ({ ...s, selectedTableTitle: title, selectedRow: row, selectedRowIndex: index }))}
+              selectedTableTitle={state.selectedTableTitle}
+              selectedRowIndex={state.selectedRowIndex}
+            />
             <DataTable title="Indoor Planes" rows={(model?.indoorPlanes ?? []) as JsonRow[]} />
             <DataTable title="Zone Metrics" rows={(model?.zoneMetrics ?? []) as JsonRow[]} />
+            <section className="rounded-md border border-border bg-panel p-3">
+              <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Artifact Inventory</div>
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_1fr]">
+                <ToolbarButton
+                  onClick={() => void loadArtifactInventory(state.resultDir)}
+                  disabled={state.artifactListLoading || !state.resultDir.trim()}
+                >
+                  {state.artifactListLoading ? "Refreshing..." : "Refresh Artifacts"}
+                </ToolbarButton>
+                <select
+                  value={state.selectedArtifactPath}
+                  onChange={(e) => setState((s) => ({ ...s, selectedArtifactPath: e.target.value }))}
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                >
+                  {state.artifactList.length > 0 ? (
+                    state.artifactList.map((entry) => (
+                      <option key={entry.path} value={entry.path}>
+                        {entry.relativePath}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">No artifacts listed</option>
+                  )}
+                </select>
+                <ToolbarButton onClick={() => void readSelectedArtifact()} disabled={state.artifactLoading || !state.selectedArtifactPath}>
+                  {state.artifactLoading ? "Reading..." : "Read Selected"}
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => void previewSelectedArtifact()}
+                  disabled={state.artifactBinaryLoading || !state.selectedArtifactPath}
+                >
+                  {state.artifactBinaryLoading ? "Previewing..." : "Preview Selected"}
+                </ToolbarButton>
+              </div>
+              {state.artifactListError ? <div className="mb-2 text-xs text-rose-300">{state.artifactListError}</div> : null}
+              <DataTable
+                title="Artifacts"
+                rows={state.artifactList.map((entry) => ({
+                  relative_path: entry.relativePath,
+                  size_bytes: entry.sizeBytes,
+                  modified: fmtUnix(entry.modifiedUnixS),
+                }))}
+              />
+            </section>
             <section className="rounded-md border border-border bg-panel p-3">
               <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Artifact Reader</div>
               <div className="mb-2 flex gap-2">
@@ -1004,6 +1460,9 @@ export default function App() {
                 <ToolbarButton onClick={() => void readArtifact()} disabled={state.artifactLoading}>
                   {state.artifactLoading ? "Reading..." : "Read"}
                 </ToolbarButton>
+                <ToolbarButton onClick={() => void readArtifactBinaryAtPath(state.artifactPath)} disabled={state.artifactBinaryLoading}>
+                  {state.artifactBinaryLoading ? "Previewing..." : "Preview"}
+                </ToolbarButton>
               </div>
               {state.artifactError ? <div className="mb-2 text-xs text-rose-300">{state.artifactError}</div> : null}
               {state.artifact ? (
@@ -1014,6 +1473,43 @@ export default function App() {
                   </pre>
                 </div>
               ) : null}
+            </section>
+            <section className="rounded-md border border-border bg-panel p-3">
+              <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Artifact Image Preview</div>
+              {state.artifactBinary ? (
+                <div className="text-xs text-muted">
+                  <div className="mb-2">
+                    {state.artifactBinary.path} ({state.artifactBinary.sizeBytes} bytes){state.artifactBinary.truncated ? " [truncated]" : ""}{" "}
+                    / {state.artifactBinary.mimeType}
+                  </div>
+                  {state.artifactBinary.mimeType.startsWith("image/") ? (
+                    <img
+                      src={`data:${state.artifactBinary.mimeType};base64,${state.artifactBinary.dataBase64}`}
+                      alt="Artifact preview"
+                      className="max-h-[420px] rounded border border-border/60 bg-panelSoft/50"
+                    />
+                  ) : (
+                    <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1">
+                      Selected artifact is not a supported image type.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
+                  Select an artifact and click Preview to render image outputs (PNG/JPG/WebP/GIF/SVG).
+                </div>
+              )}
+            </section>
+            <section className="rounded-md border border-border bg-panel p-3">
+              <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Raw JSON Explorer</div>
+              <div className="mb-2 text-xs text-muted">
+                Flattened field view of raw payloads from `result.json`, `tables.json`, and `results.json`.
+              </div>
+              <DataTable title="Raw Result JSON Paths" rows={rawResultRows} />
+              <DataTable title="Raw Tables JSON Paths" rows={rawTablesRows} />
+              <DataTable title="Raw Results JSON Paths" rows={rawResultsRows} />
+              <DataTable title="Raw Road Summary JSON Paths" rows={rawRoadSummaryRows} />
+              <DataTable title="Raw Roadway Submission JSON Paths" rows={rawRoadwaySubmissionRows} />
             </section>
             <section className="rounded-md border border-border bg-panel p-3">
               <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Warnings</div>
@@ -1040,6 +1536,14 @@ export default function App() {
             <MetricCard label="Source Dir" value={model?.sourceDir ?? "Not loaded"} />
             <MetricCard label="Known Runs" value={String(state.recentRuns.length)} />
             <MetricCard label="Loaded Jobs" value={String(state.projectJobs.length)} />
+            <MetricCard label="Selected Table" value={state.selectedTableTitle || "N/A"} />
+            <MetricCard label="Selected Row" value={state.selectedRowIndex >= 0 ? String(state.selectedRowIndex + 1) : "N/A"} />
+            {state.selectedRow ? (
+              <div className="rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
+                <div className="mb-1 text-text">Selected Row Data</div>
+                <pre className="max-h-36 overflow-auto whitespace-pre-wrap">{JSON.stringify(state.selectedRow, null, 2)}</pre>
+              </div>
+            ) : null}
           </div>
         </InspectorPanel>
       }

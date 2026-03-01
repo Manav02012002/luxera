@@ -1,3 +1,5 @@
+use base64::engine::general_purpose;
+use base64::Engine as _;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -17,6 +19,8 @@ struct DesktopResultBundle {
     result: Value,
     tables: Value,
     results: Value,
+    road_summary: Value,
+    roadway_submission: Value,
     warnings: Vec<String>,
 }
 
@@ -37,6 +41,25 @@ struct ArtifactRead {
     size_bytes: u64,
     truncated: bool,
     content: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ArtifactBinaryRead {
+    path: String,
+    size_bytes: u64,
+    truncated: bool,
+    mime_type: String,
+    data_base64: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ArtifactEntry {
+    path: String,
+    relative_path: String,
+    size_bytes: u64,
+    modified_unix_s: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -107,6 +130,25 @@ fn next_run_id() -> u64 {
 fn read_json_file(path: &Path, warnings: &mut Vec<String>) -> Value {
     if !path.exists() {
         warnings.push(format!("Missing file: {}", path.display()));
+        return Value::Null;
+    }
+    match fs::read_to_string(path) {
+        Ok(raw) => match serde_json::from_str::<Value>(&raw) {
+            Ok(value) => value,
+            Err(err) => {
+                warnings.push(format!("Invalid JSON in {}: {}", path.display(), err));
+                Value::Null
+            }
+        },
+        Err(err) => {
+            warnings.push(format!("Unable to read {}: {}", path.display(), err));
+            Value::Null
+        }
+    }
+}
+
+fn read_optional_json_file(path: &Path, warnings: &mut Vec<String>) -> Value {
+    if !path.exists() {
         return Value::Null;
     }
     match fs::read_to_string(path) {
@@ -220,6 +262,49 @@ fn run_modified_unix_seconds(path: &Path) -> u64 {
         .unwrap_or(0)
 }
 
+fn collect_artifacts(root: &Path, cursor: &Path, out: &mut Vec<ArtifactEntry>) -> Result<(), String> {
+    let entries = fs::read_dir(cursor).map_err(|e| format!("Failed to scan {}: {}", cursor.display(), e))?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_artifacts(root, &path, out)?;
+            continue;
+        }
+        if !path.is_file() {
+            continue;
+        }
+        let meta = fs::metadata(&path).map_err(|e| format!("Cannot stat {}: {}", path.display(), e))?;
+        let rel = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .to_string();
+        out.push(ArtifactEntry {
+            path: path.to_string_lossy().to_string(),
+            relative_path: rel,
+            size_bytes: meta.len(),
+            modified_unix_s: run_modified_unix_seconds(&path),
+        });
+    }
+    Ok(())
+}
+
+fn mime_for_path(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|x| x.to_str())
+        .map(|x| x.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        Some("gif") => "image/gif",
+        Some("svg") => "image/svg+xml",
+        _ => "application/octet-stream",
+    }
+}
+
 #[tauri::command]
 fn load_backend_outputs(result_dir: Option<String>) -> Result<DesktopResultBundle, String> {
     let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
@@ -242,12 +327,16 @@ fn load_backend_outputs(result_dir: Option<String>) -> Result<DesktopResultBundl
     let result = read_json_file(&source_dir.join("result.json"), &mut warnings);
     let tables = read_json_file(&source_dir.join("tables.json"), &mut warnings);
     let results = read_json_file(&source_dir.join("results.json"), &mut warnings);
+    let road_summary = read_optional_json_file(&source_dir.join("road_summary.json"), &mut warnings);
+    let roadway_submission = read_optional_json_file(&source_dir.join("roadway_submission.json"), &mut warnings);
 
     Ok(DesktopResultBundle {
         source_dir: source_dir.to_string_lossy().to_string(),
         result,
         tables,
         results,
+        road_summary,
+        roadway_submission,
         warnings,
     })
 }
@@ -567,6 +656,54 @@ fn read_artifact(path: String, max_bytes: Option<usize>) -> Result<ArtifactRead,
 }
 
 #[tauri::command]
+fn read_artifact_binary(path: String, max_bytes: Option<usize>) -> Result<ArtifactBinaryRead, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw_path = PathBuf::from(path.trim());
+    if raw_path.as_os_str().is_empty() {
+        return Err("Artifact path is empty".to_string());
+    }
+    let resolved = resolve_repo_relative(&raw_path, &cwd)?;
+    let meta = fs::metadata(&resolved).map_err(|e| format!("Cannot stat {}: {}", resolved.display(), e))?;
+    if !meta.is_file() {
+        return Err(format!("Artifact is not a file: {}", resolved.display()));
+    }
+    let max_len = max_bytes.unwrap_or(2_000_000).max(1).min(10_000_000);
+    let bytes = fs::read(&resolved).map_err(|e| format!("Cannot read {}: {}", resolved.display(), e))?;
+    let truncated = bytes.len() > max_len;
+    let slice = if truncated { &bytes[..max_len] } else { &bytes[..] };
+    let data_base64 = general_purpose::STANDARD.encode(slice);
+    Ok(ArtifactBinaryRead {
+        path: resolved.to_string_lossy().to_string(),
+        size_bytes: meta.len(),
+        truncated,
+        mime_type: mime_for_path(&resolved).to_string(),
+        data_base64,
+    })
+}
+
+#[tauri::command]
+fn list_result_artifacts(result_dir: String, limit: Option<usize>) -> Result<Vec<ArtifactEntry>, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw_path = PathBuf::from(result_dir.trim());
+    if raw_path.as_os_str().is_empty() {
+        return Err("Result directory path is empty".to_string());
+    }
+    let resolved = resolve_repo_relative(&raw_path, &cwd)?;
+    if !resolved.exists() || !resolved.is_dir() {
+        return Err(format!("Directory not found: {}", resolved.display()));
+    }
+    let mut artifacts: Vec<ArtifactEntry> = Vec::new();
+    collect_artifacts(&resolved, &resolved, &mut artifacts)?;
+    artifacts.sort_by(|a, b| {
+        b.modified_unix_s
+            .cmp(&a.modified_unix_s)
+            .then_with(|| a.relative_path.cmp(&b.relative_path))
+    });
+    artifacts.truncate(limit.unwrap_or(200).max(1).min(2000));
+    Ok(artifacts)
+}
+
+#[tauri::command]
 fn open_result_dir(path: String) -> Result<(), String> {
     let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
     let raw_path = PathBuf::from(path.trim());
@@ -605,8 +742,8 @@ fn desktop_backend_contract() -> Value {
     json!({
         "contract_version": "desktop_backend_v1",
         "required_files": ["result.json"],
-        "optional_files": ["tables.json", "results.json"],
-        "rendered_sections": ["summary", "warnings", "compliance", "tables"],
+        "optional_files": ["tables.json", "results.json", "road_summary.json", "roadway_submission.json"],
+        "rendered_sections": ["summary", "warnings", "compliance", "tables", "results_engines", "roadway_submission_typed", "artifact_inventory", "artifact_image_preview", "raw_json_explorer"],
         "max_read_artifact_bytes_default": 512000
     })
 }
@@ -623,6 +760,8 @@ pub fn run() {
             cancel_project_job_run,
             list_recent_runs,
             read_artifact,
+            read_artifact_binary,
+            list_result_artifacts,
             open_result_dir,
             desktop_backend_contract,
         ])

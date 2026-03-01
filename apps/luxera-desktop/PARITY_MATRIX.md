@@ -29,25 +29,23 @@ Files emitted by runner:
 - full table row rendering / sort / filter -> `wired`
 - `summary.indoor_planes` deep rendering -> `wired`
 - zone metrics deep rendering (`zone_metrics`, `zones` table) -> `wired`
+- full raw JSON field explorer (`result|tables|results`) -> `wired`
+- `results.engines[*].summary` inventory -> `wired`
 
 ### Slice 3: Roadway
-- roadway profile/compliance deep breakdown -> `missing`
-- roadway luminance/glare tables -> `missing`
-- roadway submission artifact preview -> `missing`
+- roadway profile/compliance deep breakdown -> `wired`
+- roadway luminance/glare tables -> `wired`
+- roadway submission artifact preview -> `wired`
 
 ### Slice 4: UGR Diagnostics
-- `summary.ugr_views` list and per-view diagnostics -> `missing`
-- top contributors (`top_contributors`) -> `missing`
+- `summary.ugr_views` list and per-view diagnostics -> `wired`
+- top contributors (`top_contributors`) -> `wired`
 
 ### Slice 5: Radiosity Diagnostics
-- residual trend / convergence visuals -> `missing`
-- energy accounting block (`total_emitted|absorbed|reflected`) -> `missing`
-- solver warnings and stop reason detailed panel -> `partial`
+- residual trend / convergence visuals -> `wired`
+- energy accounting block (`total_emitted|absorbed|reflected`) -> `wired`
+- solver warnings and stop reason detailed panel -> `wired`
 
 ## Next Work Order
 
 1. Add table column presets and saved views.
-2. Add roadway profile/compliance/luminance/glare panels.
-3. Add UGR view + contributor panels.
-4. Add radiosity convergence and energy accounting panels.
-5. Add result-to-viewport visual linking (select row -> highlight element).
