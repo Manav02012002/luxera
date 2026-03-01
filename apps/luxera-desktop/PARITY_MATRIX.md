@@ -28,6 +28,8 @@ Files emitted by runner:
 
 ### Slice 0.75: Luminaire Authoring
 - photometry asset import (IES/LDT) -> `wired`
+- project photometry asset browser (search/select/use-asset) -> `wired`
+- photometry verification (import file + selected project asset) -> `wired`
 - luminaire placement with transform/maintenance/tilt -> `wired`
 - luminaire rectangular array placement -> `wired`
 - luminaire aiming (yaw) -> `wired`
@@ -42,6 +44,7 @@ Files emitted by runner:
 - client bundle export -> `wired`
 - backend comparison export -> `wired`
 - roadway report export -> `wired`
+- in-app artifact preview for PDF reports -> `wired`
 
 ### Slice 1.5: Agent Interface
 - agent intent execution (`AgentRuntime.execute`) -> `wired`

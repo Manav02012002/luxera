@@ -137,6 +137,14 @@ struct ToolOperationResult {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct PhotometryVerifyResponse {
+    ok: bool,
+    error: Option<String>,
+    result: Option<Value>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct JobRunResponse {
     project_path: String,
     job_id: String,
@@ -398,6 +406,7 @@ fn mime_for_path(path: &Path) -> &'static str {
         Some("webp") => "image/webp",
         Some("gif") => "image/gif",
         Some("svg") => "image/svg+xml",
+        Some("pdf") => "application/pdf",
         _ => "application/octet-stream",
     }
 }
@@ -862,6 +871,99 @@ fn add_photometry_to_project(
         stderr,
         project,
     })
+}
+
+#[tauri::command]
+fn verify_photometry_file_input(
+    file_path: String,
+    format: Option<String>,
+) -> Result<PhotometryVerifyResponse, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw_file = PathBuf::from(file_path.trim());
+    if raw_file.as_os_str().is_empty() {
+        return Err("Photometry file path is empty".to_string());
+    }
+    let resolved_file = resolve_repo_relative(&raw_file, &cwd)?;
+    let script = r#"
+import json, sys
+from luxera.photometry.verify import verify_photometry_file
+fpath = sys.argv[1]
+fmt = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
+try:
+    result = verify_photometry_file(fpath, fmt=fmt).to_dict()
+    print(json.dumps({"ok": True, "error": None, "result": result}))
+except Exception as e:
+    print(json.dumps({"ok": False, "error": str(e), "result": None}))
+"#;
+    let fmt = format.unwrap_or_default().trim().to_string();
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        resolved_file.to_string_lossy().to_string(),
+        fmt,
+    ])?;
+    let ok = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let error = payload
+        .get("error")
+        .and_then(|x| x.as_str())
+        .map(|x| x.to_string());
+    let result = payload.get("result").cloned();
+    Ok(PhotometryVerifyResponse { ok, error, result })
+}
+
+#[tauri::command]
+fn verify_project_photometry_asset(
+    project_path: String,
+    asset_id: String,
+) -> Result<PhotometryVerifyResponse, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw_project = PathBuf::from(project_path.trim());
+    if raw_project.as_os_str().is_empty() {
+        return Err("Project path is empty".to_string());
+    }
+    if asset_id.trim().is_empty() {
+        return Err("Asset id is empty".to_string());
+    }
+    let resolved_project = resolve_repo_relative(&raw_project, &cwd)?;
+    let script = r#"
+import json, sys
+from pathlib import Path
+from luxera.project.io import load_project_schema
+from luxera.photometry.verify import verify_photometry_file
+project_path = Path(sys.argv[1]).expanduser().resolve()
+asset_id = sys.argv[2].strip()
+project = load_project_schema(project_path)
+asset = next((a for a in project.photometry_assets if a.id == asset_id), None)
+if asset is None:
+    print(json.dumps({"ok": False, "error": f"Photometry asset not found: {asset_id}", "result": None}))
+elif not asset.path:
+    print(json.dumps({"ok": False, "error": f"Photometry asset has no file path: {asset_id}", "result": None}))
+else:
+    apath = Path(asset.path).expanduser()
+    if not apath.is_absolute():
+        apath = (project_path.parent / apath).resolve()
+    try:
+        result = verify_photometry_file(str(apath), fmt=asset.format).to_dict()
+        result["asset_id"] = asset.id
+        result["asset_format"] = asset.format
+        result["asset_path"] = str(apath)
+        print(json.dumps({"ok": True, "error": None, "result": result}))
+    except Exception as e:
+        print(json.dumps({"ok": False, "error": str(e), "result": None}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        resolved_project.to_string_lossy().to_string(),
+        asset_id.trim().to_string(),
+    ])?;
+    let ok = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let error = payload
+        .get("error")
+        .and_then(|x| x.as_str())
+        .map(|x| x.to_string());
+    let result = payload.get("result").cloned();
+    Ok(PhotometryVerifyResponse { ok, error, result })
 }
 
 #[tauri::command]
@@ -2548,6 +2650,7 @@ fn desktop_backend_contract() -> Value {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             load_backend_outputs,
             init_project_file,
@@ -2558,6 +2661,8 @@ pub fn run() {
             import_geometry_to_project,
             clean_geometry_in_project,
             add_photometry_to_project,
+            verify_photometry_file_input,
+            verify_project_photometry_asset,
             add_luminaire_to_project,
             add_grid_to_project,
             add_job_to_project,

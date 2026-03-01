@@ -93,6 +93,12 @@ export interface ToolOperationResult {
   project?: ProjectDocument | null;
 }
 
+export interface PhotometryVerifyResponse {
+  ok: boolean;
+  error?: string | null;
+  result?: Record<string, unknown> | null;
+}
+
 export interface JobRunResponse {
   projectPath: string;
   jobId: string;
@@ -161,6 +167,7 @@ export interface AppState {
   model: DesktopViewModel | null;
   recentRuns: RecentRun[];
   recentLoading: boolean;
+  recentProjects: string[];
   contract: BackendContract | null;
   projectPath: string;
   projectName: string;
@@ -192,6 +199,11 @@ export interface AppState {
   photometryFilePath: string;
   photometryAssetId: string;
   photometryFormat: string;
+  photometryLibraryQuery: string;
+  selectedPhotometryAssetId: string;
+  photometryVerifyLoading: boolean;
+  photometryVerifyError: string;
+  photometryVerifyResult: Record<string, unknown> | null;
   luminaireAssetId: string;
   luminaireId: string;
   luminaireName: string;

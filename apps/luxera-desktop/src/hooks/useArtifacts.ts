@@ -72,7 +72,11 @@ export function useArtifacts({ hasTauri }: UseArtifactsArgs) {
     setArtifactError("");
     setArtifactBinary(null);
     try {
-      const payload = await tauriInvoke<ArtifactBinaryRead>("read_artifact_binary", { path: cleanPath, maxBytes: null });
+      const isPdf = cleanPath.toLowerCase().endsWith(".pdf");
+      const payload = await tauriInvoke<ArtifactBinaryRead>("read_artifact_binary", {
+        path: cleanPath,
+        maxBytes: isPdf ? 10_000_000 : null,
+      });
       setArtifactBinary(payload);
       setArtifactBinaryLoading(false);
     } catch (err) {

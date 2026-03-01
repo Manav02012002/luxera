@@ -26,6 +26,7 @@ import type {
   ExportOperationResult,
   GeometryOperationResult,
   JsonRow,
+  PhotometryVerifyResponse,
   ProjectDocument,
   ProjectJobsResponse,
   ProjectValidationResult,
@@ -33,9 +34,11 @@ import type {
   ToolOperationResult,
 } from "./types";
 import { flattenJsonRows, firstNumeric, objectToRows, rowsToPoints } from "./utils/table";
-import { hasTauriRuntime, tauriInvoke } from "./utils/tauri";
+import { hasTauriRuntime, tauriDialogOpen, tauriDialogSave, tauriInvoke } from "./utils/tauri";
 
 const projectItems = ["Project", "Geometry", "Luminaires", "Calculation", "Reports"];
+const RECENT_PROJECTS_STORAGE_KEY = "luxera.desktop.recentProjects";
+const MAX_RECENT_PROJECTS = 15;
 
 interface ScenePoint {
   id: string;
@@ -79,6 +82,7 @@ const initialState: AppState = {
   model: null,
   recentRuns: [],
   recentLoading: false,
+  recentProjects: [],
   contract: null,
   projectPath: "",
   projectName: "",
@@ -110,6 +114,11 @@ const initialState: AppState = {
   photometryFilePath: "",
   photometryAssetId: "",
   photometryFormat: "",
+  photometryLibraryQuery: "",
+  selectedPhotometryAssetId: "",
+  photometryVerifyLoading: false,
+  photometryVerifyError: "",
+  photometryVerifyResult: null,
   luminaireAssetId: "",
   luminaireId: "",
   luminaireName: "",
@@ -362,6 +371,34 @@ export default function App() {
         .filter((x) => x),
     [projectModel],
   );
+  const projectPhotometryRows = useMemo<JsonRow[]>(
+    () =>
+      (((projectModel?.photometry_assets as Array<Record<string, unknown>> | undefined) ?? []).map((asset, i) => {
+        const metadata = asset.metadata;
+        const metaObj = metadata && typeof metadata === "object" ? (metadata as Record<string, unknown>) : null;
+        return {
+          index: i + 1,
+          id: String(asset.id ?? ""),
+          format: String(asset.format ?? ""),
+          path: String(asset.path ?? ""),
+          hash: String(asset.content_hash ?? ""),
+          embedded: !!asset.embedded_b64,
+          manufacturer: metaObj ? String(metaObj.manufacturer ?? "") : "",
+          name: metaObj ? String(metaObj.name ?? "") : "",
+        };
+      })),
+    [projectModel],
+  );
+  const filteredPhotometryRows = useMemo<JsonRow[]>(() => {
+    const query = state.photometryLibraryQuery.trim().toLowerCase();
+    if (!query) {
+      return projectPhotometryRows;
+    }
+    return projectPhotometryRows.filter((row) =>
+      Object.values(row).some((v) => String(v ?? "").toLowerCase().includes(query)),
+    );
+  }, [projectPhotometryRows, state.photometryLibraryQuery]);
+  const photometryVerifyRows = useMemo(() => flattenJsonRows(state.photometryVerifyResult ?? null, "photometry_verify"), [state.photometryVerifyResult]);
   const sceneRooms = useMemo<ScenePolygon[]>(() => {
     const rooms = ((projectModel?.geometry as { rooms?: Array<Record<string, unknown>> } | undefined)?.rooms ?? []) as Array<
       Record<string, unknown>
@@ -776,12 +813,174 @@ export default function App() {
     }
   };
 
-  const loadProjectJobs = async (): Promise<void> => {
+  const persistRecentProjects = (paths: string[]): void => {
+    try {
+      window.localStorage.setItem(RECENT_PROJECTS_STORAGE_KEY, JSON.stringify(paths));
+    } catch {
+      // Best effort only.
+    }
+  };
+
+  const pushRecentProjectPath = (projectPath: string): void => {
+    const normalized = projectPath.trim();
+    if (!normalized) {
+      return;
+    }
+    const next = [normalized, ...state.recentProjects.filter((p) => p !== normalized)].slice(0, MAX_RECENT_PROJECTS);
+    patchState({ recentProjects: next });
+    persistRecentProjects(next);
+  };
+
+  const browseProjectPath = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ projectLifecycleError: "Project browsing requires Tauri runtime." });
+      return;
+    }
+    try {
+      const picked = await tauriDialogOpen({
+        title: "Open Luxera Project",
+        defaultPath: state.projectPath.trim() || undefined,
+        multiple: false,
+        directory: false,
+        filters: [{ name: "Project JSON", extensions: ["json"] }],
+      });
+      if (typeof picked === "string" && picked.trim()) {
+        patchState({ projectPath: picked, projectLifecycleError: "" });
+      }
+    } catch (err) {
+      patchState({ projectLifecycleError: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  const openProjectFromDialog = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
+      return;
+    }
+    try {
+      const picked = await tauriDialogOpen({
+        title: "Open Luxera Project",
+        defaultPath: state.projectPath.trim() || undefined,
+        multiple: false,
+        directory: false,
+        filters: [{ name: "Project JSON", extensions: ["json"] }],
+      });
+      if (typeof picked === "string" && picked.trim()) {
+        await openProjectDocument(picked);
+      }
+    } catch (err) {
+      patchState({ projectLifecycleError: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  const chooseNewProjectPathAndInit = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
+      return;
+    }
+    try {
+      const picked = await tauriDialogSave({
+        title: "Create New Luxera Project",
+        defaultPath: state.projectPath.trim() || undefined,
+      });
+      if (typeof picked === "string" && picked.trim()) {
+        await initProjectDocument(picked);
+      }
+    } catch (err) {
+      patchState({ projectLifecycleError: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  const saveProjectAsDialog = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
+      return;
+    }
+    try {
+      const picked = await tauriDialogSave({
+        title: "Save Luxera Project As",
+        defaultPath: state.projectPath.trim() || undefined,
+      });
+      if (typeof picked === "string" && picked.trim()) {
+        await saveProjectDocument(picked);
+      }
+    } catch (err) {
+      patchState({ projectLifecycleError: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  const browseGeometryImportPath = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ geomError: "Geometry browsing requires Tauri runtime." });
+      return;
+    }
+    try {
+      const picked = await tauriDialogOpen({
+        title: "Import Geometry",
+        defaultPath: state.geomImportPath.trim() || undefined,
+        multiple: false,
+        directory: false,
+        filters: [
+          { name: "Geometry Files", extensions: ["dxf", "obj", "gltf", "glb", "fbx", "skp", "ifc", "dwg"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+      });
+      if (typeof picked === "string" && picked.trim()) {
+        patchState({ geomImportPath: picked, geomError: "" });
+      }
+    } catch (err) {
+      patchState({ geomError: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  const browsePhotometryPath = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ luminaireError: "Photometry browsing requires Tauri runtime." });
+      return;
+    }
+    try {
+      const picked = await tauriDialogOpen({
+        title: "Import Photometry",
+        defaultPath: state.photometryFilePath.trim() || undefined,
+        multiple: false,
+        directory: false,
+        filters: [
+          { name: "Photometry", extensions: ["ies", "ldt"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+      });
+      if (typeof picked === "string" && picked.trim()) {
+        patchState({ photometryFilePath: picked, luminaireError: "" });
+      }
+    } catch (err) {
+      patchState({ luminaireError: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  const browseExportOutputPath = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ exportError: "Export path browsing requires Tauri runtime." });
+      return;
+    }
+    try {
+      const picked = await tauriDialogSave({
+        title: "Choose Export Output Path",
+        defaultPath: state.exportOutputPath.trim() || undefined,
+      });
+      if (typeof picked === "string" && picked.trim()) {
+        patchState({ exportOutputPath: picked, exportError: "" });
+      }
+    } catch (err) {
+      patchState({ exportError: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  const loadProjectJobs = async (pathOverride?: string): Promise<void> => {
     if (!hasTauri) {
       // surfaced in run control panel
       return;
     }
-    const path = state.projectPath.trim();
+    const path = (pathOverride ?? state.projectPath).trim();
     if (!path) {
       return;
     }
@@ -825,7 +1024,8 @@ export default function App() {
         projectPath: doc.path,
         projectName: doc.name,
       });
-      await loadProjectJobs();
+      pushRecentProjectPath(doc.path);
+      await loadProjectJobs(doc.path);
     } catch (err) {
       patchState({
         projectLifecycleLoading: false,
@@ -834,12 +1034,12 @@ export default function App() {
     }
   };
 
-  const initProjectDocument = async (): Promise<void> => {
+  const initProjectDocument = async (pathOverride?: string): Promise<void> => {
     if (!hasTauri) {
       patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
       return;
     }
-    const projectPath = state.projectPath.trim();
+    const projectPath = (pathOverride ?? state.projectPath).trim();
     if (!projectPath) {
       patchState({ projectLifecycleError: "Project path is empty." });
       return;
@@ -858,7 +1058,8 @@ export default function App() {
         projectPath: doc.path,
         projectName: doc.name,
       });
-      await loadProjectJobs();
+      pushRecentProjectPath(doc.path);
+      await loadProjectJobs(doc.path);
     } catch (err) {
       patchState({
         projectLifecycleLoading: false,
@@ -867,12 +1068,12 @@ export default function App() {
     }
   };
 
-  const saveProjectDocument = async (): Promise<void> => {
+  const saveProjectDocument = async (pathOverride?: string): Promise<void> => {
     if (!hasTauri) {
       patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
       return;
     }
-    const projectPath = state.projectPath.trim();
+    const projectPath = (pathOverride ?? state.projectPath).trim();
     if (!projectPath) {
       patchState({ projectLifecycleError: "Project path is empty." });
       return;
@@ -891,7 +1092,8 @@ export default function App() {
         projectPath: doc.path,
         projectName: doc.name,
       });
-      await loadProjectJobs();
+      pushRecentProjectPath(doc.path);
+      await loadProjectJobs(doc.path);
     } catch (err) {
       patchState({
         projectLifecycleLoading: false,
@@ -1079,6 +1281,71 @@ export default function App() {
       patchState({
         luminaireLoading: false,
         luminaireError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const verifyImportPhotometry = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ photometryVerifyError: "Photometry verification requires Tauri runtime." });
+      return;
+    }
+    const path = state.photometryFilePath.trim();
+    if (!path) {
+      patchState({ photometryVerifyError: "Photometry file path is empty.", photometryVerifyResult: null });
+      return;
+    }
+    patchState({ photometryVerifyLoading: true, photometryVerifyError: "", photometryVerifyResult: null });
+    try {
+      const res = await tauriInvoke<PhotometryVerifyResponse>("verify_photometry_file_input", {
+        filePath: path,
+        format: state.photometryFormat.trim() ? state.photometryFormat.trim() : null,
+      });
+      patchState({
+        photometryVerifyLoading: false,
+        photometryVerifyError: res.ok ? "" : String(res.error ?? "Photometry verification failed."),
+        photometryVerifyResult: res.result ?? null,
+      });
+    } catch (err) {
+      patchState({
+        photometryVerifyLoading: false,
+        photometryVerifyError: err instanceof Error ? err.message : String(err),
+        photometryVerifyResult: null,
+      });
+    }
+  };
+
+  const verifySelectedProjectPhotometry = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ photometryVerifyError: "Photometry verification requires Tauri runtime." });
+      return;
+    }
+    const projectPath = state.projectPath.trim();
+    const assetId = state.selectedPhotometryAssetId.trim();
+    if (!projectPath) {
+      patchState({ photometryVerifyError: "Project path is empty.", photometryVerifyResult: null });
+      return;
+    }
+    if (!assetId) {
+      patchState({ photometryVerifyError: "Select a photometry asset first.", photometryVerifyResult: null });
+      return;
+    }
+    patchState({ photometryVerifyLoading: true, photometryVerifyError: "", photometryVerifyResult: null });
+    try {
+      const res = await tauriInvoke<PhotometryVerifyResponse>("verify_project_photometry_asset", {
+        projectPath,
+        assetId,
+      });
+      patchState({
+        photometryVerifyLoading: false,
+        photometryVerifyError: res.ok ? "" : String(res.error ?? "Photometry verification failed."),
+        photometryVerifyResult: res.result ?? null,
+      });
+    } catch (err) {
+      patchState({
+        photometryVerifyLoading: false,
+        photometryVerifyError: err instanceof Error ? err.message : String(err),
+        photometryVerifyResult: null,
       });
     }
   };
@@ -1862,6 +2129,23 @@ export default function App() {
   useEffect(() => {
     void refreshRecentRuns();
     void loadContract();
+    try {
+      const raw = window.localStorage.getItem(RECENT_PROJECTS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          const sanitized = parsed
+            .map((v) => String(v ?? "").trim())
+            .filter((v) => v)
+            .slice(0, MAX_RECENT_PROJECTS);
+          if (sanitized.length > 0) {
+            patchState({ recentProjects: sanitized });
+          }
+        }
+      }
+    } catch {
+      // Best effort only.
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1875,6 +2159,12 @@ export default function App() {
     }
     if (!state.arrayAssetId && assetIds.length > 0) {
       patch.arrayAssetId = assetIds[0];
+    }
+    if (!state.selectedPhotometryAssetId && assetIds.length > 0) {
+      patch.selectedPhotometryAssetId = assetIds[0];
+    }
+    if (!state.luminaireAssetId && assetIds.length > 0) {
+      patch.luminaireAssetId = assetIds[0];
     }
     if (!state.aimLuminaireId && luminaireIds.length > 0) {
       patch.aimLuminaireId = luminaireIds[0];
@@ -3220,21 +3510,30 @@ export default function App() {
             </div>
             <section className="rounded-md border border-border bg-panel p-3">
               <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Project Lifecycle</div>
-              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr]">
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]">
                 <input
                   value={state.projectPath}
                   onChange={(e) => patchState({ projectPath: e.target.value })}
                   placeholder="Project file path (.json)"
                   className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none focus:ring-2 focus:ring-blue-400/30"
                 />
+                <ToolbarButton onClick={() => void browseProjectPath()} disabled={state.projectLifecycleLoading}>
+                  Browse
+                </ToolbarButton>
                 <input
                   value={state.projectName}
                   onChange={(e) => patchState({ projectName: e.target.value })}
                   placeholder="Project name (for init)"
                   className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none focus:ring-2 focus:ring-blue-400/30"
                 />
+                <ToolbarButton onClick={() => void chooseNewProjectPathAndInit()} disabled={state.projectLifecycleLoading}>
+                  New...
+                </ToolbarButton>
                 <ToolbarButton onClick={() => void initProjectDocument()} disabled={state.projectLifecycleLoading}>
                   {state.projectLifecycleLoading ? "Working..." : "New"}
+                </ToolbarButton>
+                <ToolbarButton onClick={() => void openProjectFromDialog()} disabled={state.projectLifecycleLoading}>
+                  Open...
                 </ToolbarButton>
                 <ToolbarButton onClick={() => void openProjectDocument()} disabled={state.projectLifecycleLoading}>
                   Open
@@ -3242,8 +3541,45 @@ export default function App() {
                 <ToolbarButton onClick={() => void saveProjectDocument()} disabled={state.projectLifecycleLoading || !state.projectDocDirty}>
                   Save
                 </ToolbarButton>
+                <ToolbarButton onClick={() => void saveProjectAsDialog()} disabled={state.projectLifecycleLoading}>
+                  Save As...
+                </ToolbarButton>
                 <ToolbarButton onClick={() => void validateProjectDocument()} disabled={state.projectLifecycleLoading}>
                   Validate
+                </ToolbarButton>
+              </div>
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr]">
+                <select
+                  value={state.projectPath}
+                  onChange={(e) => patchState({ projectPath: e.target.value })}
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                >
+                  <option value="">Recent projects...</option>
+                  {state.recentProjects.map((path) => (
+                    <option key={path} value={path}>
+                      {path}
+                    </option>
+                  ))}
+                </select>
+                <ToolbarButton
+                  onClick={() => {
+                    const path = state.projectPath.trim();
+                    if (path) {
+                      void openProjectDocument(path);
+                    }
+                  }}
+                  disabled={state.projectLifecycleLoading || !state.projectPath.trim()}
+                >
+                  Open Selected
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => {
+                    patchState({ recentProjects: [] });
+                    persistRecentProjects([]);
+                  }}
+                  disabled={state.recentProjects.length === 0}
+                >
+                  Clear Recent
                 </ToolbarButton>
               </div>
               {state.projectLifecycleError ? <div className="mb-2 text-xs text-rose-300">{state.projectLifecycleError}</div> : null}
@@ -3330,13 +3666,16 @@ export default function App() {
                   {state.geomLoading ? "Working..." : "Add Room"}
                 </ToolbarButton>
               </div>
-              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr]">
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
                 <input
                   value={state.geomImportPath}
                   onChange={(e) => patchState({ geomImportPath: e.target.value })}
                   placeholder="Geometry file path (DXF/OBJ/GLTF/FBX/SKP/IFC/DWG)"
                   className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
                 />
+                <ToolbarButton onClick={() => void browseGeometryImportPath()} disabled={state.geomLoading}>
+                  Browse
+                </ToolbarButton>
                 <input
                   value={state.geomImportFormat}
                   onChange={(e) => patchState({ geomImportFormat: e.target.value })}
@@ -3390,13 +3729,16 @@ export default function App() {
             </section>
             <section className="rounded-md border border-border bg-panel p-3">
               <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Luminaire Authoring</div>
-              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr]">
                 <input
                   value={state.photometryFilePath}
                   onChange={(e) => patchState({ photometryFilePath: e.target.value })}
                   placeholder="Photometry file path (.ies/.ldt)"
                   className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
                 />
+                <ToolbarButton onClick={() => void browsePhotometryPath()} disabled={state.luminaireLoading}>
+                  Browse
+                </ToolbarButton>
                 <input
                   value={state.photometryAssetId}
                   onChange={(e) => patchState({ photometryAssetId: e.target.value })}
@@ -3412,7 +3754,85 @@ export default function App() {
                 <ToolbarButton onClick={() => void addPhotometryAsset()} disabled={state.luminaireLoading}>
                   {state.luminaireLoading ? "Working..." : "Add Photometry"}
                 </ToolbarButton>
+                <ToolbarButton onClick={() => void verifyImportPhotometry()} disabled={state.photometryVerifyLoading}>
+                  {state.photometryVerifyLoading ? "Verifying..." : "Verify Import File"}
+                </ToolbarButton>
               </div>
+              <div className="mb-2 rounded border border-border/60 bg-panelSoft/50 p-2">
+                <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
+                  <input
+                    value={state.photometryLibraryQuery}
+                    onChange={(e) => patchState({ photometryLibraryQuery: e.target.value })}
+                    placeholder="Search project photometry assets (id/path/hash/manufacturer/name)"
+                    className="w-full rounded border border-border bg-panel px-2 py-1 text-xs text-text outline-none"
+                  />
+                  <input
+                    value={state.selectedPhotometryAssetId}
+                    onChange={(e) => patchState({ selectedPhotometryAssetId: e.target.value })}
+                    placeholder="Selected asset id"
+                    className="w-full rounded border border-border bg-panel px-2 py-1 text-xs text-text outline-none"
+                  />
+                  <ToolbarButton
+                    onClick={() =>
+                      patchState({
+                        luminaireAssetId: state.selectedPhotometryAssetId.trim(),
+                        arrayAssetId: state.selectedPhotometryAssetId.trim() || state.arrayAssetId,
+                      })
+                    }
+                    disabled={!state.selectedPhotometryAssetId.trim()}
+                  >
+                    Use Selected Asset
+                  </ToolbarButton>
+                  <ToolbarButton onClick={() => void verifySelectedProjectPhotometry()} disabled={state.photometryVerifyLoading}>
+                    {state.photometryVerifyLoading ? "Verifying..." : "Verify Selected Asset"}
+                  </ToolbarButton>
+                </div>
+                {filteredPhotometryRows.length === 0 ? (
+                  <div className="rounded border border-border/60 bg-panel px-2 py-2 text-xs text-muted">No project photometry assets.</div>
+                ) : (
+                  <div className="max-h-44 overflow-auto rounded border border-border/60">
+                    <table className="min-w-full text-xs">
+                      <thead className="sticky top-0 bg-panel">
+                        <tr>
+                          <th className="border-b border-border/70 px-2 py-1 text-left font-semibold text-muted">id</th>
+                          <th className="border-b border-border/70 px-2 py-1 text-left font-semibold text-muted">format</th>
+                          <th className="border-b border-border/70 px-2 py-1 text-left font-semibold text-muted">path</th>
+                          <th className="border-b border-border/70 px-2 py-1 text-left font-semibold text-muted">hash</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredPhotometryRows.map((row, idx) => {
+                          const id = String(row.id ?? "");
+                          const selected = state.selectedPhotometryAssetId === id;
+                          return (
+                            <tr
+                              key={`photometry-asset-${idx}-${id}`}
+                              className={`cursor-pointer odd:bg-panelSoft/30 hover:bg-blue-900/20 ${selected ? "bg-blue-900/30 ring-1 ring-blue-400/40" : ""}`}
+                              onClick={() => patchState({ selectedPhotometryAssetId: id })}
+                            >
+                              <td className="border-b border-border/50 px-2 py-1 text-text">{id}</td>
+                              <td className="border-b border-border/50 px-2 py-1 text-text">{String(row.format ?? "")}</td>
+                              <td className="border-b border-border/50 px-2 py-1 text-text">{String(row.path ?? "")}</td>
+                              <td className="border-b border-border/50 px-2 py-1 text-text">{String(row.hash ?? "")}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              {state.photometryVerifyError ? <div className="mb-2 text-xs text-rose-300">{state.photometryVerifyError}</div> : null}
+              {photometryVerifyRows.length > 0 ? (
+                <div className="mb-2 rounded border border-border/60 bg-panelSoft/50 p-2">
+                  <div className="mb-1 text-xs uppercase tracking-[0.12em] text-muted">Photometry Verification</div>
+                  <div className="max-h-32 overflow-auto rounded border border-border/60 bg-panel p-2">
+                    <pre className="whitespace-pre-wrap text-[11px] text-muted">
+                      {JSON.stringify(state.photometryVerifyResult, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              ) : null}
               <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]">
                 <input
                   value={state.luminaireAssetId}
@@ -3553,7 +3973,7 @@ export default function App() {
             </section>
             <section className="rounded-md border border-border bg-panel p-3">
               <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Export / Reporting</div>
-              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_2fr_1fr_1fr_1fr_1fr]">
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_2fr_1fr_1fr_1fr_1fr_1fr]">
                 <input
                   value={state.exportJobId}
                   onChange={(e) => patchState({ exportJobId: e.target.value })}
@@ -3566,6 +3986,9 @@ export default function App() {
                   placeholder="Output file path"
                   className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
                 />
+                <ToolbarButton onClick={() => void browseExportOutputPath()} disabled={state.exportLoading}>
+                  Browse
+                </ToolbarButton>
                 <ToolbarButton onClick={() => void runExportAction("export_debug_bundle")} disabled={state.exportLoading}>
                   Debug Bundle
                 </ToolbarButton>
@@ -4480,22 +4903,33 @@ export default function App() {
               ) : null}
             </section>
             <section className="rounded-md border border-border bg-panel p-3">
-              <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Artifact Image Preview</div>
+              <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Artifact Preview</div>
               {artifacts.artifactBinary ? (
                 <div className="text-xs text-muted">
                   <div className="mb-2">
                     {artifacts.artifactBinary.path} ({artifacts.artifactBinary.sizeBytes} bytes){artifacts.artifactBinary.truncated ? " [truncated]" : ""}{" "}
                     / {artifacts.artifactBinary.mimeType}
                   </div>
+                  {artifacts.artifactBinary.truncated ? (
+                    <div className="mb-2 rounded border border-amber-500/40 bg-amber-950/25 px-2 py-1 text-amber-100">
+                      Preview may be incomplete because the artifact exceeded the inline preview byte limit.
+                    </div>
+                  ) : null}
                   {artifacts.artifactBinary.mimeType.startsWith("image/") ? (
                     <img
                       src={`data:${artifacts.artifactBinary.mimeType};base64,${artifacts.artifactBinary.dataBase64}`}
                       alt="Artifact preview"
                       className="max-h-[420px] rounded border border-border/60 bg-panelSoft/50"
                     />
+                  ) : artifacts.artifactBinary.mimeType === "application/pdf" ? (
+                    <iframe
+                      src={`data:${artifacts.artifactBinary.mimeType};base64,${artifacts.artifactBinary.dataBase64}`}
+                      title="Artifact PDF preview"
+                      className="h-[640px] w-full rounded border border-border/60 bg-panelSoft/50"
+                    />
                   ) : (
                     <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1">
-                      Selected artifact is not a supported image type.
+                      Selected artifact is not a supported inline preview type.
                     </div>
                   )}
                 </div>
