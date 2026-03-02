@@ -5,7 +5,7 @@ import json
 import shutil
 import uuid
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List
 
 from luxera.database.library import PhotometryLibrary
 from luxera.parser.pipeline import parse_and_analyse_ies
@@ -686,6 +686,59 @@ def _cmd_export_roadway_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_report(args: argparse.Namespace) -> int:
+    from luxera.export.pdf_report import build_project_pdf_report
+    from luxera.export.professional_pdf import ProfessionalReportBuilder
+
+    project_path = Path(args.project).expanduser().resolve()
+    output_path = Path(args.output).expanduser().resolve()
+    project = load_project_schema(project_path)
+
+    if not project.results:
+        print("[ERROR] No job results found in project. Run a job before exporting a report.")
+        return 2
+
+    ref = None
+    if getattr(args, "job_id", None):
+        ref = next((r for r in reversed(project.results) if r.job_id == args.job_id), None)
+        if ref is None:
+            print(f"[ERROR] Job result not found for job id: {args.job_id}")
+            return 2
+    else:
+        ref = project.results[-1]
+
+    result_dir = Path(ref.result_dir).expanduser().resolve()
+    result_payload: Dict[str, Any] = {}
+    result_json = result_dir / "result.json"
+    if result_json.exists():
+        try:
+            raw = json.loads(result_json.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                result_payload = raw
+        except Exception:
+            result_payload = {}
+
+    merged_results: Dict[str, Any] = dict(result_payload)
+    merged_results["summary"] = ref.summary if isinstance(ref.summary, dict) else {}
+    merged_results["result_dir"] = str(result_dir)
+    merged_results["job_id"] = ref.job_id
+    merged_results["job_hash"] = ref.job_hash
+    if isinstance(result_payload.get("assets"), dict):
+        merged_results["assets"] = result_payload["assets"]
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    style = str(getattr(args, "style", "standard")).lower()
+    if style == "professional":
+        ProfessionalReportBuilder(project, merged_results).build(output_path)
+    else:
+        build_project_pdf_report(project, ref, output_path)
+
+    print(f"Report written: {output_path}")
+    print(f"  Style: {style}")
+    print(f"  Job: {ref.job_id}")
+    return 0
+
+
 def _cmd_compare_results(args: argparse.Namespace) -> int:
     from luxera.results.compare import compare_job_results
 
@@ -1341,6 +1394,13 @@ def main(argv: list[str] | None = None) -> int:
     rr.add_argument("job_id", help="Job id to export")
     rr.add_argument("--out", required=True, help="Output .html path")
     rr.set_defaults(func=_cmd_export_roadway_report)
+
+    report = sub.add_parser("report", help="Export a project report PDF from an existing job result.")
+    report.add_argument("--project", required=True, help="Path to project JSON")
+    report.add_argument("--output", required=True, help="Output .pdf path")
+    report.add_argument("--job", dest="job_id", default=None, help="Optional job id (default: latest result)")
+    report.add_argument("--style", choices=["standard", "professional"], default="standard", help="Report rendering style")
+    report.set_defaults(func=_cmd_report)
 
     cr = sub.add_parser("compare-results", help="Compare two job results and output deltas.")
     cr.add_argument("project", help="Path to project JSON")
