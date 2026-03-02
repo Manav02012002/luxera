@@ -148,6 +148,7 @@ class IlluminanceResult:
 class DirectCalcSettings:
     use_occlusion: bool = False
     occlusion_epsilon: float = 1e-6
+    near_field_correction: bool = False
 
 
 def _is_occluded(
@@ -292,11 +293,56 @@ def calculate_direct_illuminance(
     if distance < 0.001:  # Too close, avoid division issues
         return 0.0
     
+    cfg = settings or DirectCalcSettings()
+    tri_occluders = _coerce_occluder_triangles(occluders)
+
     # Direction from luminaire to point (normalized)
     direction = to_point.normalize()
 
-    cfg = settings or DirectCalcSettings()
-    tri_occluders = _coerce_occluder_triangles(occluders)
+    if cfg.near_field_correction:
+        from luxera.engine.near_field import AreaSourceSubdivision, extract_luminous_area_from_photometry, is_near_field
+
+        luminous_area = extract_luminous_area_from_photometry(luminaire.photometry)
+        if is_near_field(
+            luminaire.transform.position.to_array(),
+            point.to_array(),
+            luminous_area,
+        ):
+            subdivider = AreaSourceSubdivision(subdivisions=4)
+            total_flux = float(luminaire.photometry.luminous_flux_lm or 1.0)
+            sub_sources = subdivider.generate_sub_sources(
+                luminaire.transform.position.to_array(),
+                luminaire.transform,
+                luminous_area,
+                total_flux,
+            )
+
+            def _occlusion_fn(origin: np.ndarray, ray_dir: np.ndarray, max_dist: float) -> bool:
+                if not (cfg.use_occlusion and tri_occluders):
+                    return False
+                origin_v = Vector3(float(origin[0]), float(origin[1]), float(origin[2]))
+                hit_pos = origin_v + Vector3(float(ray_dir[0]), float(ray_dir[1]), float(ray_dir[2])) * float(max_dist)
+                return _is_occluded(
+                    origin_v,
+                    hit_pos,
+                    tri_occluders,
+                    cfg.occlusion_epsilon,
+                    bvh=occluder_bvh,
+                    surface_normal=surface_normal,
+                )
+
+            return subdivider.compute_illuminance_area_source(
+                sub_sources=sub_sources,
+                calc_point=point.to_array(),
+                photometry=luminaire.photometry,
+                luminaire_transform=luminaire.transform,
+                total_flux=total_flux,
+                flux_multiplier=luminaire.flux_multiplier,
+                maintenance_factor=1.0,
+                occlusion_fn=_occlusion_fn if cfg.use_occlusion else None,
+                surface_normal=surface_normal.to_array(),
+            )
+
     if cfg.use_occlusion and occluders:
         if _is_occluded(
             point,
@@ -431,6 +477,8 @@ def _can_use_jit(grid: CalculationGrid, luminaires: List[Luminaire], cfg: Direct
     if not _HAS_NUMBA:
         return False
     if cfg.use_occlusion:
+        return False
+    if cfg.near_field_correction:
         return False
     if not luminaires:
         return False

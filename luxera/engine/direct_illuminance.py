@@ -407,11 +407,16 @@ def run_direct_points(
     occlusion: Optional[OcclusionContext] = None,
     use_occlusion: bool = False,
     occlusion_epsilon: float = 1e-6,
+    near_field_correction: bool = False,
 ) -> DirectPointResult:
     n = surface_normal.normalize()
     vals = np.zeros((points.shape[0],), dtype=float)
     eps = max(float(occlusion_epsilon), 1e-9)
-    settings = DirectCalcSettings(use_occlusion=bool(use_occlusion), occlusion_epsilon=eps)
+    settings = DirectCalcSettings(
+        use_occlusion=bool(use_occlusion),
+        occlusion_epsilon=eps,
+        near_field_correction=bool(near_field_correction),
+    )
     tris = occlusion.triangles if occlusion is not None else None
     bvh = occlusion.bvh if occlusion is not None else None
     for i in range(points.shape[0]):
@@ -436,6 +441,7 @@ def run_direct_vertical_plane(
     occlusion: Optional[OcclusionContext] = None,
     use_occlusion: bool = False,
     occlusion_epsilon: float = 1e-6,
+    near_field_correction: bool = False,
 ) -> DirectGridResult:
     points, normal, nx, ny = build_vertical_plane_points(plane_spec)
     pts = run_direct_points(
@@ -445,6 +451,7 @@ def run_direct_vertical_plane(
         occlusion=occlusion,
         use_occlusion=use_occlusion,
         occlusion_epsilon=occlusion_epsilon,
+        near_field_correction=near_field_correction,
     )
     values_2d = pts.values.reshape(ny, nx)
     grid = CalculationGrid(
@@ -472,6 +479,7 @@ def run_direct_point_set(
     use_occlusion: bool = False,
     occlusion_epsilon: float = 1e-6,
     normal: Vector3 = Vector3.up(),
+    near_field_correction: bool = False,
 ) -> DirectPointResult:
     points = np.array(point_set.points, dtype=float)
     if points.size == 0:
@@ -483,6 +491,7 @@ def run_direct_point_set(
         occlusion=occlusion,
         use_occlusion=use_occlusion,
         occlusion_epsilon=occlusion_epsilon,
+        near_field_correction=near_field_correction,
     )
 
 
@@ -509,6 +518,7 @@ def run_direct_arbitrary_plane(
     occlusion: Optional[OcclusionContext] = None,
     use_occlusion: bool = False,
     occlusion_epsilon: float = 1e-6,
+    near_field_correction: bool = False,
 ) -> DirectGridResult:
     points, normal, nx, ny = build_arbitrary_plane_points(plane_spec)
     pts = run_direct_points(
@@ -518,6 +528,7 @@ def run_direct_arbitrary_plane(
         occlusion=occlusion,
         use_occlusion=use_occlusion,
         occlusion_epsilon=occlusion_epsilon,
+        near_field_correction=near_field_correction,
     )
     values_2d = pts.values.reshape(ny, nx)
     grid = CalculationGrid(
@@ -560,6 +571,7 @@ def run_direct_line_grid(
     use_occlusion: bool = False,
     occlusion_epsilon: float = 1e-6,
     normal: Vector3 = Vector3.up(),
+    near_field_correction: bool = False,
 ) -> DirectPointResult:
     points = _sample_polyline(list(line_spec.polyline), line_spec.spacing)
     return run_direct_points(
@@ -569,6 +581,7 @@ def run_direct_line_grid(
         occlusion=occlusion,
         use_occlusion=use_occlusion,
         occlusion_epsilon=occlusion_epsilon,
+        near_field_correction=near_field_correction,
     )
 
 
@@ -579,6 +592,7 @@ def run_direct_grid(
     occlusion: Optional[OcclusionContext] = None,
     use_occlusion: bool = False,
     occlusion_epsilon: float = 1e-6,
+    near_field_correction: bool = False,
 ) -> DirectGridResult:
     grid = build_grid_from_spec(grid_spec)
     if grid_spec.sample_mask and grid_spec.sample_points:
@@ -591,6 +605,7 @@ def run_direct_grid(
             occlusion=occlusion,
             use_occlusion=use_occlusion,
             occlusion_epsilon=occlusion_epsilon,
+            near_field_correction=near_field_correction,
         )
         vals = np.full((grid.nx * grid.ny,), np.nan, dtype=float)
         tcount = sum(1 for m in grid_spec.sample_mask if m)
@@ -610,7 +625,11 @@ def run_direct_grid(
             result=IlluminanceResult(grid=grid, values=values_2d),
         )
 
-    settings = DirectCalcSettings(use_occlusion=use_occlusion, occlusion_epsilon=max(float(occlusion_epsilon), 1e-9))
+    settings = DirectCalcSettings(
+        use_occlusion=use_occlusion,
+        occlusion_epsilon=max(float(occlusion_epsilon), 1e-9),
+        near_field_correction=bool(near_field_correction),
+    )
     tri = occlusion.triangles if occlusion is not None else None
     bvh = occlusion.bvh if occlusion is not None else None
     result = calculate_grid_illuminance(
