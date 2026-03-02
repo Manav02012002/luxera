@@ -59,6 +59,7 @@ from luxera.engine.direct_illuminance import (
     run_direct_point_set,
     run_direct_vertical_plane,
 )
+from luxera.engine.cylindrical_illuminance import CylindricalIlluminanceEngine
 from luxera.core.units import project_scale_to_meters
 from luxera.geometry.bvh import build_bvh, triangulate_surfaces
 from luxera.engine.road_illuminance import run_road_illuminance
@@ -98,6 +99,8 @@ def _scale_grid_spec(grid: CalcGrid, s: float) -> CalcGrid:
         normal=grid.normal,
         room_id=grid.room_id,
         zone_id=grid.zone_id,
+        illuminance_metric=str(getattr(grid, "illuminance_metric", "horizontal")),
+        semicylindrical_facing=getattr(grid, "semicylindrical_facing", None),
         sample_points=[tuple(float(v) * s for v in p) for p in grid.sample_points],
         sample_mask=list(grid.sample_mask),
     )
@@ -655,13 +658,24 @@ def _run_direct(project: Project, job: JobSpec) -> Dict[str, object]:
 
     for grid_spec in project.grids:
         sg = _scale_grid_spec(grid_spec, length_scale)
-        grid_res = run_direct_grid(
-            sg,
-            luminaires,
-            occlusion=occlusion,
-            use_occlusion=use_occlusion,
-            occlusion_epsilon=occlusion_epsilon,
-        )
+        metric = str(getattr(sg, "illuminance_metric", "horizontal")).strip().lower()
+        if metric in {"cylindrical", "semicylindrical"}:
+            grid_res = CylindricalIlluminanceEngine().compute_grid(
+                project=project,
+                grid_spec=sg,
+                luminaires=luminaires,
+                metric=metric,
+                facing_direction=getattr(sg, "semicylindrical_facing", None),
+                occlusion_ctx=(occlusion if use_occlusion else None),
+            )
+        else:
+            grid_res = run_direct_grid(
+                sg,
+                luminaires,
+                occlusion=occlusion,
+                use_occlusion=use_occlusion,
+                occlusion_epsilon=occlusion_epsilon,
+            )
         aggregate_values.append(grid_res.values.reshape(-1))
         summary_contract = ContractGridResult(
             values=np.asarray(grid_res.values, dtype=float),

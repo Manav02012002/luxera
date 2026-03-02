@@ -126,6 +126,8 @@ class CalcGrid:
     mask_near_openings: bool = False
     opening_mask_margin: float = 0.0
     metric_set: List[str] = field(default_factory=lambda: ["E_avg", "E_min", "E_max", "U0", "U1"])
+    illuminance_metric: str = "horizontal"
+    semicylindrical_facing: Optional[Tuple[float, float]] = None
     sample_points: List[Tuple[float, float, float]] = field(default_factory=list)
     sample_mask: List[bool] = field(default_factory=list)
 
