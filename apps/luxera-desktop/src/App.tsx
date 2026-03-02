@@ -29,6 +29,7 @@ import type {
   FalseColorGridResponse,
   GeometryOperationResult,
   JsonRow,
+  LiveEstimateResult,
   PhotometryVerifyResponse,
   ProjectDocument,
   ProjectJobsResponse,
@@ -223,6 +224,9 @@ const initialState: AppState = {
   standardProfilesError: "",
   selectedStandardActivityType: "",
   selectedStandardProfileId: "en12464_default",
+  liveEstimate: null,
+  liveEstimateLoading: false,
+  liveEstimateError: "",
   quickLayoutTargetLux: "500",
   quickLayoutMaxRows: "6",
   quickLayoutMaxCols: "6",
@@ -473,6 +477,18 @@ export default function App() {
     }
     return state.standardProfiles.find((p) => p.activity_type === key) ?? null;
   }, [state.selectedStandardActivityType, state.standardProfiles]);
+  const complianceTargetLux = useMemo<number | null>(() => {
+    if (selectedStandardProfile && Number.isFinite(selectedStandardProfile.maintained_illuminance_lux)) {
+      return Number(selectedStandardProfile.maintained_illuminance_lux);
+    }
+    const profiles = (projectModel?.compliance_profiles as Array<Record<string, unknown>> | undefined) ?? [];
+    if (profiles.length === 0) {
+      return null;
+    }
+    const thresholds = (profiles[0].thresholds as Record<string, unknown> | undefined) ?? {};
+    const target = Number(thresholds.maintained_illuminance_lux ?? thresholds.target_lux ?? NaN);
+    return Number.isFinite(target) ? target : null;
+  }, [projectModel, selectedStandardProfile]);
   const standardProfilesByCategory = useMemo(() => {
     const map = new Map<string, StandardProfileOption[]>();
     for (const row of state.standardProfiles) {
@@ -1341,6 +1357,42 @@ export default function App() {
     }
   };
 
+  const estimateDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const estimateIlluminanceFast = async (explicitProjectPath?: string): Promise<void> => {
+    if (!hasTauri) {
+      return;
+    }
+    const projectPath = (explicitProjectPath ?? state.projectPath ?? state.projectDoc?.path ?? "").trim();
+    if (!projectPath) {
+      patchState({ liveEstimate: null, liveEstimateLoading: false, liveEstimateError: "" });
+      return;
+    }
+    patchState({ liveEstimateLoading: true, liveEstimateError: "" });
+    try {
+      const payload = await tauriInvoke<LiveEstimateResult>("estimate_illuminance_fast", { projectPath });
+      patchState({ liveEstimate: payload, liveEstimateLoading: false, liveEstimateError: "" });
+    } catch (err) {
+      patchState({
+        liveEstimate: null,
+        liveEstimateLoading: false,
+        liveEstimateError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const scheduleLiveEstimateRefresh = (explicitProjectPath?: string): void => {
+    if (!hasTauri) {
+      return;
+    }
+    if (estimateDebounceRef.current) {
+      clearTimeout(estimateDebounceRef.current);
+    }
+    estimateDebounceRef.current = setTimeout(() => {
+      void estimateIlluminanceFast(explicitProjectPath);
+    }, 300);
+  };
+
   const loadFalseColorData = async (): Promise<void> => {
     if (!hasTauri) {
       patchState({ error: "Heatmap loading requires Tauri runtime." });
@@ -1908,6 +1960,9 @@ export default function App() {
         projectName: res.project.name,
       });
       await loadProjectJobs();
+      if (res.success) {
+        scheduleLiveEstimateRefresh(res.project.path);
+      }
     }
   };
 
@@ -2018,6 +2073,9 @@ export default function App() {
         projectName: res.project.name,
       });
       await loadProjectJobs();
+      if (res.success) {
+        scheduleLiveEstimateRefresh(res.project.path);
+      }
     }
   };
 
@@ -2572,6 +2630,7 @@ export default function App() {
         projectName: res.project.name,
       });
       await loadProjectJobs();
+      scheduleLiveEstimateRefresh(res.project.path);
     }
   };
 
@@ -2981,6 +3040,32 @@ export default function App() {
   }, [state.gridElevation, state.workplanePreset]);
 
   useEffect(() => {
+    return () => {
+      if (estimateDebounceRef.current) {
+        clearTimeout(estimateDebounceRef.current);
+        estimateDebounceRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasTauri) {
+      return;
+    }
+    const projectPath = (state.projectPath || state.projectDoc?.path || "").trim();
+    if (!projectPath) {
+      patchState({ liveEstimate: null, liveEstimateLoading: false, liveEstimateError: "" });
+      return;
+    }
+    if (roomIds.length === 0 || luminaireInstances.length === 0) {
+      patchState({ liveEstimate: null, liveEstimateLoading: false, liveEstimateError: "" });
+      return;
+    }
+    scheduleLiveEstimateRefresh(projectPath);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasTauri, state.projectPath, state.projectDoc?.path, state.projectDocContent, roomIds.length, luminaireInstances.length]);
+
+  useEffect(() => {
     if (!hasTauri) {
       return;
     }
@@ -3099,8 +3184,17 @@ export default function App() {
     complianceOverallStatus === "PASS"
       ? "border-emerald-500/40 bg-emerald-950/25 text-emerald-100"
       : complianceOverallStatus === "FAIL"
-        ? "border-rose-500/40 bg-rose-950/25 text-rose-100"
-        : "border-border/70 bg-panelSoft/60 text-muted";
+      ? "border-rose-500/40 bg-rose-950/25 text-rose-100"
+      : "border-border/70 bg-panelSoft/60 text-muted";
+  const liveEstimateLux = state.liveEstimate?.estimated_mean_lux ?? null;
+  const liveEstimateTone =
+    typeof liveEstimateLux === "number" && complianceTargetLux && Number.isFinite(complianceTargetLux)
+      ? liveEstimateLux >= complianceTargetLux
+        ? "border-emerald-500/40 bg-emerald-950/25 text-emerald-100"
+        : liveEstimateLux >= complianceTargetLux * 0.8
+          ? "border-amber-500/40 bg-amber-950/25 text-amber-100"
+          : "border-rose-500/40 bg-rose-950/25 text-rose-100"
+      : "border-border/70 bg-panelSoft/60 text-muted";
   const sceneZoomRef = useRef(state.sceneZoom);
   const scenePanXRef = useRef(state.scenePanX);
   const scenePanYRef = useRef(state.scenePanY);
@@ -5555,6 +5649,44 @@ export default function App() {
                         </tfoot>
                       </table>
                     </div>
+                  </div>
+                  <div className={`rounded border px-2 py-1 text-xs ${liveEstimateTone}`}>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="font-semibold text-text">Live Estimate</span>
+                      <span title="Estimated using lumen method. Run calculation for accurate results." className="cursor-help text-[11px] text-muted">
+                        ℹ
+                      </span>
+                      {state.liveEstimateLoading ? (
+                        <span>Estimating...</span>
+                      ) : state.liveEstimate ? (
+                        <>
+                          <span>
+                            Est. ~
+                            {typeof state.liveEstimate.estimated_mean_lux === "number" && Number.isFinite(state.liveEstimate.estimated_mean_lux)
+                              ? state.liveEstimate.estimated_mean_lux.toFixed(1)
+                              : "—"}{" "}
+                            lux
+                          </span>
+                          <span>
+                            Uo ~
+                            {typeof state.liveEstimate.estimated_uniformity === "number" && Number.isFinite(state.liveEstimate.estimated_uniformity)
+                              ? state.liveEstimate.estimated_uniformity.toFixed(3)
+                              : "—"}
+                          </span>
+                          <span>{state.liveEstimate.luminaire_count} luminaires</span>
+                          <span>
+                            RI=
+                            {typeof state.liveEstimate.room_index === "number" && Number.isFinite(state.liveEstimate.room_index)
+                              ? state.liveEstimate.room_index.toFixed(2)
+                              : "—"}
+                          </span>
+                          <span className="text-muted">Confidence: {state.liveEstimate.confidence}</span>
+                        </>
+                      ) : (
+                        <span>—</span>
+                      )}
+                    </div>
+                    {state.liveEstimateError ? <div className="mt-1 text-[11px] text-rose-200">{state.liveEstimateError}</div> : null}
                   </div>
                 </div>
               </details>

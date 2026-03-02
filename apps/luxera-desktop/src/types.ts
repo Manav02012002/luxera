@@ -176,6 +176,18 @@ export interface QuickLayoutResult {
   luminaires: QuickLayoutLuminaire[];
 }
 
+export interface LiveEstimateResult {
+  estimated_mean_lux: number | null;
+  estimated_uniformity: number | null;
+  luminaire_count: number;
+  total_lumens: number;
+  room_area_m2: number | null;
+  room_index: number | null;
+  utilization_factor: number | null;
+  avg_maintenance_factor: number | null;
+  confidence: "high" | "medium" | "low";
+}
+
 export interface DetailedComplianceCheck {
   metric: string;
   actual: number | null;
@@ -337,6 +349,9 @@ export interface AppState {
   standardProfilesError: string;
   selectedStandardActivityType: string;
   selectedStandardProfileId: string;
+  liveEstimate: LiveEstimateResult | null;
+  liveEstimateLoading: boolean;
+  liveEstimateError: string;
   quickLayoutTargetLux: string;
   quickLayoutMaxRows: string;
   quickLayoutMaxCols: string;
