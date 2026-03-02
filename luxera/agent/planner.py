@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Protocol
+
+from luxera.ai.llm_client import LLMClient
 
 
 @dataclass(frozen=True)
@@ -283,12 +287,30 @@ class MockPlannerBackend:
 
 class LLMPlannerBackend:
     """
-    LLM planner adapter.
-    `plan_fn` must return a dict with `calls` and optional `rationale`.
+    LLM-powered planner that uses Claude's tool-use API to generate
+    a sequence of tool calls from natural language intent.
     """
 
-    def __init__(self, plan_fn: Optional[Any] = None, fallback: Optional[PlannerBackend] = None):
-        self._plan_fn = plan_fn
+    SYSTEM_PROMPT = """You are Luxera's lighting design AI assistant.
+You help lighting designers by calling tools to manipulate their project.
+
+Current project context:
+{context}
+
+When the user describes what they want, determine which tools to call
+and in what order. Call tools directly — do not ask clarifying questions
+unless the intent is truly ambiguous.
+
+Common workflows:
+- "Design an office" -> import/create room -> place luminaires -> add grid -> run calculation -> check compliance
+- "Check compliance" -> calc_run -> compliance_check
+- "Generate report" -> report_generate
+- "The corner is too dark" -> analyze results -> luminaire_place or luminaire_array to add light
+- "Try a different product" -> swap photometry asset -> calc_run -> compare results
+"""
+
+    def __init__(self, client: Optional[LLMClient] = None, fallback: Optional[PlannerBackend] = None):
+        self._client = client
         self._fallback = fallback or RuleBasedPlannerBackend()
 
     def plan(
@@ -298,14 +320,91 @@ class LLMPlannerBackend:
         project_context: Mapping[str, Any],
         tool_schemas: Mapping[str, Any],
     ) -> PlannerOutput:
-        if self._plan_fn is None:
+        # If client was not injected, create lazily only when an API key is available.
+        client = self._client
+        if client is None:
+            if not os.environ.get("ANTHROPIC_API_KEY"):
+                return self._fallback.plan(intent=intent, project_context=project_context, tool_schemas=tool_schemas)
+            try:
+                client = LLMClient()
+            except ValueError:
+                return self._fallback.plan(intent=intent, project_context=project_context, tool_schemas=tool_schemas)
+
+        try:
+            context_json = json.dumps(dict(project_context), indent=2, sort_keys=True, default=str)
+        except Exception:
+            context_json = str(project_context)
+
+        system_prompt = self.SYSTEM_PROMPT.format(context=context_json)
+        anthropic_tools, name_map = self._anthropic_tools(tool_schemas)
+
+        try:
+            response = client.chat(
+                messages=[{"role": "user", "content": intent}],
+                system=system_prompt,
+                tools=anthropic_tools,
+                max_tokens=1024,
+            )
+            raw_calls = client.extract_tool_calls(response)
+            rationale = client.extract_text(response) or "LLM planner generated tool sequence."
+        except Exception:
             return self._fallback.plan(intent=intent, project_context=project_context, tool_schemas=tool_schemas)
-        raw = self._plan_fn(intent=intent, project_context=project_context, tool_schemas=tool_schemas)
-        if not isinstance(raw, Mapping):
-            return PlannerOutput(calls=[], rationale="llm:invalid_output")
-        calls = [
-            PlannedToolCall(tool=str(c.get("tool")), args=dict(c.get("args", {})))
-            for c in raw.get("calls", [])
-            if isinstance(c, Mapping)
-        ]
-        return PlannerOutput(calls=calls, rationale=str(raw.get("rationale", "llm")))
+
+        calls: List[PlannedToolCall] = []
+        for c in raw_calls:
+            tool_api_name = str(c.get("name", ""))
+            raw_tool_name = name_map.get(tool_api_name, tool_api_name.replace("_", "."))
+            tool_name = self._resolve_tool_name(raw_tool_name)
+            normalized_args = self._normalize_args(tool_name, dict(c.get("input", {}) or {}))
+            calls.append(PlannedToolCall(tool=tool_name, args=normalized_args))
+
+        return PlannerOutput(calls=calls, rationale=rationale)
+
+    @staticmethod
+    def _anthropic_tools(tool_schemas: Mapping[str, Any]) -> tuple[List[Dict[str, Any]], Dict[str, str]]:
+        tools: List[Dict[str, Any]] = []
+        name_map: Dict[str, str] = {}
+        for tool_name, schema in tool_schemas.items():
+            if not isinstance(schema, Mapping):
+                continue
+            api_name = str(tool_name).replace(".", "_").replace("-", "_")
+            name_map[api_name] = str(tool_name)
+            tools.append(
+                {
+                    "name": api_name,
+                    "description": f"Run Luxera tool {tool_name}",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": dict(schema.get("properties", {})) if isinstance(schema.get("properties"), Mapping) else {},
+                        "required": list(schema.get("required", [])) if isinstance(schema.get("required"), list) else [],
+                        "additionalProperties": False,
+                    },
+                }
+            )
+        return tools, name_map
+
+    @staticmethod
+    def _normalize_args(tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        # Bridge common alias forms to the runtime tool surface.
+        if tool_name in {"geom.import", "geom_import"} and "format" in args and "fmt" not in args:
+            args["fmt"] = args.pop("format")
+        if tool_name in {"job.run", "calc.run", "calc_run"} and "job_id" not in args:
+            args["job_id"] = "$first_job_id"
+        return args
+
+    @staticmethod
+    def _resolve_tool_name(tool_name: str) -> str:
+        alias_map = {
+            "project_open": "project.open",
+            "project_save": "project.save",
+            "project_grid_add": "project.grid.add",
+            "geom_import": "geom.import",
+            "geom_clean": "geom.clean",
+            "luminaire_place": "place_luminaire",
+            "luminaire_array": "array_luminaires",
+            "calc_run": "job.run",
+            "compliance_check": "compare_to_target",
+            "report_generate": "generate_report",
+            "optim_search": "optim.search",
+        }
+        return alias_map.get(tool_name, tool_name)
