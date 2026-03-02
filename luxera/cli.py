@@ -1123,6 +1123,13 @@ def _cmd_autopilot(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    from luxera.api.server import start_server
+
+    start_server(host=str(args.host), port=int(args.port))
+    return 0
+
+
 def _library_db_path(raw: str | None) -> Path:
     if raw:
         return Path(raw).expanduser().resolve()
@@ -1470,6 +1477,11 @@ def main(argv: list[str] | None = None) -> int:
     autopilot.add_argument("--library-db", default=None, help="Optional photometry library SQLite DB path")
     autopilot.add_argument("--default-ies", default=None, help="Optional fallback IES path")
     autopilot.set_defaults(func=_cmd_autopilot)
+
+    serve = sub.add_parser("serve", help="Start Luxera REST API server.")
+    serve.add_argument("--host", default="0.0.0.0", help="Bind host (default: 0.0.0.0)")
+    serve.add_argument("--port", type=int, default=8420, help="Bind port (default: 8420)")
+    serve.set_defaults(func=_cmd_serve)
 
     cr = sub.add_parser("compare-results", help="Compare two job results and output deltas.")
     cr.add_argument("project", help="Path to project JSON")
