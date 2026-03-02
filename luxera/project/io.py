@@ -208,6 +208,12 @@ def _project_from_dict(d: Dict[str, Any]) -> Project:
         ],
         variants=[ProjectVariant(**v) for v in d.get("variants", [])],
         active_variant_id=d.get("active_variant_id"),
+        control_groups=[
+            dict(x) for x in d.get("control_groups", []) if isinstance(x, dict)
+        ],
+        light_scenes=[
+            dict(x) for x in d.get("light_scenes", []) if isinstance(x, dict)
+        ],
         # Normalize nested daylight/emergency payloads when present in job rows.
         jobs=[
             JobSpec(

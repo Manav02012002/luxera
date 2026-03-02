@@ -15,7 +15,7 @@ def test_migrate_v4_to_v5_adds_professional_workflow_fields():
     }
 
     migrated = migrate_project(data)
-    assert migrated["schema_version"] == 5
+    assert migrated["schema_version"] == 6
     assert "zones" in migrated["geometry"]
     assert "surfaces" in migrated["geometry"]
     assert "coordinate_systems" in migrated["geometry"]

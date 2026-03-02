@@ -55,7 +55,7 @@ TILT=NONE
 
     result_json = Path(ref.result_dir) / "result.json"
     result_meta = json.loads(result_json.read_text(encoding="utf-8"))
-    assert result_meta["project"]["schema_version"] == 5
+    assert result_meta["project"]["schema_version"] == 6
     assert result_meta["seed"] == 123
     assert result_meta["units"]["illuminance"] == "lux"
     assert result_meta["contract_version"] == "solver_result_v1"

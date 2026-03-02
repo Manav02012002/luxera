@@ -9,7 +9,7 @@ from luxera.core.transform import from_euler_zyx, from_aim_up
 from luxera.core.types import Transform
 
 
-SchemaVersion = Literal[1, 2, 3, 4, 5]
+SchemaVersion = Literal[1, 2, 3, 4, 5, 6]
 
 
 @dataclass
@@ -531,7 +531,7 @@ class JobResultRef:
 
 @dataclass
 class Project:
-    schema_version: SchemaVersion = 5
+    schema_version: SchemaVersion = 6
     name: str = ""
     geometry: Geometry = field(default_factory=Geometry)
     materials: List[MaterialSpec] = field(default_factory=list)
@@ -567,6 +567,8 @@ class Project:
     )
     variants: List[ProjectVariant] = field(default_factory=list)
     active_variant_id: Optional[str] = None
+    control_groups: List[Dict[str, Any]] = field(default_factory=list)
+    light_scenes: List[Dict[str, Any]] = field(default_factory=list)
     jobs: List[JobSpec] = field(default_factory=list)
     results: List[JobResultRef] = field(default_factory=list)
     root_dir: Optional[str] = None

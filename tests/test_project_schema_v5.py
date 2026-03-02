@@ -49,7 +49,7 @@ def test_project_schema_v5_round_trip(tmp_path: Path):
     save_project_schema(project, p)
     loaded = load_project_schema(p)
 
-    assert loaded.schema_version == 5
+    assert loaded.schema_version == 6
     assert loaded.geometry.zones[0].id == "z1"
     assert loaded.workplanes[0].spacing == 0.25
     assert loaded.arbitrary_planes[0].id == "ap1"
