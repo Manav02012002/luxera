@@ -146,6 +146,12 @@ struct PhotometryVerifyResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct FalseColorGridResponse {
+    grids: Vec<Value>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct JobRunResponse {
     project_path: String,
     job_id: String,
@@ -515,6 +521,266 @@ fn load_backend_outputs(result_dir: Option<String>) -> Result<DesktopResultBundl
         roadway_submission,
         warnings,
     })
+}
+
+#[tauri::command]
+fn get_falsecolor_grid_data(
+    result_dir: String,
+    grid_name: Option<String>,
+) -> Result<FalseColorGridResponse, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw_path = PathBuf::from(result_dir.trim());
+    if raw_path.as_os_str().is_empty() {
+        return Err("Result directory path is empty".to_string());
+    }
+    let resolved = resolve_repo_relative(&raw_path, &cwd)?;
+    if !resolved.exists() || !resolved.is_dir() {
+        return Err(format!("Directory not found: {}", resolved.display()));
+    }
+    let selected_grid = grid_name.unwrap_or_default().trim().to_string();
+    let script = r##"
+import json
+import math
+import re
+import sys
+from pathlib import Path
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
+import numpy as np
+
+from luxera.viz.contours import compute_contour_levels
+
+
+def _load_json(path: Path) -> dict:
+    if not path.exists():
+        raise FileNotFoundError(f"Missing file: {path}")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _to_float(v, default=0.0):
+    try:
+        return float(v)
+    except Exception:
+        return float(default)
+
+
+def _to_int(v, default=0):
+    try:
+        return int(v)
+    except Exception:
+        return int(default)
+
+
+def _slug(text: str) -> str:
+    clean = re.sub(r"[^a-zA-Z0-9_-]+", "_", text.strip())
+    return clean.strip("_") or "grid"
+
+
+def _hex_from_rgba(rgba) -> str:
+    r = int(max(0, min(255, round(float(rgba[0]) * 255.0))))
+    g = int(max(0, min(255, round(float(rgba[1]) * 255.0))))
+    b = int(max(0, min(255, round(float(rgba[2]) * 255.0))))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _load_grid_csv_values(result_dir: Path, row: dict) -> tuple[np.ndarray | None, np.ndarray | None]:
+    candidates = []
+    gid = str(row.get("id", "")).strip()
+    gname = str(row.get("name", "")).strip()
+    if gid:
+        candidates.append(result_dir / f"grid_{gid}.csv")
+    if gname:
+        candidates.append(result_dir / f"grid_{_slug(gname)}.csv")
+    candidates.append(result_dir / "grid.csv")
+    seen = set()
+    for path in candidates:
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        if not path.exists():
+            continue
+        try:
+            data = np.loadtxt(path, delimiter=",", skiprows=1)
+            if data.ndim == 1:
+                data = np.asarray(data, dtype=float).reshape(1, -1)
+            if data.shape[1] < 4:
+                continue
+            points = np.asarray(data[:, :3], dtype=float)
+            values = np.asarray(data[:, 3], dtype=float).reshape(-1)
+            return values, points
+        except Exception:
+            continue
+    return None, None
+
+
+def _extract_values_and_points(result_dir: Path, row: dict) -> tuple[np.ndarray, np.ndarray | None]:
+    if isinstance(row.get("cells"), list):
+        cells = row.get("cells")
+        vals = []
+        for cell in cells:
+            if isinstance(cell, dict):
+                if "lux" in cell:
+                    vals.append(_to_float(cell.get("lux"), 0.0))
+            else:
+                vals.append(_to_float(cell, 0.0))
+        if vals:
+            return np.asarray(vals, dtype=float).reshape(-1), None
+    for key in ("lux_values", "values", "grid_values", "lux"):
+        if isinstance(row.get(key), list):
+            return np.asarray([_to_float(v, 0.0) for v in row.get(key)], dtype=float).reshape(-1), None
+    values, points = _load_grid_csv_values(result_dir, row)
+    if values is not None:
+        return values, points
+    raise ValueError(f"Grid '{row.get('name', row.get('id', 'unknown'))}' has no per-point lux values")
+
+
+def _infer_dims(nx: int, ny: int, n: int) -> tuple[int, int]:
+    if nx > 0 and ny > 0:
+        return nx, ny
+    if nx > 0 and ny <= 0 and n % nx == 0:
+        return nx, n // nx
+    if ny > 0 and nx <= 0 and n % ny == 0:
+        return n // ny, ny
+    side = int(round(math.sqrt(n)))
+    if side > 0 and side * side == n:
+        return side, side
+    return n, 1
+
+
+def _origin_wh_elev(row: dict, points: np.ndarray | None, nx: int, ny: int) -> tuple[list[float], float, float, float]:
+    origin_raw = row.get("origin")
+    if isinstance(origin_raw, (list, tuple)) and len(origin_raw) >= 3:
+        ox, oy, oz = _to_float(origin_raw[0]), _to_float(origin_raw[1]), _to_float(origin_raw[2])
+    else:
+        ox = oy = oz = 0.0
+    width = _to_float(row.get("width"), 0.0)
+    height = _to_float(row.get("height"), 0.0)
+    elevation = _to_float(row.get("elevation"), oz)
+    if points is not None and points.size > 0:
+        px = np.asarray(points[:, 0], dtype=float)
+        py = np.asarray(points[:, 1], dtype=float)
+        pz = np.asarray(points[:, 2], dtype=float)
+        pminx = float(np.min(px))
+        pmaxx = float(np.max(px))
+        pminy = float(np.min(py))
+        pmaxy = float(np.max(py))
+        ox = pminx if width <= 0 else ox
+        oy = pminy if height <= 0 else oy
+        if width <= 0:
+            width = max(0.0, pmaxx - pminx)
+        if height <= 0:
+            height = max(0.0, pmaxy - pminy)
+        if not np.isnan(pz).all():
+            elevation = float(np.nanmean(pz))
+            oz = elevation
+    if nx > 1 and width <= 0:
+        width = float(nx - 1)
+    if ny > 1 and height <= 0:
+        height = float(ny - 1)
+    return [float(ox), float(oy), float(oz)], float(width), float(height), float(elevation)
+
+
+def _build_contours(values: np.ndarray, origin: list[float], width: float, height: float, nx: int, ny: int) -> list[dict]:
+    if nx < 2 or ny < 2:
+        return []
+    z = values.reshape(ny, nx)
+    levels = compute_contour_levels(z, n_levels=8)
+    if not levels:
+        return []
+    x = np.linspace(float(origin[0]), float(origin[0]) + float(width), nx)
+    y = np.linspace(float(origin[1]), float(origin[1]) + float(height), ny)
+    X, Y = np.meshgrid(x, y)
+    fig, ax = plt.subplots()
+    try:
+        cs = ax.contour(X, Y, z, levels=levels)
+        contours = []
+        for i, level in enumerate(cs.levels):
+            paths = []
+            if i < len(cs.allsegs):
+                for seg in cs.allsegs[i]:
+                    arr = np.asarray(seg, dtype=float)
+                    if arr.ndim == 2 and arr.shape[0] >= 2 and arr.shape[1] >= 2:
+                        paths.append(arr[:, :2].tolist())
+            contours.append({"level": float(level), "paths": paths})
+        return contours
+    finally:
+        plt.close(fig)
+
+
+def main() -> None:
+    result_dir = Path(sys.argv[1]).expanduser().resolve()
+    selected = (sys.argv[2] if len(sys.argv) > 2 else "").strip()
+    result_json = _load_json(result_dir / "result.json")
+    tables_json = _load_json(result_dir / "tables.json")
+
+    # Load metadata eagerly (contract requirement) even if not directly emitted.
+    _job = result_json.get("job", {})
+    _summary = result_json.get("summary", {})
+
+    rows = tables_json.get("grids", [])
+    if not isinstance(rows, list):
+        rows = []
+
+    out = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("name") or row.get("id") or "grid")
+        gid = str(row.get("id") or "")
+        if selected and selected not in (name, gid):
+            continue
+        values, points = _extract_values_and_points(result_dir, row)
+        nx = _to_int(row.get("nx"), 0)
+        ny = _to_int(row.get("ny"), 0)
+        nx, ny = _infer_dims(nx, ny, int(values.size))
+        if nx * ny != int(values.size):
+            raise ValueError(f"Grid '{name}' has {values.size} values but nx*ny={nx*ny}")
+        origin, width, height, elevation = _origin_wh_elev(row, points, nx, ny)
+        vmin = float(np.min(values)) if values.size else 0.0
+        vmax = float(np.max(values)) if values.size else 0.0
+        vavg = float(np.mean(values)) if values.size else 0.0
+        u0 = (vmin / vavg) if abs(vavg) > 1e-12 else 0.0
+        norm = mcolors.Normalize(vmin=vmin, vmax=vmax) if vmax > vmin else mcolors.Normalize(vmin=vmin - 1.0, vmax=vmin + 1.0)
+        cmap = cm.get_cmap("inferno")
+        cells = [{"lux": float(v), "color": _hex_from_rgba(cmap(norm(float(v))))} for v in values.tolist()]
+        contours = _build_contours(values, origin, width, height, nx, ny)
+        out.append(
+            {
+                "name": name,
+                "origin": [float(origin[0]), float(origin[1]), float(origin[2])],
+                "width": float(width),
+                "height": float(height),
+                "nx": int(nx),
+                "ny": int(ny),
+                "elevation": float(elevation),
+                "cells": cells,
+                "stats": {"min": vmin, "max": vmax, "avg": vavg, "u0": float(u0)},
+                "contours": contours,
+            }
+        )
+    print(json.dumps({"grids": out}))
+
+
+if __name__ == "__main__":
+    main()
+"##;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        resolved.to_string_lossy().to_string(),
+        selected_grid,
+    ])?;
+    let grids = payload
+        .get("grids")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+    Ok(FalseColorGridResponse { grids })
 }
 
 #[tauri::command]
@@ -1056,6 +1322,323 @@ else:
         .map(|x| x.to_string());
     let result = payload.get("result").cloned();
     Ok(PhotometryVerifyResponse { ok, error, result })
+}
+
+#[tauri::command]
+fn get_photometry_polar_data(file_path: String, format: Option<String>) -> Result<Value, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw_file = PathBuf::from(file_path.trim());
+    if raw_file.as_os_str().is_empty() {
+        return Err("Photometry file path is empty".to_string());
+    }
+    let resolved_file = resolve_repo_relative(&raw_file, &cwd)?;
+    let script = r##"
+import json
+import math
+import sys
+from pathlib import Path
+
+import numpy as np
+
+from luxera.parser.ies_parser import parse_ies_text
+from luxera.parser.ldt_parser import parse_ldt_text
+from luxera.photometry.model import photometry_from_parsed_ies, photometry_from_parsed_ldt
+from luxera.plotting.plots import _resolve_polar_plane_pairs
+
+
+def _nearest_idx(values: np.ndarray, target: float) -> int:
+    if values.size == 0:
+        return 0
+    diffs = np.abs(values - float(target))
+    return int(np.argmin(diffs))
+
+
+def _find_threshold_angle(gamma_deg: np.ndarray, candela: np.ndarray, frac: float) -> float:
+    if gamma_deg.size == 0 or candela.size == 0:
+        return 0.0
+    peak_idx = int(np.argmax(candela))
+    peak = float(candela[peak_idx])
+    if peak <= 1e-12:
+        return float(gamma_deg[-1]) if gamma_deg.size > 0 else 0.0
+    target = peak * float(frac)
+    for i in range(peak_idx, candela.size):
+        if float(candela[i]) <= target:
+            return float(gamma_deg[i])
+    return float(gamma_deg[-1])
+
+
+def _integral_gamma(gamma_deg: np.ndarray, candela: np.ndarray, gamma_max_deg: float | None = None) -> float:
+    if gamma_deg.size < 2 or candela.size < 2:
+        return 0.0
+    g = np.asarray(gamma_deg, dtype=float)
+    i = np.asarray(candela, dtype=float)
+    if gamma_max_deg is not None:
+        gmax = float(gamma_max_deg)
+        if gmax <= g[0]:
+            return 0.0
+        if gmax < g[-1]:
+            interp_i = float(np.interp(gmax, g, i))
+            keep = g < gmax
+            g = np.concatenate([g[keep], np.array([gmax], dtype=float)])
+            i = np.concatenate([i[keep], np.array([interp_i], dtype=float)])
+    gr = np.deg2rad(g)
+    return float(np.trapezoid(i * np.sin(gr), gr))
+
+
+def _flux_ratio(c_angles_deg: np.ndarray, gamma_deg: np.ndarray, candela_matrix: np.ndarray) -> tuple[float, float, float]:
+    if c_angles_deg.size == 0 or gamma_deg.size < 2 or candela_matrix.size == 0:
+        return 0.0, 0.0, 0.0
+    c = np.asarray(c_angles_deg, dtype=float)
+    rows = np.asarray(candela_matrix, dtype=float)
+    row_total = np.array([_integral_gamma(gamma_deg, row, None) for row in rows], dtype=float)
+    row_down = np.array([_integral_gamma(gamma_deg, row, 90.0) for row in rows], dtype=float)
+    if c[-1] < 359.5:
+        c_ext = np.concatenate([c, np.array([c[0] + 360.0], dtype=float)])
+        total_ext = np.concatenate([row_total, np.array([row_total[0]], dtype=float)])
+        down_ext = np.concatenate([row_down, np.array([row_down[0]], dtype=float)])
+    else:
+        c_ext = c
+        total_ext = row_total
+        down_ext = row_down
+    cr = np.deg2rad(c_ext)
+    total_flux = float(np.trapezoid(total_ext, cr))
+    downward_flux = float(np.trapezoid(down_ext, cr))
+    ratio = (downward_flux / total_flux) if abs(total_flux) > 1e-12 else 0.0
+    return total_flux, downward_flux, ratio
+
+
+path = Path(sys.argv[1]).expanduser().resolve()
+fmt = (sys.argv[2] if len(sys.argv) > 2 else "").strip().upper()
+raw = path.read_text(encoding="utf-8", errors="replace")
+if not fmt:
+    fmt = "IES" if path.suffix.lower() == ".ies" else ("LDT" if path.suffix.lower() == ".ldt" else "IES")
+
+total_lumens = None
+if fmt == "IES":
+    parsed = parse_ies_text(raw, source_path=path)
+    phot = photometry_from_parsed_ies(parsed)
+    total_lumens = float(phot.luminous_flux_lm) if phot.luminous_flux_lm is not None else None
+elif fmt == "LDT":
+    parsed = parse_ldt_text(raw)
+    phot = photometry_from_parsed_ldt(parsed)
+    if parsed.header and parsed.header.lamp_sets:
+        total_lumens = float(sum(float(ls.total_flux) for ls in parsed.header.lamp_sets))
+    elif phot.luminous_flux_lm is not None:
+        total_lumens = float(phot.luminous_flux_lm)
+else:
+    raise ValueError(f"Unsupported photometry format: {fmt}")
+
+c_angles = np.asarray(phot.c_angles_deg, dtype=float)
+gamma_deg = np.asarray(phot.gamma_angles_deg, dtype=float)
+candela = np.asarray(phot.candela, dtype=float)
+if candela.ndim != 2:
+    raise ValueError("Invalid candela matrix shape")
+if candela.shape[0] != c_angles.size or candela.shape[1] != gamma_deg.size:
+    raise ValueError("Candela matrix dimensions do not match angle arrays")
+
+plane_pairs = _resolve_polar_plane_pairs([float(v) for v in c_angles], horizontal_plane_deg=None)
+if len(plane_pairs) == 0:
+    plane_pairs = [(float(c_angles[0]), float((c_angles[0] + 180.0) % 360.0))]
+
+palette = ["#2E86AB", "#E94F37", "#A23B72", "#F18F01"]
+planes_out = []
+for i, (ca, cb) in enumerate(plane_pairs[:2]):
+    ia = _nearest_idx(c_angles, float(ca))
+    ib = _nearest_idx(c_angles, float(cb))
+    row_a = np.asarray(candela[ia], dtype=float)
+    row_b = np.asarray(candela[ib], dtype=float)
+    planes_out.append(
+        {
+            "label": f"C{float(c_angles[ia]):.0f}-C{float(c_angles[ib]):.0f}",
+            "color": palette[i % len(palette)],
+            "half_a": {"gamma_deg": [float(g) for g in gamma_deg.tolist()], "candela": [float(v) for v in row_a.tolist()]},
+            "half_b": {"gamma_deg": [float(g) for g in gamma_deg.tolist()], "candela": [float(v) for v in row_b.tolist()]},
+        }
+    )
+
+ic0 = _nearest_idx(c_angles, 0.0)
+c0 = np.asarray(candela[ic0], dtype=float)
+beam_angle = _find_threshold_angle(gamma_deg, c0, 0.5)
+field_angle = _find_threshold_angle(gamma_deg, c0, 0.1)
+_, _, dfr = _flux_ratio(c_angles, gamma_deg, candela)
+
+payload = {
+    "planes": planes_out,
+    "max_candela": float(np.max(candela)) if candela.size else 0.0,
+    "total_lumens": float(total_lumens) if total_lumens is not None else None,
+    "beam_angle_deg": float(beam_angle),
+    "field_angle_deg": float(field_angle),
+    "downward_flux_ratio": float(dfr),
+}
+print(json.dumps(payload))
+"##;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        resolved_file.to_string_lossy().to_string(),
+        format.unwrap_or_default().trim().to_string(),
+    ])?;
+    Ok(payload)
+}
+
+#[tauri::command]
+fn get_luminaire_beam_data(project_path: String) -> Result<Value, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let raw_project = PathBuf::from(project_path.trim());
+    if raw_project.as_os_str().is_empty() {
+        return Err("Project path is empty".to_string());
+    }
+    let resolved_project = resolve_repo_relative(&raw_project, &cwd)?;
+    let script = r##"
+import json
+import math
+import sys
+from pathlib import Path
+
+import numpy as np
+
+from luxera.project.io import load_project_schema
+from luxera.parser.ies_parser import parse_ies_text
+from luxera.parser.ldt_parser import parse_ldt_text
+from luxera.photometry.model import photometry_from_parsed_ies, photometry_from_parsed_ldt
+
+WORKPLANE_Z = 0.8
+
+
+def _nearest_idx(values: np.ndarray, target: float) -> int:
+    if values.size == 0:
+        return 0
+    return int(np.argmin(np.abs(values - float(target))))
+
+
+def _find_threshold_angle(gamma_deg: np.ndarray, candela: np.ndarray, frac: float) -> float:
+    if gamma_deg.size == 0 or candela.size == 0:
+        return 0.0
+    peak_idx = int(np.argmax(candela))
+    peak = float(candela[peak_idx])
+    if peak <= 1e-12:
+        return float(gamma_deg[-1]) if gamma_deg.size else 0.0
+    target = peak * float(frac)
+    for i in range(peak_idx, candela.size):
+        if float(candela[i]) <= target:
+            return float(gamma_deg[i])
+    return float(gamma_deg[-1])
+
+
+def _resolve_asset_path(project_file: Path, rel_or_abs: str) -> Path:
+    p = Path(rel_or_abs).expanduser()
+    if p.is_absolute():
+        return p.resolve()
+    return (project_file.parent / p).resolve()
+
+
+def _beam_from_asset(project_file: Path, asset) -> dict | None:
+    apath_raw = getattr(asset, "path", None)
+    if not apath_raw:
+        return None
+    apath = _resolve_asset_path(project_file, str(apath_raw))
+    if not apath.exists():
+        return None
+    fmt = str(getattr(asset, "format", "") or "").strip().upper()
+    if not fmt:
+        fmt = "IES" if apath.suffix.lower() == ".ies" else ("LDT" if apath.suffix.lower() == ".ldt" else "")
+    raw = apath.read_text(encoding="utf-8", errors="replace")
+    if fmt == "IES":
+        parsed = parse_ies_text(raw, source_path=apath)
+        phot = photometry_from_parsed_ies(parsed)
+    elif fmt == "LDT":
+        parsed = parse_ldt_text(raw)
+        phot = photometry_from_parsed_ldt(parsed)
+    else:
+        return None
+    c_angles = np.asarray(phot.c_angles_deg, dtype=float)
+    gamma = np.asarray(phot.gamma_angles_deg, dtype=float)
+    candela = np.asarray(phot.candela, dtype=float)
+    if c_angles.size == 0 or gamma.size == 0 or candela.ndim != 2:
+        return None
+    i0 = _nearest_idx(c_angles, 0.0)
+    i90 = _nearest_idx(c_angles, 90.0)
+    c0 = np.asarray(candela[i0], dtype=float)
+    c90 = np.asarray(candela[i90], dtype=float)
+    return {
+        "beam_half_angle_c0": float(_find_threshold_angle(gamma, c0, 0.5)),
+        "beam_half_angle_c90": float(_find_threshold_angle(gamma, c90, 0.5)),
+        "field_half_angle_c0": float(_find_threshold_angle(gamma, c0, 0.1)),
+        "field_half_angle_c90": float(_find_threshold_angle(gamma, c90, 0.1)),
+    }
+
+
+def _radius_from_height(z: float, half_angle_deg: float, workplane_z: float = WORKPLANE_Z) -> float:
+    mount_h = max(0.0, float(z) - float(workplane_z))
+    angle = max(0.0, min(89.9, float(half_angle_deg)))
+    return float(mount_h * math.tan(math.radians(angle)))
+
+
+project_file = Path(sys.argv[1]).expanduser().resolve()
+project = load_project_schema(project_file)
+
+asset_beams: dict[str, dict] = {}
+for asset in getattr(project, "photometry_assets", []):
+    aid = str(getattr(asset, "id", "") or "").strip()
+    if not aid:
+        continue
+    if aid in asset_beams:
+        continue
+    try:
+        metrics = _beam_from_asset(project_file, asset)
+    except Exception:
+        metrics = None
+    if metrics is not None:
+        asset_beams[aid] = metrics
+
+rows = []
+for lum in getattr(project, "luminaires", []):
+    lid = str(getattr(lum, "id", "") or "").strip()
+    tr = getattr(lum, "transform", None)
+    pos = getattr(tr, "position", (0.0, 0.0, 0.0)) if tr is not None else (0.0, 0.0, 0.0)
+    rot = getattr(tr, "rotation", None) if tr is not None else None
+    euler = getattr(rot, "euler_deg", None) if rot is not None else None
+    x = float(pos[0]) if len(pos) > 0 else 0.0
+    y = float(pos[1]) if len(pos) > 1 else 0.0
+    z = float(pos[2]) if len(pos) > 2 else 0.0
+    yaw = float(euler[0]) if (euler is not None and len(euler) > 0 and euler[0] is not None) else 0.0
+    asset_id = str(getattr(lum, "photometry_asset_id", "") or "").strip()
+    metrics = asset_beams.get(
+        asset_id,
+        {
+            "beam_half_angle_c0": 0.0,
+            "beam_half_angle_c90": 0.0,
+            "field_half_angle_c0": 0.0,
+            "field_half_angle_c90": 0.0,
+        },
+    )
+    rows.append(
+        {
+            "id": lid,
+            "x": x,
+            "y": y,
+            "z": z,
+            "yaw_deg": yaw,
+            "photometry_asset_id": asset_id,
+            "beam_radius_c0": _radius_from_height(z, metrics["beam_half_angle_c0"]),
+            "beam_radius_c90": _radius_from_height(z, metrics["beam_half_angle_c90"]),
+            "field_radius_c0": _radius_from_height(z, metrics["field_half_angle_c0"]),
+            "field_radius_c90": _radius_from_height(z, metrics["field_half_angle_c90"]),
+            "beam_half_angle_c0": float(metrics["beam_half_angle_c0"]),
+            "beam_half_angle_c90": float(metrics["beam_half_angle_c90"]),
+            "field_half_angle_c0": float(metrics["field_half_angle_c0"]),
+            "field_half_angle_c90": float(metrics["field_half_angle_c90"]),
+        }
+    )
+
+print(json.dumps({"luminaires": rows}))
+"##;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        resolved_project.to_string_lossy().to_string(),
+    ])?;
+    Ok(payload)
 }
 
 #[tauri::command]
@@ -2745,6 +3328,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             load_backend_outputs,
+            get_falsecolor_grid_data,
             init_project_file,
             open_project_file,
             save_project_file,
@@ -2755,6 +3339,8 @@ pub fn run() {
             add_photometry_to_project,
             verify_photometry_file_input,
             verify_project_photometry_asset,
+            get_photometry_polar_data,
+            get_luminaire_beam_data,
             add_luminaire_to_project,
             add_grid_to_project,
             add_job_to_project,

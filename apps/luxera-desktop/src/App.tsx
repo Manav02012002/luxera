@@ -23,7 +23,9 @@ import type {
   AppState,
   AgentRunEntry,
   BackendContract,
+  BeamSpreadResponse,
   ExportOperationResult,
+  FalseColorGridResponse,
   GeometryOperationResult,
   JsonRow,
   PhotometryVerifyResponse,
@@ -39,6 +41,7 @@ import { hasTauriRuntime, tauriDialogOpen, tauriDialogSave, tauriInvoke } from "
 const projectItems = ["Project", "Geometry", "Luminaires", "Calculation", "Reports"];
 const RECENT_PROJECTS_STORAGE_KEY = "luxera.desktop.recentProjects";
 const MAX_RECENT_PROJECTS = 15;
+const BEAM_WORKPLANE_Z = 0.8;
 
 interface ScenePoint {
   id: string;
@@ -50,6 +53,20 @@ interface ScenePoint {
 interface ScenePolygon {
   id: string;
   points: Array<{ x: number; y: number; z: number }>;
+}
+
+interface SceneGridPoint {
+  x: number;
+  y: number;
+  z: number;
+  color: string;
+}
+
+interface SceneGridPointSet {
+  id: string;
+  points: SceneGridPoint[];
+  labelAnchor?: { x: number; y: number; z: number };
+  labelText?: string;
 }
 
 function fmt(value: number | undefined, digits = 2): string {
@@ -74,24 +91,39 @@ function pointsToSvgPath(points: Array<{ x: number; y: number }>): string {
   return `${out} Z`;
 }
 
-function polarProfileToSvgPath(profile: Array<{ gammaDeg: number; cd: number }>, size = 220): string {
-  if (profile.length < 2) {
+function polarHalfToSvgPath(profile: Array<{ gammaDeg: number; candela: number }>, maxCandela: number, side: "right" | "left", cx: number, cy: number, radius: number): string {
+  if (profile.length < 2 || !Number.isFinite(maxCandela) || maxCandela <= 1e-12) {
     return "";
   }
-  const maxCd = Math.max(...profile.map((p) => p.cd), 1e-9);
-  const cx = size / 2;
-  const cy = size / 2;
-  const radius = size * 0.44;
   const points = profile.map((p) => {
-    const normalized = Math.max(0, p.cd) / maxCd;
+    const normalized = Math.max(0, p.candela) / maxCandela;
     const r = normalized * radius;
-    const angle = (p.gammaDeg / 180) * Math.PI - Math.PI / 2;
+    // Photometric convention requested:
+    // 0° at bottom (nadir), increasing clockwise.
+    // Using SVG coordinates (y down), apply y inversion in projection.
+    const svgAngleDeg = side === "right" ? p.gammaDeg - 90 : -p.gammaDeg - 90;
+    const t = (svgAngleDeg * Math.PI) / 180;
     return {
-      x: cx + r * Math.cos(angle),
-      y: cy + r * Math.sin(angle),
+      x: cx + r * Math.cos(t),
+      y: cy - r * Math.sin(t),
     };
   });
-  return pointsToSvgPath(points);
+  let out = `M ${points[0].x.toFixed(3)} ${points[0].y.toFixed(3)}`;
+  for (let i = 1; i < points.length; i += 1) {
+    out += ` L ${points[i].x.toFixed(3)} ${points[i].y.toFixed(3)}`;
+  }
+  return out;
+}
+
+function beamEllipseWorldPoint(cx: number, cy: number, yawRad: number, radiusC0: number, radiusC90: number, thetaRad: number): { x: number; y: number } {
+  const ct = Math.cos(thetaRad);
+  const st = Math.sin(thetaRad);
+  const cyaw = Math.cos(yawRad);
+  const syaw = Math.sin(yawRad);
+  return {
+    x: cx + cyaw * radiusC0 * ct - syaw * radiusC90 * st,
+    y: cy + syaw * radiusC0 * ct + cyaw * radiusC90 * st,
+  };
 }
 
 const initialState: AppState = {
@@ -139,6 +171,9 @@ const initialState: AppState = {
   photometryVerifyLoading: false,
   photometryVerifyError: "",
   photometryVerifyResult: null,
+  polarPlotData: null,
+  polarPlotLoading: false,
+  polarPlotError: "",
   luminaireAssetId: "",
   luminaireId: "",
   luminaireName: "",
@@ -232,6 +267,11 @@ const initialState: AppState = {
   designError: "",
   designMessage: "",
   designResult: null,
+  falseColorData: null,
+  beamSpreadData: null,
+  falseColorOpacity: "0.7",
+  falseColorShowContours: true,
+  falseColorShowValues: false,
   sceneZoom: 1,
   scenePanX: 0,
   scenePanY: 0,
@@ -246,6 +286,9 @@ const initialState: AppState = {
   layerSurfaces: true,
   layerOpenings: true,
   layerGrids: true,
+  layerGridPoints: true,
+  layerBeamSpread: false,
+  layerFalseColor: true,
   layerLuminaires: true,
   layerTablePoints: true,
   sceneSelectActive: false,
@@ -391,6 +434,14 @@ export default function App() {
         .filter((x) => x),
     [projectModel],
   );
+  const selectedPhotometryAsset = useMemo<Record<string, unknown> | null>(() => {
+    const assets = ((projectModel?.photometry_assets as Array<Record<string, unknown>> | undefined) ?? []) as Array<Record<string, unknown>>;
+    const selectedId = state.selectedPhotometryAssetId.trim();
+    if (!selectedId) {
+      return null;
+    }
+    return assets.find((asset) => String(asset.id ?? "") === selectedId) ?? null;
+  }, [projectModel, state.selectedPhotometryAssetId]);
   const projectPhotometryRows = useMemo<JsonRow[]>(
     () =>
       (((projectModel?.photometry_assets as Array<Record<string, unknown>> | undefined) ?? []).map((asset, i) => {
@@ -419,23 +470,30 @@ export default function App() {
     );
   }, [projectPhotometryRows, state.photometryLibraryQuery]);
   const photometryVerifyRows = useMemo(() => flattenJsonRows(state.photometryVerifyResult ?? null, "photometry_verify"), [state.photometryVerifyResult]);
-  const photometryPolarProfile = useMemo<Array<{ gammaDeg: number; cd: number }>>(() => {
-    const raw = (state.photometryVerifyResult?.c0_profile as unknown[]) ?? [];
-    const profile: Array<{ gammaDeg: number; cd: number }> = [];
-    for (const row of raw) {
-      if (!row || typeof row !== "object") {
-        continue;
-      }
-      const rec = row as Record<string, unknown>;
-      const gammaDeg = Number(rec.gamma_deg ?? rec.gammaDeg);
-      const cd = Number(rec.cd);
-      if (Number.isFinite(gammaDeg) && Number.isFinite(cd)) {
-        profile.push({ gammaDeg, cd });
-      }
-    }
-    return profile.sort((a, b) => a.gammaDeg - b.gammaDeg);
-  }, [state.photometryVerifyResult]);
-  const photometryPolarPath = useMemo(() => polarProfileToSvgPath(photometryPolarProfile, 220), [photometryPolarProfile]);
+  const polarPlanes = useMemo(() => {
+    const raw = (state.polarPlotData?.planes as unknown[]) ?? [];
+    return raw
+      .map((plane) => (plane && typeof plane === "object" ? (plane as Record<string, unknown>) : null))
+      .filter((v): v is Record<string, unknown> => !!v);
+  }, [state.polarPlotData]);
+  const beamSpreadRows = useMemo(() => {
+    const raw = (state.beamSpreadData?.luminaires as unknown[]) ?? [];
+    return raw
+      .map((entry) => (entry && typeof entry === "object" ? (entry as Record<string, unknown>) : null))
+      .filter((entry): entry is Record<string, unknown> => !!entry)
+      .map((entry) => ({
+        id: String(entry.id ?? ""),
+        x: Number(entry.x ?? NaN),
+        y: Number(entry.y ?? NaN),
+        z: Number(entry.z ?? NaN),
+        yawDeg: Number(entry.yaw_deg ?? 0),
+        beamRadiusC0: Number(entry.beam_radius_c0 ?? 0),
+        beamRadiusC90: Number(entry.beam_radius_c90 ?? 0),
+        fieldRadiusC0: Number(entry.field_radius_c0 ?? 0),
+        fieldRadiusC90: Number(entry.field_radius_c90 ?? 0),
+      }))
+      .filter((entry) => Number.isFinite(entry.x) && Number.isFinite(entry.y) && Number.isFinite(entry.z));
+  }, [state.beamSpreadData]);
   const sceneRooms = useMemo<ScenePolygon[]>(() => {
     const rooms = ((projectModel?.geometry as { rooms?: Array<Record<string, unknown>> } | undefined)?.rooms ?? []) as Array<
       Record<string, unknown>
@@ -551,6 +609,151 @@ export default function App() {
     }
     return out;
   }, [projectModel]);
+  const falseColorGridByName = useMemo(() => {
+    const out = new Map<string, { cells: Array<{ color: string }> }>();
+    const grids = state.falseColorData?.grids ?? [];
+    for (const grid of grids) {
+      const key = String(grid.name ?? "")
+        .trim()
+        .toLowerCase();
+      if (key) {
+        out.set(key, { cells: Array.isArray(grid.cells) ? grid.cells : [] });
+      }
+    }
+    return out;
+  }, [state.falseColorData]);
+  const sceneGridPoints = useMemo<SceneGridPointSet[]>(() => {
+    const grids = (projectModel?.grids as Array<Record<string, unknown>> | undefined) ?? [];
+    const out: SceneGridPointSet[] = [];
+    for (const g of grids) {
+      const id = String(g.id ?? g.name ?? "").trim();
+      const name = String(g.name ?? g.id ?? "").trim();
+      if (!id && !name) {
+        continue;
+      }
+      const origin = (g.origin as [number, number, number] | undefined) ?? [0, 0, 0];
+      const x0 = Number(origin[0] ?? 0);
+      const y0 = Number(origin[1] ?? 0);
+      const z0 = Number((origin[2] ?? 0) + Number(g.elevation ?? 0));
+      const width = Number(g.width ?? 0);
+      const height = Number(g.height ?? 0);
+      const nx = Math.max(1, Math.round(Number(g.nx ?? 1)));
+      const ny = Math.max(1, Math.round(Number(g.ny ?? 1)));
+      if (
+        !Number.isFinite(x0) ||
+        !Number.isFinite(y0) ||
+        !Number.isFinite(z0) ||
+        !Number.isFinite(width) ||
+        !Number.isFinite(height) ||
+        width <= 0 ||
+        height <= 0
+      ) {
+        continue;
+      }
+      const count = nx * ny;
+      const keyId = id.toLowerCase();
+      const keyName = name.toLowerCase();
+      const falseColor = falseColorGridByName.get(keyId) ?? falseColorGridByName.get(keyName);
+      if (count > 400) {
+        out.push({
+          id: id || name,
+          points: [],
+          labelAnchor: { x: x0 + width * 0.5, y: y0 + height * 0.5, z: z0 },
+          labelText: "400+ points",
+        });
+        continue;
+      }
+      const points: SceneGridPoint[] = [];
+      const cellW = width / nx;
+      const cellH = height / ny;
+      for (let row = 0; row < ny; row += 1) {
+        for (let col = 0; col < nx; col += 1) {
+          const i = row * nx + col;
+          const x = x0 + (col + 0.5) * cellW;
+          const y = y0 + (row + 0.5) * cellH;
+          const candidate = String(falseColor?.cells?.[i]?.color ?? "");
+          const color = /^#[0-9A-Fa-f]{6}$/.test(candidate) ? candidate : "#4ade80";
+          points.push({ x, y, z: z0, color });
+        }
+      }
+      out.push({ id: id || name, points });
+    }
+    return out;
+  }, [falseColorGridByName, projectModel]);
+  const sceneGridPreview = useMemo<{
+    outline: ScenePolygon | null;
+    points: SceneGridPoint[];
+    labelAnchor?: { x: number; y: number; z: number };
+    labelText?: string;
+  }>(() => {
+    const required = [
+      state.gridWidth,
+      state.gridHeight,
+      state.gridElevation,
+      state.gridNx,
+      state.gridNy,
+      state.gridOriginX,
+      state.gridOriginY,
+    ];
+    if (required.some((v) => !String(v ?? "").trim())) {
+      return { outline: null, points: [] };
+    }
+    const width = Number(state.gridWidth);
+    const height = Number(state.gridHeight);
+    const elevation = Number(state.gridElevation);
+    const nx = Math.max(1, Math.round(Number(state.gridNx)));
+    const ny = Math.max(1, Math.round(Number(state.gridNy)));
+    const ox = Number(state.gridOriginX);
+    const oy = Number(state.gridOriginY);
+    const oz = Number(state.gridOriginZ || "0");
+    const z = oz + elevation;
+    if (
+      !Number.isFinite(width) ||
+      !Number.isFinite(height) ||
+      !Number.isFinite(elevation) ||
+      !Number.isFinite(nx) ||
+      !Number.isFinite(ny) ||
+      !Number.isFinite(ox) ||
+      !Number.isFinite(oy) ||
+      !Number.isFinite(z) ||
+      width <= 0 ||
+      height <= 0
+    ) {
+      return { outline: null, points: [] };
+    }
+    const outline: ScenePolygon = {
+      id: "__grid_preview__",
+      points: [
+        { x: ox, y: oy, z },
+        { x: ox + width, y: oy, z },
+        { x: ox + width, y: oy + height, z },
+        { x: ox, y: oy + height, z },
+      ],
+    };
+    const count = nx * ny;
+    if (count > 400) {
+      return {
+        outline,
+        points: [],
+        labelAnchor: { x: ox + width * 0.5, y: oy + height * 0.5, z },
+        labelText: "400+ points",
+      };
+    }
+    const cellW = width / nx;
+    const cellH = height / ny;
+    const points: SceneGridPoint[] = [];
+    for (let row = 0; row < ny; row += 1) {
+      for (let col = 0; col < nx; col += 1) {
+        points.push({
+          x: ox + (col + 0.5) * cellW,
+          y: oy + (row + 0.5) * cellH,
+          z,
+          color: "#86efac",
+        });
+      }
+    }
+    return { outline, points };
+  }, [state.gridElevation, state.gridHeight, state.gridNx, state.gridNy, state.gridOriginX, state.gridOriginY, state.gridOriginZ, state.gridWidth]);
   const sceneBounds = useMemo(() => {
     const xs: number[] = [];
     const ys: number[] = [];
@@ -578,9 +781,43 @@ export default function App() {
         ys.push(v.y);
       }
     }
+    for (const set of sceneGridPoints) {
+      for (const p of set.points) {
+        xs.push(p.x);
+        ys.push(p.y);
+      }
+      if (set.labelAnchor) {
+        xs.push(set.labelAnchor.x);
+        ys.push(set.labelAnchor.y);
+      }
+    }
+    if (sceneGridPreview.outline) {
+      for (const v of sceneGridPreview.outline.points) {
+        xs.push(v.x);
+        ys.push(v.y);
+      }
+    }
+    for (const p of sceneGridPreview.points) {
+      xs.push(p.x);
+      ys.push(p.y);
+    }
+    if (sceneGridPreview.labelAnchor) {
+      xs.push(sceneGridPreview.labelAnchor.x);
+      ys.push(sceneGridPreview.labelAnchor.y);
+    }
     for (const p of sceneLuminaires) {
       xs.push(p.x);
       ys.push(p.y);
+    }
+    for (const beam of beamSpreadRows) {
+      const r = Math.max(beam.fieldRadiusC0, beam.fieldRadiusC90, beam.beamRadiusC0, beam.beamRadiusC90, 0);
+      if (r > 0) {
+        xs.push(beam.x - r, beam.x + r);
+        ys.push(beam.y - r, beam.y + r);
+      } else {
+        xs.push(beam.x);
+        ys.push(beam.y);
+      }
     }
     if (xs.length === 0 || ys.length === 0) {
       return null;
@@ -599,7 +836,7 @@ export default function App() {
       minY: minY - padY,
       maxY: maxY + padY,
     };
-  }, [sceneGrids, sceneLuminaires, sceneOpenings, sceneRooms, sceneSurfaces]);
+  }, [beamSpreadRows, sceneGridPoints, sceneGridPreview, sceneGrids, sceneLuminaires, sceneOpenings, sceneRooms, sceneSurfaces]);
   const sceneBounds3d = useMemo(() => {
     const xs: number[] = [];
     const ys: number[] = [];
@@ -632,10 +869,50 @@ export default function App() {
         zs.push(v.z);
       }
     }
+    for (const set of sceneGridPoints) {
+      for (const p of set.points) {
+        xs.push(p.x);
+        ys.push(p.y);
+        zs.push(p.z);
+      }
+      if (set.labelAnchor) {
+        xs.push(set.labelAnchor.x);
+        ys.push(set.labelAnchor.y);
+        zs.push(set.labelAnchor.z);
+      }
+    }
+    if (sceneGridPreview.outline) {
+      for (const v of sceneGridPreview.outline.points) {
+        xs.push(v.x);
+        ys.push(v.y);
+        zs.push(v.z);
+      }
+    }
+    for (const p of sceneGridPreview.points) {
+      xs.push(p.x);
+      ys.push(p.y);
+      zs.push(p.z);
+    }
+    if (sceneGridPreview.labelAnchor) {
+      xs.push(sceneGridPreview.labelAnchor.x);
+      ys.push(sceneGridPreview.labelAnchor.y);
+      zs.push(sceneGridPreview.labelAnchor.z);
+    }
     for (const p of sceneLuminaires) {
       xs.push(p.x);
       ys.push(p.y);
       zs.push(p.z);
+    }
+    for (const beam of beamSpreadRows) {
+      const r = Math.max(beam.fieldRadiusC0, beam.fieldRadiusC90, beam.beamRadiusC0, beam.beamRadiusC90, 0);
+      if (r > 0) {
+        xs.push(beam.x - r, beam.x + r);
+        ys.push(beam.y - r, beam.y + r);
+      } else {
+        xs.push(beam.x);
+        ys.push(beam.y);
+      }
+      zs.push(BEAM_WORKPLANE_Z);
     }
     if (xs.length === 0 || ys.length === 0 || zs.length === 0) {
       return null;
@@ -648,7 +925,7 @@ export default function App() {
       minZ: Math.min(...zs),
       maxZ: Math.max(...zs),
     };
-  }, [sceneGrids, sceneLuminaires, sceneOpenings, sceneRooms, sceneSurfaces]);
+  }, [beamSpreadRows, sceneGridPoints, sceneGridPreview, sceneGrids, sceneLuminaires, sceneOpenings, sceneRooms, sceneSurfaces]);
   const selectedLuminaireRaw = useMemo(() => {
     const id = state.aimLuminaireId.trim();
     if (!id) {
@@ -845,6 +1122,47 @@ export default function App() {
     }
     try {
       await tauriInvoke<void>("open_result_dir", { path });
+    } catch (err) {
+      patchState({ error: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  const loadFalseColorData = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ error: "Heatmap loading requires Tauri runtime." });
+      return;
+    }
+    const resultDir = state.resultDir.trim();
+    if (!resultDir) {
+      patchState({ error: "Load a result directory before requesting heatmap data." });
+      return;
+    }
+    try {
+      const payload = await tauriInvoke<FalseColorGridResponse>("get_falsecolor_grid_data", {
+        resultDir,
+        gridName: null,
+      });
+      patchState({ falseColorData: payload, error: "" });
+    } catch (err) {
+      patchState({ error: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  const loadBeamSpreadData = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ error: "Beam spread loading requires Tauri runtime." });
+      return;
+    }
+    const projectPath = (state.projectPath || state.projectDoc?.path || "").trim();
+    if (!projectPath) {
+      patchState({ error: "Load or open a project before requesting beam spread data." });
+      return;
+    }
+    try {
+      const payload = await tauriInvoke<BeamSpreadResponse>("get_luminaire_beam_data", {
+        projectPath,
+      });
+      patchState({ beamSpreadData: payload, error: "" });
     } catch (err) {
       patchState({ error: err instanceof Error ? err.message : String(err) });
     }
@@ -1391,6 +1709,34 @@ export default function App() {
         photometryVerifyLoading: false,
         photometryVerifyError: err instanceof Error ? err.message : String(err),
         photometryVerifyResult: null,
+      });
+    }
+  };
+
+  const loadPolarDistribution = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ polarPlotError: "Polar distribution requires Tauri runtime.", polarPlotData: null });
+      return;
+    }
+    const asset = selectedPhotometryAsset;
+    const filePath = String(asset?.path ?? state.photometryFilePath).trim();
+    const format = String(asset?.format ?? state.photometryFormat).trim();
+    if (!filePath) {
+      patchState({ polarPlotError: "Selected photometry asset has no file path.", polarPlotData: null });
+      return;
+    }
+    patchState({ polarPlotLoading: true, polarPlotError: "", polarPlotData: null });
+    try {
+      const payload = await tauriInvoke<Record<string, unknown>>("get_photometry_polar_data", {
+        filePath,
+        format: format ? format : null,
+      });
+      patchState({ polarPlotLoading: false, polarPlotData: payload, polarPlotError: "" });
+    } catch (err) {
+      patchState({
+        polarPlotLoading: false,
+        polarPlotData: null,
+        polarPlotError: err instanceof Error ? err.message : String(err),
       });
     }
   };
@@ -2734,6 +3080,7 @@ export default function App() {
     }
     return count > 0 ? depthSum / count : -1;
   };
+  const falseColorOpacity = Math.max(0.1, Math.min(1, Number(state.falseColorOpacity) || 0.7));
 
   return (
     <AppShell
@@ -2766,6 +3113,175 @@ export default function App() {
                     onPointerUp={onScenePointerUp}
                   >
                     <rect x="0" y="0" width="100" height="70" fill="transparent" stroke="rgba(120,130,150,0.4)" />
+                    {state.layerGrids && (state.sceneViewMode === "3d" ? sceneBounds3d : sceneBounds)
+                      ? [...sceneGrids]
+                          .sort((a, b) => scenePolygonDepth(b) - scenePolygonDepth(a))
+                          .map((grid) => {
+                          const mapped = grid.points
+                            .map((p) => sceneProject(p.x, p.y, p.z))
+                            .filter((p): p is { x: number; y: number } => !!p);
+                          if (mapped.length < 3) {
+                            return null;
+                          }
+                          return (
+                            <path
+                              key={`grid-${grid.id}`}
+                              d={pointsToSvgPath(mapped)}
+                              fill="rgba(251,191,36,0.06)"
+                              stroke="rgba(251,191,36,0.82)"
+                              strokeDasharray="1.2 0.9"
+                              strokeWidth={0.22}
+                            />
+                          );
+                        })
+                      : null}
+                    {state.layerGrids && sceneGridPreview.outline && (state.sceneViewMode === "3d" ? sceneBounds3d : sceneBounds)
+                      ? (() => {
+                          const mapped = sceneGridPreview.outline.points
+                            .map((p) => sceneProject(p.x, p.y, p.z))
+                            .filter((p): p is { x: number; y: number } => !!p);
+                          if (mapped.length < 3) {
+                            return null;
+                          }
+                          return (
+                            <path
+                              d={pointsToSvgPath(mapped)}
+                              fill="rgba(110,231,183,0.05)"
+                              stroke="rgba(110,231,183,0.72)"
+                              strokeDasharray="0.9 0.75"
+                              strokeWidth={0.2}
+                            />
+                          );
+                        })()
+                      : null}
+                    {state.layerFalseColor && state.falseColorData && (state.sceneViewMode === "3d" ? sceneBounds3d : sceneBounds)
+                      ? state.falseColorData.grids.map((grid, gi) => {
+                          const ox = Number(grid.origin?.[0] ?? 0);
+                          const oy = Number(grid.origin?.[1] ?? 0);
+                          const elev = Number(grid.elevation ?? grid.origin?.[2] ?? 0);
+                          const nx = Math.max(1, Number(grid.nx ?? 1));
+                          const ny = Math.max(1, Number(grid.ny ?? 1));
+                          const cellW = Number(grid.width ?? 0) / nx;
+                          const cellH = Number(grid.height ?? 0) / ny;
+                          return (
+                            <g key={`falsecolor-grid-${gi}-${grid.name}`}>
+                              {grid.cells.map((cell, i) => {
+                                const row = Math.floor(i / nx);
+                                const col = i % nx;
+                                const x0 = ox + col * cellW;
+                                const y0 = oy + row * cellH;
+                                const x1 = ox + (col + 1) * cellW;
+                                const y1 = oy + (row + 1) * cellH;
+                                const corners = [
+                                  sceneProject(x0, y0, elev),
+                                  sceneProject(x1, y0, elev),
+                                  sceneProject(x1, y1, elev),
+                                  sceneProject(x0, y1, elev),
+                                ];
+                                if (corners.some((p) => !p)) {
+                                  return null;
+                                }
+                                const mapped = corners as Array<{ x: number; y: number }>;
+                                const center = sceneProject(ox + (col + 0.5) * cellW, oy + (row + 0.5) * cellH, elev);
+                                return (
+                                  <g key={`falsecolor-cell-${gi}-${i}`}>
+                                    <polygon
+                                      points={mapped.map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).join(" ")}
+                                      fill={cell.color}
+                                      opacity={falseColorOpacity}
+                                      stroke="none"
+                                    />
+                                    {state.falseColorShowValues && i % 4 === 0 && center ? (
+                                      <text x={center.x} y={center.y} textAnchor="middle" fontSize={1.15} fill="white" opacity={0.95}>
+                                        {Number(cell.lux).toFixed(0)}
+                                      </text>
+                                    ) : null}
+                                  </g>
+                                );
+                              })}
+                              {state.falseColorShowContours
+                                ? grid.contours.map((contour, ci) => (
+                                    <g key={`falsecolor-contour-${gi}-${ci}`}>
+                                      {contour.paths.map((path, pi) => {
+                                        const mapped = path
+                                          .map((pt) => sceneProject(Number(pt[0] ?? 0), Number(pt[1] ?? 0), elev))
+                                          .filter((p): p is { x: number; y: number } => !!p);
+                                        if (mapped.length < 2) {
+                                          return null;
+                                        }
+                                        const mid = mapped[Math.floor(mapped.length * 0.5)];
+                                        return (
+                                          <g key={`falsecolor-contour-path-${gi}-${ci}-${pi}`}>
+                                            <polyline
+                                              points={mapped.map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).join(" ")}
+                                              fill="none"
+                                              stroke="white"
+                                              strokeWidth={0.15}
+                                              opacity={0.8}
+                                            />
+                                            <text x={mid.x} y={mid.y} textAnchor="middle" fontSize={1.15} fill="white" opacity={0.95}>
+                                              {Number(contour.level).toFixed(0)}
+                                            </text>
+                                          </g>
+                                        );
+                                      })}
+                                    </g>
+                                  ))
+                                : null}
+                            </g>
+                          );
+                        })
+                      : null}
+                    {state.layerGridPoints && (state.sceneViewMode === "3d" ? sceneBounds3d : sceneBounds)
+                      ? (
+                          <>
+                            {sceneGridPoints.map((set, si) => (
+                              <g key={`grid-points-${set.id}-${si}`}>
+                                {set.points.map((p, pi) => {
+                                  const mapped = sceneProject(p.x, p.y, p.z);
+                                  if (!mapped) {
+                                    return null;
+                                  }
+                                  return <circle key={`grid-point-${set.id}-${pi}`} cx={mapped.x} cy={mapped.y} r={1.5} fill={p.color} opacity={0.6} />;
+                                })}
+                                {set.labelAnchor && set.labelText
+                                  ? (() => {
+                                      const mapped = sceneProject(set.labelAnchor.x, set.labelAnchor.y, set.labelAnchor.z);
+                                      if (!mapped) {
+                                        return null;
+                                      }
+                                      return (
+                                        <text x={mapped.x} y={mapped.y} textAnchor="middle" fontSize={1.2} fill="#4ade80" opacity={0.9}>
+                                          {set.labelText}
+                                        </text>
+                                      );
+                                    })()
+                                  : null}
+                              </g>
+                            ))}
+                            {sceneGridPreview.points.map((p, i) => {
+                              const mapped = sceneProject(p.x, p.y, p.z);
+                              if (!mapped) {
+                                return null;
+                              }
+                              return <circle key={`grid-preview-point-${i}`} cx={mapped.x} cy={mapped.y} r={1.15} fill={p.color} opacity={0.45} />;
+                            })}
+                            {sceneGridPreview.labelAnchor && sceneGridPreview.labelText
+                              ? (() => {
+                                  const mapped = sceneProject(sceneGridPreview.labelAnchor.x, sceneGridPreview.labelAnchor.y, sceneGridPreview.labelAnchor.z);
+                                  if (!mapped) {
+                                    return null;
+                                  }
+                                  return (
+                                    <text x={mapped.x} y={mapped.y} textAnchor="middle" fontSize={1.2} fill="#86efac" opacity={0.95}>
+                                      {sceneGridPreview.labelText}
+                                    </text>
+                                  );
+                                })()
+                              : null}
+                          </>
+                        )
+                      : null}
                     {state.layerRooms && (state.sceneViewMode === "3d" ? sceneBounds3d : sceneBounds)
                       ? [...sceneRooms]
                           .sort((a, b) => scenePolygonDepth(b) - scenePolygonDepth(a))
@@ -2832,25 +3348,90 @@ export default function App() {
                           );
                         })
                       : null}
-                    {state.layerGrids && (state.sceneViewMode === "3d" ? sceneBounds3d : sceneBounds)
-                      ? [...sceneGrids]
-                          .sort((a, b) => scenePolygonDepth(b) - scenePolygonDepth(a))
-                          .map((grid) => {
-                          const mapped = grid.points
-                            .map((p) => sceneProject(p.x, p.y, p.z))
-                            .filter((p): p is { x: number; y: number } => !!p);
-                          if (mapped.length < 3) {
+                    {state.layerBeamSpread && (state.sceneViewMode === "3d" ? sceneBounds3d : sceneBounds)
+                      ? beamSpreadRows.map((beam, idx) => {
+                          const yawRad = (beam.yawDeg * Math.PI) / 180;
+                          const renderEllipsePlan = (radiusC0: number, radiusC90: number, kind: "beam" | "field") => {
+                            if (!(radiusC0 > 0) || !(radiusC90 > 0)) {
+                              return null;
+                            }
+                            const center = sceneProject(beam.x, beam.y, BEAM_WORKPLANE_Z);
+                            const axis0p = beamEllipseWorldPoint(beam.x, beam.y, yawRad, radiusC0, radiusC90, 0);
+                            const axis90p = beamEllipseWorldPoint(beam.x, beam.y, yawRad, radiusC0, radiusC90, Math.PI * 0.5);
+                            const axis0 = sceneProject(axis0p.x, axis0p.y, BEAM_WORKPLANE_Z);
+                            const axis90 = sceneProject(axis90p.x, axis90p.y, BEAM_WORKPLANE_Z);
+                            if (!center || !axis0 || !axis90) {
+                              return null;
+                            }
+                            const rx = Math.hypot(axis0.x - center.x, axis0.y - center.y);
+                            const ry = Math.hypot(axis90.x - center.x, axis90.y - center.y);
+                            if (!(rx > 0.01) || !(ry > 0.01)) {
+                              return null;
+                            }
+                            const screenAngleDeg = (Math.atan2(axis0.y - center.y, axis0.x - center.x) * 180) / Math.PI;
+                            return (
+                              <ellipse
+                                key={`beamspread-plan-${kind}-${beam.id || idx}`}
+                                cx={center.x}
+                                cy={center.y}
+                                rx={rx}
+                                ry={ry}
+                                fill="#fbbf24"
+                                opacity={kind === "beam" ? 0.15 : 0.05}
+                                stroke="#fbbf24"
+                                strokeOpacity={kind === "beam" ? 0.4 : 0.2}
+                                strokeWidth={0.22}
+                                strokeDasharray={kind === "field" ? "4 2" : undefined}
+                                transform={`rotate(${screenAngleDeg.toFixed(3)} ${center.x.toFixed(3)} ${center.y.toFixed(3)})`}
+                              />
+                            );
+                          };
+                          const renderEllipse3d = (radiusC0: number, radiusC90: number, kind: "beam" | "field") => {
+                            if (!(radiusC0 > 0) || !(radiusC90 > 0)) {
+                              return null;
+                            }
+                            const mapped = [];
+                            const segments = 24;
+                            for (let s = 0; s < segments; s += 1) {
+                              const t = (s / segments) * Math.PI * 2;
+                              const wp = beamEllipseWorldPoint(beam.x, beam.y, yawRad, radiusC0, radiusC90, t);
+                              const p = sceneProject(wp.x, wp.y, BEAM_WORKPLANE_Z);
+                              if (p) {
+                                mapped.push(p);
+                              }
+                            }
+                            if (mapped.length < 3) {
+                              return null;
+                            }
+                            return (
+                              <polygon
+                                key={`beamspread-3d-${kind}-${beam.id || idx}`}
+                                points={mapped.map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).join(" ")}
+                                fill="#fbbf24"
+                                opacity={kind === "beam" ? 0.15 : 0.05}
+                                stroke="#fbbf24"
+                                strokeOpacity={kind === "beam" ? 0.4 : 0.2}
+                                strokeWidth={0.18}
+                                strokeDasharray={kind === "field" ? "4 2" : undefined}
+                              />
+                            );
+                          };
+                          const field =
+                            state.sceneViewMode === "plan"
+                              ? renderEllipsePlan(beam.fieldRadiusC0, beam.fieldRadiusC90, "field")
+                              : renderEllipse3d(beam.fieldRadiusC0, beam.fieldRadiusC90, "field");
+                          const cone =
+                            state.sceneViewMode === "plan"
+                              ? renderEllipsePlan(beam.beamRadiusC0, beam.beamRadiusC90, "beam")
+                              : renderEllipse3d(beam.beamRadiusC0, beam.beamRadiusC90, "beam");
+                          if (!field && !cone) {
                             return null;
                           }
                           return (
-                            <path
-                              key={`grid-${grid.id}`}
-                              d={pointsToSvgPath(mapped)}
-                              fill="rgba(251,191,36,0.06)"
-                              stroke="rgba(251,191,36,0.82)"
-                              strokeDasharray="1.2 0.9"
-                              strokeWidth={0.22}
-                            />
+                            <g key={`beamspread-${beam.id || idx}`}>
+                              {field}
+                              {cone}
+                            </g>
                           );
                         })
                       : null}
@@ -3250,7 +3831,13 @@ export default function App() {
                         })
                       : null}
                     {state.sceneViewMode === "plan" &&
-                    (!sceneBounds || (sceneRooms.length === 0 && sceneSurfaces.length === 0 && sceneOpenings.length === 0 && sceneLuminaires.length === 0 && sceneGrids.length === 0)) &&
+                    (!sceneBounds ||
+                      (sceneRooms.length === 0 &&
+                        sceneSurfaces.length === 0 &&
+                        sceneOpenings.length === 0 &&
+                        sceneLuminaires.length === 0 &&
+                        sceneGrids.length === 0 &&
+                        beamSpreadRows.length === 0)) &&
                     state.layerTablePoints &&
                     viewportPoints.length > 0 &&
                     viewportBounds
@@ -3268,7 +3855,7 @@ export default function App() {
                 <div className="space-y-2 text-xs text-muted">
                   <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1">
                     Scene: rooms {sceneRooms.length} / surfaces {sceneSurfaces.length} / openings {sceneOpenings.length} / luminaires{" "}
-                    {sceneLuminaires.length}
+                    {sceneLuminaires.length} / beam spreads {beamSpreadRows.length}
                   </div>
                   <div className="grid grid-cols-2 gap-1">
                     <input
@@ -3402,6 +3989,53 @@ export default function App() {
                     </div>
                   ) : null}
                   <div className="rounded border border-border/60 bg-panelSoft/50 p-2 text-[11px] text-muted">
+                    <div className="mb-1 text-text">Heatmap</div>
+                    <div className="mb-2 grid grid-cols-2 gap-1">
+                      <ToolbarButton onClick={() => void loadFalseColorData()} className="w-full">
+                        Load Heatmap
+                      </ToolbarButton>
+                      <div className="rounded border border-border/60 bg-panel px-2 py-1 text-[11px]">
+                        Grids: {state.falseColorData?.grids.length ?? 0}
+                      </div>
+                    </div>
+                    <div className="mb-2 grid grid-cols-2 gap-1">
+                      <ToolbarButton onClick={() => void loadBeamSpreadData()} className="w-full">
+                        Load Beam Spread
+                      </ToolbarButton>
+                      <div className="rounded border border-border/60 bg-panel px-2 py-1 text-[11px]">
+                        Luminaires: {beamSpreadRows.length}
+                      </div>
+                    </div>
+                    <label className="mb-1 block text-[11px] text-muted">
+                      Opacity: {falseColorOpacity.toFixed(1)}
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="1.0"
+                        step="0.1"
+                        value={state.falseColorOpacity}
+                        onChange={(e) => patchState({ falseColorOpacity: e.target.value })}
+                        className="w-full"
+                      />
+                    </label>
+                    <label className="mb-1 flex items-center gap-2 rounded border border-border/60 bg-panel px-2 py-1 text-[11px]">
+                      <input
+                        type="checkbox"
+                        checked={state.falseColorShowContours}
+                        onChange={(e) => patchState({ falseColorShowContours: e.target.checked })}
+                      />
+                      Show Contours
+                    </label>
+                    <label className="flex items-center gap-2 rounded border border-border/60 bg-panel px-2 py-1 text-[11px]">
+                      <input
+                        type="checkbox"
+                        checked={state.falseColorShowValues}
+                        onChange={(e) => patchState({ falseColorShowValues: e.target.checked })}
+                      />
+                      Show Values
+                    </label>
+                  </div>
+                  <div className="rounded border border-border/60 bg-panelSoft/50 p-2 text-[11px] text-muted">
                     <div className="mb-1 text-text">Transform Inspector</div>
                     <div className="mb-1">Luminaire ({state.aimLuminaireId || "none"})</div>
                     <div className="mb-1">
@@ -3487,6 +4121,20 @@ export default function App() {
                   </label>
                   <label className="flex items-center gap-2 rounded border border-border/60 bg-panelSoft/50 px-2 py-1">
                     <input type="checkbox" checked={state.layerGrids} onChange={(e) => patchState({ layerGrids: e.target.checked })} /> Grids
+                  </label>
+                  <label className="flex items-center gap-2 rounded border border-border/60 bg-panelSoft/50 px-2 py-1">
+                    <input type="checkbox" checked={state.layerGridPoints} onChange={(e) => patchState({ layerGridPoints: e.target.checked })} /> Grid Points
+                  </label>
+                  <label className="flex items-center gap-2 rounded border border-border/60 bg-panelSoft/50 px-2 py-1">
+                    <input
+                      type="checkbox"
+                      checked={state.layerFalseColor}
+                      onChange={(e) => patchState({ layerFalseColor: e.target.checked })}
+                    />{" "}
+                    Heatmap
+                  </label>
+                  <label className="flex items-center gap-2 rounded border border-border/60 bg-panelSoft/50 px-2 py-1">
+                    <input type="checkbox" checked={state.layerBeamSpread} onChange={(e) => patchState({ layerBeamSpread: e.target.checked })} /> Beam Spread
                   </label>
                   <label className="flex items-center gap-2 rounded border border-border/60 bg-panelSoft/50 px-2 py-1">
                     <input type="checkbox" checked={state.layerLuminaires} onChange={(e) => patchState({ layerLuminaires: e.target.checked })} /> Luminaires
@@ -3822,7 +4470,7 @@ export default function App() {
                 </ToolbarButton>
               </div>
               <div className="mb-2 rounded border border-border/60 bg-panelSoft/50 p-2">
-                <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
+                <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr_1fr_1fr]">
                   <input
                     value={state.photometryLibraryQuery}
                     onChange={(e) => patchState({ photometryLibraryQuery: e.target.value })}
@@ -3848,6 +4496,9 @@ export default function App() {
                   </ToolbarButton>
                   <ToolbarButton onClick={() => void verifySelectedProjectPhotometry()} disabled={state.photometryVerifyLoading}>
                     {state.photometryVerifyLoading ? "Inspecting..." : "Inspect Selected Asset"}
+                  </ToolbarButton>
+                  <ToolbarButton onClick={() => void loadPolarDistribution()} disabled={state.polarPlotLoading}>
+                    {state.polarPlotLoading ? "Loading..." : "Show Distribution"}
                   </ToolbarButton>
                 </div>
                 {filteredPhotometryRows.length === 0 ? (
@@ -3886,6 +4537,86 @@ export default function App() {
                 )}
               </div>
               {state.photometryVerifyError ? <div className="mb-2 text-xs text-rose-300">{state.photometryVerifyError}</div> : null}
+              {state.polarPlotError ? <div className="mb-2 text-xs text-rose-300">{state.polarPlotError}</div> : null}
+              {state.polarPlotData ? (
+                <div className="mb-2 rounded border border-border/60 bg-panelSoft/50 p-2">
+                  <div className="mb-1 text-xs uppercase tracking-[0.12em] text-muted">Polar Distribution</div>
+                  {(() => {
+                    const size = 300;
+                    const cx = 150;
+                    const cy = 150;
+                    const plotRadius = 120;
+                    const maxCandela = Math.max(1e-9, Number(state.polarPlotData?.max_candela ?? 0));
+                    const radialAngles = [0, 30, 60, 90, 120, 150, 180];
+                    return (
+                      <div className="rounded border border-border/60 bg-panel p-2">
+                        <svg viewBox={`0 0 ${size} ${size}`} className="h-[300px] w-[300px] rounded border border-border/60 bg-panelSoft/50">
+                          {[0.25, 0.5, 0.75, 1].map((f, idx) => (
+                            <circle
+                              key={`polar-ring-${idx}`}
+                              cx={cx}
+                              cy={cy}
+                              r={plotRadius * f}
+                              fill="none"
+                              stroke="rgba(148,163,184,0.25)"
+                              strokeWidth={0.8}
+                            />
+                          ))}
+                          {radialAngles.map((g) => {
+                            const t = (g * Math.PI) / 180;
+                            const xr = cx + plotRadius * Math.sin(t);
+                            const yr = cy + plotRadius * Math.cos(t);
+                            const xl = cx - plotRadius * Math.sin(t);
+                            const yl = cy + plotRadius * Math.cos(t);
+                            return (
+                              <g key={`polar-angle-${g}`}>
+                                <line x1={cx} y1={cy} x2={xr} y2={yr} stroke="rgba(148,163,184,0.25)" strokeWidth={0.8} />
+                                {g > 0 && g < 180 ? <line x1={cx} y1={cy} x2={xl} y2={yl} stroke="rgba(148,163,184,0.25)" strokeWidth={0.8} /> : null}
+                                <text x={xr} y={yr - 4} textAnchor="middle" fontSize={9} fill="rgba(226,232,240,0.8)">
+                                  {g}°
+                                </text>
+                              </g>
+                            );
+                          })}
+                          {polarPlanes.map((plane, idx) => {
+                            const color = String(plane.color ?? (idx === 0 ? "#2E86AB" : "#E94F37"));
+                            const halfA = ((plane.half_a as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
+                            const halfB = ((plane.half_b as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
+                            const ga = ((halfA.gamma_deg as unknown[]) ?? []).map((v) => Number(v)).filter((v) => Number.isFinite(v));
+                            const ca = ((halfA.candela as unknown[]) ?? []).map((v) => Number(v)).filter((v) => Number.isFinite(v));
+                            const gb = ((halfB.gamma_deg as unknown[]) ?? []).map((v) => Number(v)).filter((v) => Number.isFinite(v));
+                            const cb = ((halfB.candela as unknown[]) ?? []).map((v) => Number(v)).filter((v) => Number.isFinite(v));
+                            const pointsA = ga.slice(0, Math.min(ga.length, ca.length)).map((g, i) => ({ gammaDeg: g, candela: ca[i] }));
+                            const pointsB = gb.slice(0, Math.min(gb.length, cb.length)).map((g, i) => ({ gammaDeg: g, candela: cb[i] }));
+                            const dA = polarHalfToSvgPath(pointsA, maxCandela, "right", cx, cy, plotRadius);
+                            const dB = polarHalfToSvgPath(pointsB, maxCandela, "left", cx, cy, plotRadius);
+                            return (
+                              <g key={`polar-plane-${idx}`}>
+                                {dA ? <path d={dA} fill="none" stroke={color} strokeWidth={2} /> : null}
+                                {dB ? <path d={dB} fill="none" stroke={color} strokeWidth={2} /> : null}
+                              </g>
+                            );
+                          })}
+                        </svg>
+                        <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-muted">
+                          {polarPlanes.map((plane, idx) => (
+                            <div key={`polar-legend-${idx}`} className="flex items-center gap-1">
+                              <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: String(plane.color ?? "#94a3b8") }} />
+                              <span>{String(plane.label ?? `Plane ${idx + 1}`)}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-2 text-[11px] text-muted">
+                          Total Flux: {Number(state.polarPlotData?.total_lumens ?? 0).toFixed(0)} lm | Beam:{" "}
+                          {Number(state.polarPlotData?.beam_angle_deg ?? 0).toFixed(1)}° | Field:{" "}
+                          {Number(state.polarPlotData?.field_angle_deg ?? 0).toFixed(1)}° | DFR:{" "}
+                          {(Number(state.polarPlotData?.downward_flux_ratio ?? 0) * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : null}
               {photometryVerifyRows.length > 0 ? (
                 <div className="mb-2 rounded border border-border/60 bg-panelSoft/50 p-2">
                   <div className="mb-1 text-xs uppercase tracking-[0.12em] text-muted">Photometry Verification</div>
@@ -3903,21 +4634,6 @@ export default function App() {
                       Peak: {String((state.photometryVerifyResult?.candela_stats as Record<string, unknown> | undefined)?.max_cd ?? "N/A")} cd
                     </div>
                   </div>
-                  {photometryPolarPath ? (
-                    <div className="mb-2 rounded border border-border/60 bg-panel p-2">
-                      <div className="mb-1 text-[11px] text-muted">
-                        Polar Candela Plot (C-plane {String(state.photometryVerifyResult?.c_plane_deg ?? 0)} deg)
-                      </div>
-                      <svg viewBox="0 0 220 220" className="h-56 w-56 rounded border border-border/60 bg-panelSoft/50">
-                        <circle cx="110" cy="110" r="96" fill="none" stroke="rgba(148,163,184,0.2)" strokeWidth="1" />
-                        <circle cx="110" cy="110" r="64" fill="none" stroke="rgba(148,163,184,0.2)" strokeWidth="1" />
-                        <circle cx="110" cy="110" r="32" fill="none" stroke="rgba(148,163,184,0.2)" strokeWidth="1" />
-                        <line x1="110" y1="14" x2="110" y2="206" stroke="rgba(148,163,184,0.2)" strokeWidth="1" />
-                        <line x1="14" y1="110" x2="206" y2="110" stroke="rgba(148,163,184,0.2)" strokeWidth="1" />
-                        <path d={photometryPolarPath} fill="none" stroke="rgba(56,189,248,0.95)" strokeWidth="2" />
-                      </svg>
-                    </div>
-                  ) : null}
                   <div className="max-h-32 overflow-auto rounded border border-border/60 bg-panel p-2">
                     <pre className="whitespace-pre-wrap text-[11px] text-muted">
                       {JSON.stringify(state.photometryVerifyResult, null, 2)}
