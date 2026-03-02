@@ -20,6 +20,7 @@ from luxera.results.grid_viz import write_grid_heatmap_and_isolux
 
 from luxera.export.report_model import AuditHeader, build_report_model
 from luxera.project.schema import Project, JobResultRef
+from luxera.compliance.energy import compute_leni_from_project
 
 
 @dataclass(frozen=True)
@@ -294,6 +295,21 @@ def build_en12464_report_model(project: Project, job_ref: JobResultRef) -> EN124
     if isinstance(compliance_payload, dict) and isinstance(compliance_payload.get("reasons"), list):
         compliance = dict(compliance) if isinstance(compliance, dict) else {}
         compliance["pass_fail_reasons"] = list(compliance_payload.get("reasons", []))
+    try:
+        leni = compute_leni_from_project(project)
+        compliance = dict(compliance) if isinstance(compliance, dict) else {}
+        compliance["leni"] = {
+            "leni_kWh_per_m2_year": float(leni.leni_kWh_per_m2_year),
+            "total_energy_kWh": float(leni.total_energy_kWh),
+            "energy_lighting_kWh": float(leni.energy_lighting_kWh),
+            "energy_parasitic_kWh": float(leni.energy_parasitic_kWh),
+            "power_density_W_per_m2": float(leni.power_density_W_per_m2),
+            "limit_kWh_per_m2_year": (None if leni.limit_kWh_per_m2_year is None else float(leni.limit_kWh_per_m2_year)),
+            "compliant": leni.compliant,
+            "breakdown": dict(leni.breakdown),
+        }
+    except Exception:
+        pass
     inputs = {
         "rooms": [r.__dict__ for r in project.geometry.rooms],
         "reflectances": [

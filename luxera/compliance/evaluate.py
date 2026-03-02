@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, Mapping, Optional
 
+from luxera.compliance.energy import compute_leni_from_project
+from luxera.project.schema import Project
 
 @dataclass(frozen=True)
 class ComplianceEvaluation:
@@ -101,6 +103,48 @@ def evaluate_indoor(result: Mapping[str, Any], profile: Mapping[str, Any] | None
     if profile:
         summary.setdefault("compliance_profile", dict(profile))
     return _evaluate(summary, domain="indoor")
+
+
+def evaluate_indoor_with_energy(
+    result: Mapping[str, Any],
+    project: Project,
+    *,
+    profile: Mapping[str, Any] | None = None,
+    leni_profile_name: str = "office_open_plan",
+) -> ComplianceEvaluation:
+    summary = dict(result)
+    if profile:
+        summary.setdefault("compliance_profile", dict(profile))
+    ev = _evaluate(summary, domain="indoor")
+    leni = compute_leni_from_project(project, profile_name=leni_profile_name)
+    src = dict(ev.source)
+    src["leni"] = {
+        "leni_kWh_per_m2_year": float(leni.leni_kWh_per_m2_year),
+        "energy_lighting_kWh": float(leni.energy_lighting_kWh),
+        "energy_parasitic_kWh": float(leni.energy_parasitic_kWh),
+        "total_energy_kWh": float(leni.total_energy_kWh),
+        "power_density_W_per_m2": float(leni.power_density_W_per_m2),
+        "normalised_power_pn": float(leni.normalised_power_pn),
+        "limit_kWh_per_m2_year": (None if leni.limit_kWh_per_m2_year is None else float(leni.limit_kWh_per_m2_year)),
+        "compliant": leni.compliant,
+        "breakdown": dict(leni.breakdown),
+    }
+    failed = list(ev.failed_checks)
+    explanations = list(ev.explanations)
+    if leni.compliant is False:
+        failed.append("leni_ok")
+        lim_txt = f"{leni.limit_kWh_per_m2_year:.2f}" if leni.limit_kWh_per_m2_year is not None else "-"
+        explanations.append(
+            f"leni_ok failed: LENI={leni.leni_kWh_per_m2_year:.2f} kWh/m²·year exceeds limit {lim_txt}."
+        )
+    status = "FAIL" if failed else ev.status
+    return ComplianceEvaluation(
+        domain=ev.domain,
+        status=status,
+        failed_checks=sorted(set(failed)),
+        explanations=explanations,
+        source=src,
+    )
 
 
 def evaluate_roadway(result: Mapping[str, Any], profile: Mapping[str, Any] | None = None) -> ComplianceEvaluation:

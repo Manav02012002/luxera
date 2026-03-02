@@ -240,6 +240,23 @@ def render_en12464_pdf(model: EN12464ReportModel, out_path: Path) -> Path:
         if isinstance(reasons, list) and reasons:
             story.append(Spacer(1, 0.15 * cm))
             story.append(_kv_table([[f"Reason {i+1}", str(r)] for i, r in enumerate(reasons)]))
+        leni = compliance.get("leni")
+        if isinstance(leni, dict):
+            story.append(Spacer(1, 0.25 * cm))
+            story.append(Paragraph("LENI Energy (EN 15193)", h2))
+            story.append(
+                _kv_table(
+                    [
+                        ["LENI (kWh/m²·year)", str(leni.get("leni_kWh_per_m2_year", "-"))],
+                        ["Total Energy (kWh/year)", str(leni.get("total_energy_kWh", "-"))],
+                        ["Lighting Energy (kWh/year)", str(leni.get("energy_lighting_kWh", "-"))],
+                        ["Parasitic Energy (kWh/year)", str(leni.get("energy_parasitic_kWh", "-"))],
+                        ["Power Density (W/m²)", str(leni.get("power_density_W_per_m2", "-"))],
+                        ["LENI Limit (kWh/m²·year)", str(leni.get("limit_kWh_per_m2_year", "-"))],
+                        ["LENI Compliant", str(leni.get("compliant", "-"))],
+                    ]
+                )
+            )
     else:
         story.append(Paragraph("Compliance data unavailable.", body))
 
