@@ -142,6 +142,40 @@ export interface BeamSpreadResponse {
   luminaires: BeamSpreadLuminaire[];
 }
 
+export interface StandardProfileOption {
+  activity_type: string;
+  description: string;
+  maintained_illuminance_lux: number;
+  uniformity_min: number;
+  ugr_max: number;
+  cri_min: number;
+  standard_ref: string;
+  category: string;
+}
+
+export interface QuickLayoutLuminaire {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  z: number;
+  asset_id: string;
+  yaw_deg?: number;
+  maintenance_factor?: number;
+  flux_multiplier?: number;
+}
+
+export interface QuickLayoutResult {
+  best: {
+    rows: number;
+    cols: number;
+    mean_lux: number;
+    uniformity: number;
+    fixture_count: number;
+  };
+  luminaires: QuickLayoutLuminaire[];
+}
+
 export interface JobRunResponse {
   projectPath: string;
   jobId: string;
@@ -275,6 +309,19 @@ export interface AppState {
   gridOriginX: string;
   gridOriginY: string;
   gridOriginZ: string;
+  workplanePreset: "floor" | "desk" | "standing" | "custom";
+  standardProfiles: StandardProfileOption[];
+  standardProfilesLoading: boolean;
+  standardProfilesError: string;
+  selectedStandardActivityType: string;
+  selectedStandardProfileId: string;
+  quickLayoutTargetLux: string;
+  quickLayoutMaxRows: string;
+  quickLayoutMaxCols: string;
+  quickLayoutLoading: boolean;
+  quickLayoutError: string;
+  quickLayoutResult: QuickLayoutResult | null;
+  quickLayoutPreviewEnabled: boolean;
   gridRoomId: string;
   jobIdInput: string;
   jobTypeInput: string;
@@ -358,6 +405,7 @@ export interface AppState {
   sceneCamTargetX: string;
   sceneCamTargetY: string;
   sceneCamTargetZ: string;
+  placementMode: "none" | "grid" | "luminaire" | "room";
   layerRooms: boolean;
   layerSurfaces: boolean;
   layerOpenings: boolean;

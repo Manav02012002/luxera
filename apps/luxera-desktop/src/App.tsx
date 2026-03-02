@@ -32,7 +32,9 @@ import type {
   ProjectDocument,
   ProjectJobsResponse,
   ProjectValidationResult,
+  QuickLayoutResult,
   RecentRun,
+  StandardProfileOption,
   ToolOperationResult,
 } from "./types";
 import { flattenJsonRows, firstNumeric, objectToRows, rowsToPoints } from "./utils/table";
@@ -67,6 +69,18 @@ interface SceneGridPointSet {
   points: SceneGridPoint[];
   labelAnchor?: { x: number; y: number; z: number };
   labelText?: string;
+}
+
+interface LuminaireInstanceRow {
+  id: string;
+  name: string;
+  assetId: string;
+  x: number;
+  y: number;
+  z: number;
+  yawDeg: number;
+  maintenanceFactor: number;
+  fluxMultiplier: number;
 }
 
 function fmt(value: number | undefined, digits = 2): string {
@@ -199,6 +213,19 @@ const initialState: AppState = {
   gridOriginX: "0",
   gridOriginY: "0",
   gridOriginZ: "0",
+  workplanePreset: "custom",
+  standardProfiles: [],
+  standardProfilesLoading: false,
+  standardProfilesError: "",
+  selectedStandardActivityType: "",
+  selectedStandardProfileId: "en12464_default",
+  quickLayoutTargetLux: "500",
+  quickLayoutMaxRows: "6",
+  quickLayoutMaxCols: "6",
+  quickLayoutLoading: false,
+  quickLayoutError: "",
+  quickLayoutResult: null,
+  quickLayoutPreviewEnabled: false,
   gridRoomId: "",
   jobIdInput: "",
   jobTypeInput: "direct",
@@ -282,6 +309,7 @@ const initialState: AppState = {
   sceneCamTargetX: "0",
   sceneCamTargetY: "0",
   sceneCamTargetZ: "1.2",
+  placementMode: "none",
   layerRooms: true,
   layerSurfaces: true,
   layerOpenings: true,
@@ -434,6 +462,131 @@ export default function App() {
         .filter((x) => x),
     [projectModel],
   );
+  const selectedStandardProfile = useMemo<StandardProfileOption | null>(() => {
+    const key = state.selectedStandardActivityType.trim();
+    if (!key) {
+      return null;
+    }
+    return state.standardProfiles.find((p) => p.activity_type === key) ?? null;
+  }, [state.selectedStandardActivityType, state.standardProfiles]);
+  const standardProfilesByCategory = useMemo(() => {
+    const map = new Map<string, StandardProfileOption[]>();
+    for (const row of state.standardProfiles) {
+      const category = row.category || "Other";
+      if (!map.has(category)) {
+        map.set(category, []);
+      }
+      map.get(category)?.push(row);
+    }
+    for (const [category, rows] of map.entries()) {
+      rows.sort((a, b) => a.activity_type.localeCompare(b.activity_type));
+      map.set(category, rows);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [state.standardProfiles]);
+  const selectedLuminaireIdsSet = useMemo<Set<string>>(() => {
+    const raw = state.sceneSelectedLuminaireIdsCsv
+      .split(",")
+      .map((v) => v.trim())
+      .filter((v) => v);
+    if (raw.length > 0) {
+      return new Set(raw);
+    }
+    const fallback = state.aimLuminaireId.trim();
+    return fallback ? new Set([fallback]) : new Set<string>();
+  }, [state.aimLuminaireId, state.sceneSelectedLuminaireIdsCsv]);
+  const luminaireInstances = useMemo<LuminaireInstanceRow[]>(() => {
+    const raw = (projectModel?.luminaires as Array<Record<string, unknown>> | undefined) ?? [];
+    return raw
+      .map((lum) => {
+        const transform = (lum.transform as Record<string, unknown> | undefined) ?? {};
+        const position = (transform.position as unknown[]) ?? [];
+        const rotation = (transform.rotation as Record<string, unknown> | undefined) ?? {};
+        const eulerDeg = (rotation.euler_deg as unknown[]) ?? [];
+        const row: LuminaireInstanceRow = {
+          id: String(lum.id ?? ""),
+          name: String(lum.name ?? ""),
+          assetId: String(lum.photometry_asset_id ?? ""),
+          x: Number(position[0] ?? NaN),
+          y: Number(position[1] ?? NaN),
+          z: Number(position[2] ?? NaN),
+          yawDeg: Number(eulerDeg[0] ?? 0),
+          maintenanceFactor: Number(lum.maintenance_factor ?? 1),
+          fluxMultiplier: Number(lum.flux_multiplier ?? 1),
+        };
+        return row;
+      })
+      .filter((row) => row.id && row.assetId && Number.isFinite(row.x) && Number.isFinite(row.y) && Number.isFinite(row.z));
+  }, [projectModel]);
+  const scheduleSummaryRows = useMemo<
+    Array<{
+      tag: string;
+      quantity: number;
+      avgMf: number;
+      avgMultiplier: number;
+      avgMountZ: number;
+      luminaireIds: string[];
+    }>
+  >(() => {
+    const groups = new Map<string, LuminaireInstanceRow[]>();
+    for (const lum of luminaireInstances) {
+      const key = lum.assetId;
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key)?.push(lum);
+    }
+    return Array.from(groups.entries())
+      .map(([tag, lums]) => ({
+        tag,
+        quantity: lums.length,
+        avgMf: lums.reduce((s, l) => s + l.maintenanceFactor, 0) / Math.max(lums.length, 1),
+        avgMultiplier: lums.reduce((s, l) => s + l.fluxMultiplier, 0) / Math.max(lums.length, 1),
+        avgMountZ: lums.reduce((s, l) => s + l.z, 0) / Math.max(lums.length, 1),
+        luminaireIds: lums.map((l) => l.id),
+      }))
+      .sort((a, b) => a.tag.localeCompare(b.tag));
+  }, [luminaireInstances]);
+  const totalConnectedLoadWatts = useMemo<number | null>(() => {
+    const assets = (projectModel?.photometry_assets as Array<Record<string, unknown>> | undefined) ?? [];
+    const assetWatts = new Map<string, number>();
+    const maybeNumber = (v: unknown): number | null => {
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    for (const asset of assets) {
+      const assetId = String(asset.id ?? "").trim();
+      if (!assetId) {
+        continue;
+      }
+      const metadata = (asset.metadata as Record<string, unknown> | undefined) ?? {};
+      const candidates = [
+        metadata.wattage,
+        metadata.watts,
+        metadata.lamp_watts,
+        metadata.connected_watts,
+        metadata.power_w,
+      ];
+      for (const candidate of candidates) {
+        const n = maybeNumber(candidate);
+        if (n !== null) {
+          assetWatts.set(assetId, n);
+          break;
+        }
+      }
+    }
+    let total = 0;
+    let haveAny = false;
+    for (const lum of luminaireInstances) {
+      const watts = assetWatts.get(lum.assetId);
+      if (watts === undefined) {
+        continue;
+      }
+      haveAny = true;
+      total += watts * (Number.isFinite(lum.fluxMultiplier) ? lum.fluxMultiplier : 1);
+    }
+    return haveAny ? total : null;
+  }, [luminaireInstances, projectModel]);
   const selectedPhotometryAsset = useMemo<Record<string, unknown> | null>(() => {
     const assets = ((projectModel?.photometry_assets as Array<Record<string, unknown>> | undefined) ?? []) as Array<Record<string, unknown>>;
     const selectedId = state.selectedPhotometryAssetId.trim();
@@ -494,6 +647,20 @@ export default function App() {
       }))
       .filter((entry) => Number.isFinite(entry.x) && Number.isFinite(entry.y) && Number.isFinite(entry.z));
   }, [state.beamSpreadData]);
+  const quickLayoutPreviewLuminaires = useMemo(() => {
+    if (!state.quickLayoutResult || !state.quickLayoutPreviewEnabled) {
+      return [];
+    }
+    const rows = Array.isArray(state.quickLayoutResult.luminaires) ? state.quickLayoutResult.luminaires : [];
+    return rows
+      .map((row) => ({
+        id: String(row.id ?? ""),
+        x: Number(row.x ?? NaN),
+        y: Number(row.y ?? NaN),
+        z: Number(row.z ?? NaN),
+      }))
+      .filter((row) => row.id && Number.isFinite(row.x) && Number.isFinite(row.y) && Number.isFinite(row.z));
+  }, [state.quickLayoutPreviewEnabled, state.quickLayoutResult]);
   const sceneRooms = useMemo<ScenePolygon[]>(() => {
     const rooms = ((projectModel?.geometry as { rooms?: Array<Record<string, unknown>> } | undefined)?.rooms ?? []) as Array<
       Record<string, unknown>
@@ -809,6 +976,10 @@ export default function App() {
       xs.push(p.x);
       ys.push(p.y);
     }
+    for (const p of quickLayoutPreviewLuminaires) {
+      xs.push(p.x);
+      ys.push(p.y);
+    }
     for (const beam of beamSpreadRows) {
       const r = Math.max(beam.fieldRadiusC0, beam.fieldRadiusC90, beam.beamRadiusC0, beam.beamRadiusC90, 0);
       if (r > 0) {
@@ -836,7 +1007,7 @@ export default function App() {
       minY: minY - padY,
       maxY: maxY + padY,
     };
-  }, [beamSpreadRows, sceneGridPoints, sceneGridPreview, sceneGrids, sceneLuminaires, sceneOpenings, sceneRooms, sceneSurfaces]);
+  }, [beamSpreadRows, quickLayoutPreviewLuminaires, sceneGridPoints, sceneGridPreview, sceneGrids, sceneLuminaires, sceneOpenings, sceneRooms, sceneSurfaces]);
   const sceneBounds3d = useMemo(() => {
     const xs: number[] = [];
     const ys: number[] = [];
@@ -903,6 +1074,11 @@ export default function App() {
       ys.push(p.y);
       zs.push(p.z);
     }
+    for (const p of quickLayoutPreviewLuminaires) {
+      xs.push(p.x);
+      ys.push(p.y);
+      zs.push(p.z);
+    }
     for (const beam of beamSpreadRows) {
       const r = Math.max(beam.fieldRadiusC0, beam.fieldRadiusC90, beam.beamRadiusC0, beam.beamRadiusC90, 0);
       if (r > 0) {
@@ -925,7 +1101,7 @@ export default function App() {
       minZ: Math.min(...zs),
       maxZ: Math.max(...zs),
     };
-  }, [beamSpreadRows, sceneGridPoints, sceneGridPreview, sceneGrids, sceneLuminaires, sceneOpenings, sceneRooms, sceneSurfaces]);
+  }, [beamSpreadRows, quickLayoutPreviewLuminaires, sceneGridPoints, sceneGridPreview, sceneGrids, sceneLuminaires, sceneOpenings, sceneRooms, sceneSurfaces]);
   const selectedLuminaireRaw = useMemo(() => {
     const id = state.aimLuminaireId.trim();
     if (!id) {
@@ -1165,6 +1341,191 @@ export default function App() {
       patchState({ beamSpreadData: payload, error: "" });
     } catch (err) {
       patchState({ error: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  const loadStandardProfiles = async (): Promise<void> => {
+    if (!hasTauri) {
+      return;
+    }
+    patchState({ standardProfilesLoading: true, standardProfilesError: "" });
+    try {
+      const payload = await tauriInvoke<StandardProfileOption[]>("list_standard_profiles", {});
+      const rows = Array.isArray(payload) ? payload : [];
+      patchState({
+        standardProfilesLoading: false,
+        standardProfiles: rows,
+        selectedStandardActivityType: state.selectedStandardActivityType || (rows.length > 0 ? String(rows[0].activity_type ?? "") : ""),
+        standardProfilesError: "",
+      });
+    } catch (err) {
+      patchState({
+        standardProfilesLoading: false,
+        standardProfilesError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const applyStandardProfile = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ calcSetupError: "Standard profile apply requires Tauri runtime." });
+      return;
+    }
+    const projectPath = (state.projectPath || state.projectDoc?.path || "").trim();
+    if (!projectPath) {
+      patchState({ calcSetupError: "Open a project before applying a standard profile." });
+      return;
+    }
+    const selected = selectedStandardProfile;
+    if (!selected) {
+      patchState({ calcSetupError: "Select a standard profile first." });
+      return;
+    }
+    const profileId = state.selectedStandardProfileId.trim() || `en12464_${selected.activity_type.toLowerCase()}`;
+    const thresholds = {
+      maintained_illuminance_lux: selected.maintained_illuminance_lux,
+      uniformity_min: selected.uniformity_min,
+      ugr_max: selected.ugr_max,
+      cri_min: selected.cri_min,
+    };
+    patchState({ calcSetupLoading: true, calcSetupError: "", calcSetupLogStdout: "", calcSetupLogStderr: "" });
+    try {
+      const res = await tauriInvoke<ToolOperationResult>("set_compliance_profile_in_project", {
+        projectPath,
+        profileId,
+        activityType: selected.activity_type,
+        thresholdsJson: JSON.stringify(thresholds),
+      });
+      if (res.project) {
+        patchState({
+          projectDoc: res.project,
+          projectDocContent: res.project.content,
+          projectDocDirty: false,
+          projectPath: res.project.path,
+          projectName: res.project.name,
+        });
+        await loadProjectJobs(res.project.path);
+      }
+      patchState({
+        calcSetupLoading: false,
+        calcSetupLogStdout: res.message || "Compliance profile applied.",
+        calcSetupLogStderr: res.success ? "" : JSON.stringify(res.data ?? {}, null, 2),
+        calcSetupError: res.success ? "" : res.message || "Failed to apply compliance profile.",
+      });
+    } catch (err) {
+      patchState({
+        calcSetupLoading: false,
+        calcSetupError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const applyWorkplanePreset = (value: "floor" | "desk" | "standing" | "custom"): void => {
+    if (value === "floor") {
+      patchState({ workplanePreset: value, gridElevation: "0.0" });
+      return;
+    }
+    if (value === "desk") {
+      patchState({ workplanePreset: value, gridElevation: "0.75" });
+      return;
+    }
+    if (value === "standing") {
+      patchState({ workplanePreset: value, gridElevation: "1.2" });
+      return;
+    }
+    patchState({ workplanePreset: "custom" });
+  };
+
+  const startGridPlacement = (): void => {
+    if (state.sceneViewMode !== "plan") {
+      patchState({ calcSetupError: "Switch to plan view for click-to-place." });
+      return;
+    }
+    placementRef.current.phase = "idle";
+    placementRef.current.pointerId = null;
+    patchState({ placementMode: "grid", calcSetupError: "" });
+  };
+
+  const proposeQuickLayout = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ quickLayoutError: "Quick layout requires Tauri runtime." });
+      return;
+    }
+    const projectPath = (state.projectPath || state.projectDoc?.path || "").trim();
+    if (!projectPath) {
+      patchState({ quickLayoutError: "Open a project before running quick layout." });
+      return;
+    }
+    const targetLux = Number(state.quickLayoutTargetLux);
+    const maxRows = Number(state.quickLayoutMaxRows);
+    const maxCols = Number(state.quickLayoutMaxCols);
+    if (!Number.isFinite(targetLux) || targetLux <= 0 || !Number.isFinite(maxRows) || maxRows < 1 || !Number.isFinite(maxCols) || maxCols < 1) {
+      patchState({ quickLayoutError: "Quick layout inputs are invalid." });
+      return;
+    }
+    patchState({ quickLayoutLoading: true, quickLayoutError: "", quickLayoutResult: null });
+    try {
+      const payload = await tauriInvoke<QuickLayoutResult>("propose_quick_layout", {
+        projectPath,
+        targetLux,
+        maxRows: Math.round(maxRows),
+        maxCols: Math.round(maxCols),
+      });
+      patchState({
+        quickLayoutLoading: false,
+        quickLayoutResult: payload,
+        quickLayoutError: "",
+        quickLayoutPreviewEnabled: true,
+      });
+    } catch (err) {
+      patchState({
+        quickLayoutLoading: false,
+        quickLayoutError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const applyQuickLayout = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ quickLayoutError: "Quick layout apply requires Tauri runtime." });
+      return;
+    }
+    const projectPath = (state.projectPath || state.projectDoc?.path || "").trim();
+    if (!projectPath) {
+      patchState({ quickLayoutError: "Open a project before applying quick layout." });
+      return;
+    }
+    const result = state.quickLayoutResult;
+    if (!result || !Array.isArray(result.luminaires) || result.luminaires.length === 0) {
+      patchState({ quickLayoutError: "Run Calculate Layout first." });
+      return;
+    }
+    patchState({ quickLayoutLoading: true, quickLayoutError: "" });
+    try {
+      const res = await tauriInvoke<ToolOperationResult>("apply_quick_layout", {
+        projectPath,
+        luminairesJson: JSON.stringify(result.luminaires),
+      });
+      if (res.project) {
+        patchState({
+          projectDoc: res.project,
+          projectDocContent: res.project.content,
+          projectDocDirty: false,
+          projectPath: res.project.path,
+          projectName: res.project.name,
+        });
+        await loadProjectJobs(res.project.path);
+      }
+      patchState({
+        quickLayoutLoading: false,
+        quickLayoutPreviewEnabled: false,
+        quickLayoutError: res.success ? "" : (res.message || "Quick layout apply failed."),
+      });
+    } catch (err) {
+      patchState({
+        quickLayoutLoading: false,
+        quickLayoutError: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
@@ -2520,6 +2881,7 @@ export default function App() {
   useEffect(() => {
     void refreshRecentRuns();
     void loadContract();
+    void loadStandardProfiles();
     const loadRecentProjects = async (): Promise<void> => {
       if (hasTauri) {
         try {
@@ -2557,6 +2919,38 @@ export default function App() {
     void loadRecentProjects();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (state.workplanePreset === "custom") {
+      return;
+    }
+    const v = Number(state.gridElevation);
+    if (!Number.isFinite(v)) {
+      patchState({ workplanePreset: "custom" });
+      return;
+    }
+    if (state.workplanePreset === "floor" && Math.abs(v - 0.0) > 1e-9) {
+      patchState({ workplanePreset: "custom" });
+      return;
+    }
+    if (state.workplanePreset === "desk" && Math.abs(v - 0.75) > 1e-9) {
+      patchState({ workplanePreset: "custom" });
+      return;
+    }
+    if (state.workplanePreset === "standing" && Math.abs(v - 1.2) > 1e-9) {
+      patchState({ workplanePreset: "custom" });
+    }
+  }, [state.gridElevation, state.workplanePreset]);
+
+  useEffect(() => {
+    if (!selectedStandardProfile) {
+      return;
+    }
+    const cur = Number(state.quickLayoutTargetLux);
+    if (!Number.isFinite(cur) || Math.abs(cur - 500) < 1e-9) {
+      patchState({ quickLayoutTargetLux: String(selectedStandardProfile.maintained_illuminance_lux) });
+    }
+  }, [selectedStandardProfile, state.quickLayoutTargetLux]);
 
   useEffect(() => {
     const patch: Partial<AppState> = {};
@@ -2684,6 +3078,20 @@ export default function App() {
     accumDy: 0,
     accumYaw: 0,
   });
+  const placementRef = useRef<{
+    phase: "idle" | "dragging";
+    mode: "none" | "grid" | "luminaire" | "room";
+    pointerId: number | null;
+    originX: number;
+    originY: number;
+  }>({
+    phase: "idle",
+    mode: "none",
+    pointerId: null,
+    originX: 0,
+    originY: 0,
+  });
+  const luminaireInstanceRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   const prevSceneModeRef = useRef<"plan" | "3d">(state.sceneViewMode);
   useEffect(() => {
     sceneZoomRef.current = state.sceneZoom;
@@ -2713,6 +3121,45 @@ export default function App() {
     prevSceneModeRef.current = state.sceneViewMode;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.sceneViewMode, sceneBounds3d]);
+  useEffect(() => {
+    placementRef.current.mode = state.placementMode;
+    if (state.placementMode === "none") {
+      placementRef.current.phase = "idle";
+      placementRef.current.pointerId = null;
+    }
+  }, [state.placementMode]);
+  useEffect(() => {
+    if (state.sceneViewMode === "3d" && state.placementMode !== "none") {
+      placementRef.current.phase = "idle";
+      placementRef.current.pointerId = null;
+      patchState({ placementMode: "none" });
+    }
+  }, [state.placementMode, state.sceneViewMode]);
+  useEffect(() => {
+    const onKeyDown = (evt: KeyboardEvent): void => {
+      if (evt.key !== "Escape" || state.placementMode === "none") {
+        return;
+      }
+      placementRef.current.phase = "idle";
+      placementRef.current.pointerId = null;
+      patchState({ placementMode: "none" });
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [state.placementMode]);
+  useEffect(() => {
+    const firstId = state.sceneSelectedLuminaireIdsCsv
+      .split(",")
+      .map((v) => v.trim())
+      .find((v) => v);
+    if (!firstId) {
+      return;
+    }
+    const rowEl = luminaireInstanceRowRefs.current[firstId];
+    if (rowEl) {
+      rowEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [state.sceneSelectedLuminaireIdsCsv]);
   const clampZoom = (v: number): number => Math.max(0.35, Math.min(10, v));
   const clampPitch = (v: number): number => Math.max(-85, Math.min(85, v));
   const clampDistance = (v: number): number => Math.max(0.5, Math.min(500, v));
@@ -2825,6 +3272,20 @@ export default function App() {
       y: ((evt.clientY - rect.top) / Math.max(rect.height, 1e-6)) * 70,
     };
   };
+  const svgToWorldPlan = (svgX: number, svgY: number): { x: number; y: number } | null => {
+    if (!sceneBounds) {
+      return null;
+    }
+    const spanX = Math.max(sceneBounds.maxX - sceneBounds.minX, 1e-9);
+    const spanY = Math.max(sceneBounds.maxY - sceneBounds.minY, 1e-9);
+    const zoom = Math.max(sceneZoomRef.current, 1e-9);
+    const baseX = (svgX - 50 - scenePanXRef.current) / zoom + 50;
+    const baseY = (svgY - 35 - scenePanYRef.current) / zoom + 35;
+    return {
+      x: sceneBounds.minX + ((baseX - 6) / 88) * spanX,
+      y: sceneBounds.minY + ((64 - baseY) / 58) * spanY,
+    };
+  };
   const onSceneWheel = (evt: ReactWheelEvent<SVGSVGElement>): void => {
     evt.preventDefault();
     if (state.sceneViewMode === "3d") {
@@ -2846,6 +3307,34 @@ export default function App() {
     patchState({ sceneZoom: z1, scenePanX: p1x, scenePanY: p1y });
   };
   const onScenePointerDown = (evt: ReactPointerEvent<SVGSVGElement>): void => {
+    if (state.placementMode === "grid") {
+      if (state.sceneViewMode !== "plan") {
+        patchState({ calcSetupError: "Switch to plan view for click-to-place." });
+        return;
+      }
+      if (placementRef.current.phase !== "dragging") {
+        const p = projectSvgCoord(evt);
+        const world = svgToWorldPlan(p.x, p.y);
+        if (!world) {
+          patchState({ calcSetupError: "Unable to place grid: viewport bounds unavailable." });
+          return;
+        }
+        placementRef.current.phase = "dragging";
+        placementRef.current.mode = "grid";
+        placementRef.current.pointerId = evt.pointerId;
+        placementRef.current.originX = world.x;
+        placementRef.current.originY = world.y;
+        patchState({
+          calcSetupError: "",
+          gridOriginX: world.x.toFixed(4),
+          gridOriginY: world.y.toFixed(4),
+          gridWidth: "0",
+          gridHeight: "0",
+        });
+        evt.currentTarget.setPointerCapture(evt.pointerId);
+        return;
+      }
+    }
     if (evt.shiftKey) {
       const p = projectSvgCoord(evt);
       sceneSelectRef.current = { selecting: true, x0: p.x, y0: p.y, pointerId: evt.pointerId };
@@ -2862,6 +3351,26 @@ export default function App() {
     evt.currentTarget.setPointerCapture(evt.pointerId);
   };
   const onScenePointerMove = (evt: ReactPointerEvent<SVGSVGElement>): void => {
+    if (placementRef.current.phase === "dragging" && placementRef.current.mode === "grid" && placementRef.current.pointerId === evt.pointerId) {
+      const p = projectSvgCoord(evt);
+      const world = svgToWorldPlan(p.x, p.y);
+      if (!world) {
+        return;
+      }
+      const x0 = placementRef.current.originX;
+      const y0 = placementRef.current.originY;
+      const minX = Math.min(x0, world.x);
+      const minY = Math.min(y0, world.y);
+      const width = Math.abs(world.x - x0);
+      const height = Math.abs(world.y - y0);
+      patchState({
+        gridOriginX: minX.toFixed(4),
+        gridOriginY: minY.toFixed(4),
+        gridWidth: width.toFixed(4),
+        gridHeight: height.toFixed(4),
+      });
+      return;
+    }
     const g = gizmoDragRef.current;
     if (g.active && g.pointerId === evt.pointerId) {
       const dxPx = evt.clientX - g.lastClientX;
@@ -2943,6 +3452,33 @@ export default function App() {
     patchState({ scenePanX: scenePanXRef.current + dxSvg, scenePanY: scenePanYRef.current + dySvg });
   };
   const onScenePointerUp = (evt: ReactPointerEvent<SVGSVGElement>): void => {
+    if (placementRef.current.phase === "dragging" && placementRef.current.mode === "grid" && placementRef.current.pointerId === evt.pointerId) {
+      const p = projectSvgCoord(evt);
+      const world = svgToWorldPlan(p.x, p.y);
+      if (world) {
+        const x0 = placementRef.current.originX;
+        const y0 = placementRef.current.originY;
+        const minX = Math.min(x0, world.x);
+        const minY = Math.min(y0, world.y);
+        const width = Math.abs(world.x - x0);
+        const height = Math.abs(world.y - y0);
+        patchState({
+          placementMode: "none",
+          gridOriginX: minX.toFixed(4),
+          gridOriginY: minY.toFixed(4),
+          gridWidth: width.toFixed(4),
+          gridHeight: height.toFixed(4),
+        });
+      } else {
+        patchState({ placementMode: "none" });
+      }
+      placementRef.current.phase = "idle";
+      placementRef.current.pointerId = null;
+      if (evt.currentTarget.hasPointerCapture(evt.pointerId)) {
+        evt.currentTarget.releasePointerCapture(evt.pointerId);
+      }
+      return;
+    }
     const g = gizmoDragRef.current;
     if (g.active && g.pointerId === evt.pointerId) {
       const moveSnap = Number(state.gizmoMoveSnapM);
@@ -3064,6 +3600,44 @@ export default function App() {
     const p = sceneProjectWithDepth(x, y, z);
     return p ? { x: p.x, y: p.y } : null;
   };
+  const centerViewportOnLuminaire = (lum: LuminaireInstanceRow): void => {
+    if (state.sceneViewMode === "plan") {
+      if (!sceneBounds) {
+        return;
+      }
+      const spanX = Math.max(sceneBounds.maxX - sceneBounds.minX, 1e-9);
+      const spanY = Math.max(sceneBounds.maxY - sceneBounds.minY, 1e-9);
+      const baseX = 6 + ((lum.x - sceneBounds.minX) / spanX) * 88;
+      const baseY = 64 - ((lum.y - sceneBounds.minY) / spanY) * 58;
+      patchState({
+        scenePanX: -(baseX - 50) * state.sceneZoom,
+        scenePanY: -(baseY - 35) * state.sceneZoom,
+      });
+      return;
+    }
+    patchState({
+      sceneCamTargetX: lum.x.toFixed(4),
+      sceneCamTargetY: lum.y.toFixed(4),
+      sceneCamTargetZ: lum.z.toFixed(4),
+    });
+  };
+  const selectLuminaireGroup = (ids: string[]): void => {
+    const cleanIds = ids.map((id) => id.trim()).filter((id) => id);
+    if (cleanIds.length === 0) {
+      return;
+    }
+    patchState({
+      sceneSelectedLuminaireIdsCsv: cleanIds.join(","),
+      aimLuminaireId: cleanIds[0],
+    });
+  };
+  const selectLuminaireInstance = (lum: LuminaireInstanceRow): void => {
+    patchState({
+      sceneSelectedLuminaireIdsCsv: lum.id,
+      aimLuminaireId: lum.id,
+    });
+    centerViewportOnLuminaire(lum);
+  };
   const scenePolygonDepth = (poly: ScenePolygon): number => {
     if (state.sceneViewMode !== "3d") {
       return 0;
@@ -3106,7 +3680,15 @@ export default function App() {
                   <svg
                     viewBox="0 0 100 70"
                     className="h-44 w-full rounded bg-panel"
-                    style={{ touchAction: "none", cursor: sceneDragRef.current.dragging ? "grabbing" : "grab" }}
+                    style={{
+                      touchAction: "none",
+                      cursor:
+                        state.placementMode === "grid" && state.sceneViewMode === "plan"
+                          ? "crosshair"
+                          : sceneDragRef.current.dragging
+                            ? "grabbing"
+                            : "grab",
+                    }}
                     onWheel={onSceneWheel}
                     onPointerDown={onScenePointerDown}
                     onPointerMove={onScenePointerMove}
@@ -3135,7 +3717,7 @@ export default function App() {
                           );
                         })
                       : null}
-                    {state.layerGrids && sceneGridPreview.outline && (state.sceneViewMode === "3d" ? sceneBounds3d : sceneBounds)
+                    {(state.layerGrids || state.placementMode === "grid") && sceneGridPreview.outline && (state.sceneViewMode === "3d" ? sceneBounds3d : sceneBounds)
                       ? (() => {
                           const mapped = sceneGridPreview.outline.points
                             .map((p) => sceneProject(p.x, p.y, p.z))
@@ -3232,7 +3814,7 @@ export default function App() {
                           );
                         })
                       : null}
-                    {state.layerGridPoints && (state.sceneViewMode === "3d" ? sceneBounds3d : sceneBounds)
+                    {(state.layerGridPoints || state.placementMode === "grid") && (state.sceneViewMode === "3d" ? sceneBounds3d : sceneBounds)
                       ? (
                           <>
                             {sceneGridPoints.map((set, si) => (
@@ -3435,13 +4017,27 @@ export default function App() {
                           );
                         })
                       : null}
+                    {(state.sceneViewMode === "3d" ? sceneBounds3d : sceneBounds) && quickLayoutPreviewLuminaires.length > 0
+                      ? quickLayoutPreviewLuminaires.map((lum) => {
+                          const mapped = sceneProject(lum.x, lum.y, lum.z);
+                          if (!mapped) {
+                            return null;
+                          }
+                          return (
+                            <g key={`quick-preview-${lum.id}`}>
+                              <circle cx={mapped.x} cy={mapped.y} r={1.7} fill="none" stroke="#f97316" strokeWidth={0.2} strokeDasharray="3 2" opacity={0.95} />
+                              <circle cx={mapped.x} cy={mapped.y} r={0.8} fill="#f97316" opacity={0.35} />
+                            </g>
+                          );
+                        })
+                      : null}
                     {state.layerLuminaires && (state.sceneViewMode === "3d" ? sceneBounds3d : sceneBounds)
                       ? sceneLuminaires.map((lum) => {
                           const mapped = sceneProject(lum.x, lum.y, lum.z);
                           if (!mapped) {
                             return null;
                           }
-                          const selected = state.aimLuminaireId === lum.id;
+                          const selected = selectedLuminaireIdsSet.has(lum.id) || state.aimLuminaireId === lum.id;
                           return (
                             <g key={`lum-${lum.id}`} onClick={() => patchState({ aimLuminaireId: lum.id, sceneSelectedLuminaireIdsCsv: lum.id })}>
                               <circle cx={mapped.x} cy={mapped.y} r={selected ? 1.5 : 1.1} fill={selected ? "#f59e0b" : "#fbbf24"} />
@@ -3857,6 +4453,11 @@ export default function App() {
                     Scene: rooms {sceneRooms.length} / surfaces {sceneSurfaces.length} / openings {sceneOpenings.length} / luminaires{" "}
                     {sceneLuminaires.length} / beam spreads {beamSpreadRows.length}
                   </div>
+                  {state.placementMode === "grid" ? (
+                    <div className="rounded border border-blue-400/40 bg-blue-900/20 px-2 py-1 text-[11px] text-blue-100">
+                      Click to set grid origin, then drag to set extent.
+                    </div>
+                  ) : null}
                   <div className="grid grid-cols-2 gap-1">
                     <input
                       value={state.gizmoMoveStepM}
@@ -4720,6 +5321,53 @@ export default function App() {
                   className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
                 />
               </div>
+              <div className="mb-2 rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
+                <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Quick Layout</div>
+                <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr]">
+                  <input
+                    value={state.quickLayoutTargetLux}
+                    onChange={(e) => patchState({ quickLayoutTargetLux: e.target.value })}
+                    placeholder="Target lux"
+                    className="w-full rounded border border-border bg-panel px-2 py-1 text-xs text-text outline-none"
+                  />
+                  <input
+                    value={state.quickLayoutMaxRows}
+                    onChange={(e) => patchState({ quickLayoutMaxRows: e.target.value })}
+                    placeholder="Max rows"
+                    className="w-full rounded border border-border bg-panel px-2 py-1 text-xs text-text outline-none"
+                  />
+                  <input
+                    value={state.quickLayoutMaxCols}
+                    onChange={(e) => patchState({ quickLayoutMaxCols: e.target.value })}
+                    placeholder="Max cols"
+                    className="w-full rounded border border-border bg-panel px-2 py-1 text-xs text-text outline-none"
+                  />
+                  <ToolbarButton onClick={() => void proposeQuickLayout()} disabled={state.quickLayoutLoading}>
+                    {state.quickLayoutLoading ? "Working..." : "Calculate Layout"}
+                  </ToolbarButton>
+                  <ToolbarButton
+                    onClick={() => void applyQuickLayout()}
+                    disabled={state.quickLayoutLoading || !state.quickLayoutResult || !Array.isArray(state.quickLayoutResult.luminaires) || state.quickLayoutResult.luminaires.length === 0}
+                  >
+                    {state.quickLayoutLoading ? "Working..." : "Apply Layout"}
+                  </ToolbarButton>
+                </div>
+                <div className="mb-2 rounded border border-border/60 bg-panel px-2 py-1 text-xs text-text">
+                  {state.quickLayoutResult
+                    ? `${state.quickLayoutResult.best.rows}×${state.quickLayoutResult.best.cols} = ${state.quickLayoutResult.best.fixture_count} luminaires | Est. ${state.quickLayoutResult.best.mean_lux.toFixed(1)} lux | U₀ = ${state.quickLayoutResult.best.uniformity.toFixed(3)}`
+                    : "Run Calculate Layout to evaluate an optimized rectangular array."}
+                </div>
+                <label className="flex items-center gap-2 rounded border border-border/60 bg-panel px-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={state.quickLayoutPreviewEnabled}
+                    onChange={(e) => patchState({ quickLayoutPreviewEnabled: e.target.checked })}
+                    disabled={!state.quickLayoutResult}
+                  />
+                  Preview in Viewport
+                </label>
+                {state.quickLayoutError ? <div className="mt-1 text-rose-300">{state.quickLayoutError}</div> : null}
+              </div>
               {state.luminaireError ? <div className="mb-2 text-xs text-rose-300">{state.luminaireError}</div> : null}
               {(state.luminaireLogStdout || state.luminaireLogStderr) ? (
                 <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
@@ -4735,8 +5383,118 @@ export default function App() {
               ) : null}
             </section>
             <section className="rounded-md border border-border bg-panel p-3">
+              <details open>
+                <summary className="cursor-pointer select-none text-xs uppercase tracking-[0.12em] text-muted">Luminaire Schedule</summary>
+                <div className="mt-2 space-y-2">
+                  <div className="rounded border border-border/60 bg-panelSoft/50 p-2">
+                    <div className="mb-1 text-[11px] text-text">Summary by Asset</div>
+                    <div className="max-h-36 overflow-auto rounded border border-border/60">
+                      <table className="w-full min-w-[640px] text-[11px] text-muted">
+                        <thead className="bg-panel">
+                          <tr>
+                            <th className="px-2 py-1 text-left text-text">Tag</th>
+                            <th className="px-2 py-1 text-right text-text">Quantity</th>
+                            <th className="px-2 py-1 text-right text-text">Maintenance Factor</th>
+                            <th className="px-2 py-1 text-right text-text">Flux Multiplier</th>
+                            <th className="px-2 py-1 text-right text-text">Mounting Height (avg)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {scheduleSummaryRows.map((row) => {
+                            const selectedAll = row.luminaireIds.length > 0 && row.luminaireIds.every((id) => selectedLuminaireIdsSet.has(id));
+                            return (
+                              <tr
+                                key={`schedule-summary-${row.tag}`}
+                                className={`cursor-pointer border-t border-border/60 hover:bg-blue-900/20 ${selectedAll ? "bg-blue-900/30 ring-1 ring-blue-400/40" : ""}`}
+                                onClick={() => selectLuminaireGroup(row.luminaireIds)}
+                              >
+                                <td className="px-2 py-1 text-text">{row.tag}</td>
+                                <td className="px-2 py-1 text-right">{row.quantity}</td>
+                                <td className="px-2 py-1 text-right">{row.avgMf.toFixed(2)}</td>
+                                <td className="px-2 py-1 text-right">{row.avgMultiplier.toFixed(2)}</td>
+                                <td className="px-2 py-1 text-right">{row.avgMountZ.toFixed(2)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t border-border bg-panel">
+                            <td className="px-2 py-1 text-text">Total</td>
+                            <td className="px-2 py-1 text-right text-text">{luminaireInstances.length}</td>
+                            <td className="px-2 py-1 text-right text-text" colSpan={2}>
+                              Connected Load
+                            </td>
+                            <td className="px-2 py-1 text-right text-text">
+                              {totalConnectedLoadWatts === null ? "—" : `${totalConnectedLoadWatts.toFixed(1)} W`}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                  <div className="rounded border border-border/60 bg-panelSoft/50 p-2">
+                    <div className="mb-1 text-[11px] text-text">Instances</div>
+                    <div className="max-h-44 overflow-auto rounded border border-border/60">
+                      <table className="w-full min-w-[760px] text-[11px] text-muted">
+                        <thead className="bg-panel">
+                          <tr>
+                            <th className="px-2 py-1 text-left text-text">ID</th>
+                            <th className="px-2 py-1 text-left text-text">Name</th>
+                            <th className="px-2 py-1 text-left text-text">Asset</th>
+                            <th className="px-2 py-1 text-right text-text">X</th>
+                            <th className="px-2 py-1 text-right text-text">Y</th>
+                            <th className="px-2 py-1 text-right text-text">Z</th>
+                            <th className="px-2 py-1 text-right text-text">Yaw</th>
+                            <th className="px-2 py-1 text-right text-text">MF</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {luminaireInstances.map((lum) => {
+                            const selected = selectedLuminaireIdsSet.has(lum.id);
+                            return (
+                              <tr
+                                key={`schedule-instance-${lum.id}`}
+                                ref={(node) => {
+                                  luminaireInstanceRowRefs.current[lum.id] = node;
+                                }}
+                                className={`cursor-pointer border-t border-border/60 hover:bg-blue-900/20 ${selected ? "bg-blue-900/30 ring-1 ring-blue-400/40" : ""}`}
+                                onClick={() => selectLuminaireInstance(lum)}
+                              >
+                                <td className="px-2 py-1 text-text">{lum.id}</td>
+                                <td className="px-2 py-1">{lum.name || "—"}</td>
+                                <td className="px-2 py-1">{lum.assetId}</td>
+                                <td className="px-2 py-1 text-right">{lum.x.toFixed(3)}</td>
+                                <td className="px-2 py-1 text-right">{lum.y.toFixed(3)}</td>
+                                <td className="px-2 py-1 text-right">{lum.z.toFixed(3)}</td>
+                                <td className="px-2 py-1 text-right">{lum.yawDeg.toFixed(2)}</td>
+                                <td className="px-2 py-1 text-right">{lum.maintenanceFactor.toFixed(2)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t border-border bg-panel">
+                            <td className="px-2 py-1 text-text">Total</td>
+                            <td className="px-2 py-1 text-right text-text" colSpan={2}>
+                              {luminaireInstances.length} instances
+                            </td>
+                            <td className="px-2 py-1 text-right text-text" colSpan={4}>
+                              Connected Load
+                            </td>
+                            <td className="px-2 py-1 text-right text-text">
+                              {totalConnectedLoadWatts === null ? "—" : `${totalConnectedLoadWatts.toFixed(1)} W`}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </section>
+            <section className="rounded-md border border-border bg-panel p-3">
               <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Calculation Setup</div>
-              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]">
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]">
                 <input
                   value={state.gridName}
                   onChange={(e) => patchState({ gridName: e.target.value })}
@@ -4752,9 +5510,75 @@ export default function App() {
                 <input value={state.gridOriginY} onChange={(e) => patchState({ gridOriginY: e.target.value })} placeholder="Origin Y" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
                 <input value={state.gridOriginZ} onChange={(e) => patchState({ gridOriginZ: e.target.value })} placeholder="Origin Z" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
                 <input value={state.gridRoomId} onChange={(e) => patchState({ gridRoomId: e.target.value })} placeholder="Room id (opt)" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
+                <div title={state.sceneViewMode === "3d" ? "Switch to plan view for click-to-place." : "Click in viewport to place grid by drag"}>
+                  <ToolbarButton onClick={startGridPlacement} disabled={state.sceneViewMode === "3d"}>
+                    Place Grid by Click
+                  </ToolbarButton>
+                </div>
                 <ToolbarButton onClick={() => void addGrid()} disabled={state.calcSetupLoading}>
                   {state.calcSetupLoading ? "Working..." : "Add Grid"}
                 </ToolbarButton>
+              </div>
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_2fr]">
+                <select
+                  value={state.workplanePreset}
+                  onChange={(e) => applyWorkplanePreset(e.target.value as "floor" | "desk" | "standing" | "custom")}
+                  className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
+                >
+                  <option value="floor">Floor (0.0m)</option>
+                  <option value="desk">Desk Height (0.75m)</option>
+                  <option value="standing">Standing (1.2m)</option>
+                  <option value="custom">Custom...</option>
+                </select>
+                <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
+                  Workplane Height Preset
+                </div>
+                <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
+                  Elevation: {state.gridElevation} m
+                </div>
+              </div>
+              <div className="mb-2 rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
+                <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Standard Profile</div>
+                <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr]">
+                  <select
+                    value={state.selectedStandardActivityType}
+                    onChange={(e) => patchState({ selectedStandardActivityType: e.target.value })}
+                    className="w-full rounded border border-border bg-panel px-2 py-1 text-xs text-text outline-none"
+                    disabled={state.standardProfilesLoading}
+                  >
+                    <option value="">{state.standardProfilesLoading ? "Loading standards..." : "Select activity type..."}</option>
+                    {standardProfilesByCategory.map(([category, rows]) => (
+                      <optgroup key={`std-cat-${category}`} label={category}>
+                        {rows.map((row) => (
+                          <option key={`std-${row.activity_type}`} value={row.activity_type}>
+                            {row.activity_type} - {row.description}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <input
+                    value={state.selectedStandardProfileId}
+                    onChange={(e) => patchState({ selectedStandardProfileId: e.target.value })}
+                    placeholder="Profile id"
+                    className="w-full rounded border border-border bg-panel px-2 py-1 text-xs text-text outline-none"
+                  />
+                  <ToolbarButton onClick={() => void applyStandardProfile()} disabled={state.calcSetupLoading || !selectedStandardProfile}>
+                    {state.calcSetupLoading ? "Working..." : "Apply to Project"}
+                  </ToolbarButton>
+                </div>
+                <div className="mb-1 rounded border border-border/60 bg-panel px-2 py-1 text-xs text-text">
+                  {selectedStandardProfile
+                    ? `Em ≥ ${selectedStandardProfile.maintained_illuminance_lux} lux | Uo ≥ ${selectedStandardProfile.uniformity_min} | UGR ≤ ${selectedStandardProfile.ugr_max} | CRI ≥ ${selectedStandardProfile.cri_min}`
+                    : "Select a profile to view requirements."}
+                </div>
+                <div className="flex items-center gap-2">
+                  <ToolbarButton onClick={() => void loadStandardProfiles()} disabled={state.standardProfilesLoading}>
+                    {state.standardProfilesLoading ? "Refreshing..." : "Refresh Profiles"}
+                  </ToolbarButton>
+                  <span>Profiles: {state.standardProfiles.length}</span>
+                </div>
+                {state.standardProfilesError ? <div className="mt-1 text-rose-300">{state.standardProfilesError}</div> : null}
               </div>
               <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr]">
                 <input value={state.jobIdInput} onChange={(e) => patchState({ jobIdInput: e.target.value })} placeholder="Job id (opt)" className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none" />
