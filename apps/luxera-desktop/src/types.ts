@@ -267,6 +267,21 @@ export interface AgentRunEntry {
   errors: number;
 }
 
+export interface AgentConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: number;
+  actions?: Array<{ kind: string; payload: Record<string, unknown> | null }>;
+  warnings?: string[];
+  errors?: string[];
+}
+
+export interface AgentDiffPreview {
+  adds: Array<{ id: string; x: number; y: number; z: number }>;
+  removes: string[];
+  moves: Array<{ id: string; oldX: number; oldY: number; newX: number; newY: number }>;
+}
+
 export interface AppState {
   resultDir: string;
   loading: boolean;
@@ -383,6 +398,9 @@ export interface AppState {
   agentApprovalRunJob: boolean;
   agentSelectedOptionIndex: string;
   agentRunHistory: AgentRunEntry[];
+  agentConversation: AgentConversationMessage[];
+  agentDiffPreview: AgentDiffPreview | null;
+  agentDiffApproved: boolean;
   materialIdInput: string;
   materialSurfaceIdsCsv: string;
   editRoomId: string;

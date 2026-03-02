@@ -2672,6 +2672,97 @@ print(json.dumps(res.to_dict()))
 }
 
 #[tauri::command]
+fn execute_agent_turn(
+    project_path: String,
+    intent: String,
+    conversation_json: Option<String>,
+    approvals_json: Option<String>,
+) -> Result<Value, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if intent.trim().is_empty() {
+        return Err("Intent is empty".to_string());
+    }
+    let script = r#"
+import json, sys
+from luxera.agent.runtime import AgentRuntime
+
+project_path = sys.argv[1]
+intent = sys.argv[2]
+conversation_raw = sys.argv[3] if len(sys.argv) > 3 else "[]"
+approvals_raw = sys.argv[4] if len(sys.argv) > 4 else "{}"
+
+conversation = []
+try:
+    parsed = json.loads(conversation_raw) if conversation_raw.strip() else []
+    if isinstance(parsed, list):
+        conversation = parsed
+except Exception:
+    conversation = []
+
+approvals = {}
+if approvals_raw.strip():
+    try:
+        parsed_approvals = json.loads(approvals_raw)
+        if isinstance(parsed_approvals, dict):
+            approvals = parsed_approvals
+    except Exception:
+        approvals = {}
+
+context_parts = []
+for turn in conversation:
+    if not isinstance(turn, dict):
+        continue
+    role = str(turn.get("role", "")).strip().lower()
+    content = str(turn.get("content", "")).strip()
+    if role == "user":
+        if content:
+            context_parts.append(f"User said: {content}")
+    else:
+        summary = str(turn.get("summary", "")).strip()
+        if summary:
+            context_parts.append(f"Assistant did: {summary}")
+        elif content:
+            context_parts.append(f"Assistant did: {content}")
+
+context_str = "\n".join(context_parts[-6:])
+if context_str:
+    augmented_intent = f"Context:\n{context_str}\n\nCurrent request: {intent}"
+else:
+    augmented_intent = intent
+
+rt = AgentRuntime()
+res = rt.execute(project_path=project_path, intent=augmented_intent, approvals=approvals)
+res_dict = res.to_dict()
+actions = res_dict.get("actions", []) if isinstance(res_dict, dict) else []
+warnings = res_dict.get("warnings", []) if isinstance(res_dict, dict) else []
+produced = res_dict.get("produced_artifacts", []) if isinstance(res_dict, dict) else []
+summary = (
+    f"Executed {len(actions) if isinstance(actions, list) else 0} action(s)"
+    f"; warnings={len(warnings) if isinstance(warnings, list) else 0}"
+    f"; artifacts={len([x for x in produced if x]) if isinstance(produced, list) else 0}."
+)
+print(json.dumps({
+    "response": res_dict,
+    "summary": summary,
+    "augmented_intent": augmented_intent,
+}))
+"#;
+    let args = vec![
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        intent,
+        conversation_json.unwrap_or_else(|| "[]".to_string()),
+        approvals_json.unwrap_or_else(|| "{}".to_string()),
+    ];
+    run_python_json(&args)
+}
+
+#[tauri::command]
 fn assign_material_in_project(
     project_path: String,
     material_id: String,
@@ -4061,6 +4152,7 @@ pub fn run() {
             export_backend_compare,
             export_roadway_report,
             execute_agent_intent,
+            execute_agent_turn,
             assign_material_in_project,
             add_project_variant,
             compare_project_variants,
