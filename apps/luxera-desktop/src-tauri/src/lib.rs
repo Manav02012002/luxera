@@ -1833,6 +1833,363 @@ fn add_job_to_project(
 }
 
 #[tauri::command]
+fn list_standard_profiles() -> Result<Value, String> {
+    let script = r#"
+import json
+from typing import Dict, Any
+
+from luxera.compliance import standards as std
+
+requirements = getattr(std, "STANDARD_REQUIREMENTS", None)
+if requirements is None:
+    requirements = getattr(std, "EN_12464_1_REQUIREMENTS", {})
+if requirements is None:
+    requirements = {}
+
+category_map = {
+    "OFFICE_GENERAL": "Offices",
+    "OFFICE_WRITING": "Offices",
+    "OFFICE_TECHNICAL": "Offices",
+    "OFFICE_CAD": "Offices",
+    "CONFERENCE_ROOM": "Offices",
+    "RECEPTION": "Offices",
+    "WAREHOUSE_GENERAL": "Industrial",
+    "WAREHOUSE_LOADING": "Industrial",
+    "MANUFACTURING_ROUGH": "Industrial",
+    "MANUFACTURING_MEDIUM": "Industrial",
+    "MANUFACTURING_FINE": "Industrial",
+    "MANUFACTURING_VERY_FINE": "Industrial",
+    "RETAIL_GENERAL": "Retail",
+    "RETAIL_SUPERMARKET": "Retail",
+    "RETAIL_CHECKOUT": "Retail",
+    "CLASSROOM": "Education",
+    "LECTURE_HALL": "Education",
+    "LABORATORY": "Education",
+    "LIBRARY_READING": "Education",
+    "LIBRARY_SHELVES": "Education",
+    "HOSPITAL_CORRIDOR": "Healthcare",
+    "HOSPITAL_WARD": "Healthcare",
+    "HOSPITAL_EXAMINATION": "Healthcare",
+    "HOSPITAL_OPERATING": "Healthcare",
+    "CORRIDOR": "Circulation",
+    "STAIRWAY": "Circulation",
+    "LIFT_LOBBY": "Circulation",
+    "ENTRANCE_HALL": "Circulation",
+    "CANTEEN": "Amenity",
+    "KITCHEN": "Amenity",
+    "TOILET": "Amenity",
+    "CHANGING_ROOM": "Amenity",
+    "PARKING_GARAGE": "Parking",
+}
+
+def _activity_key(at: Any) -> str:
+    if hasattr(at, "name"):
+        return str(at.name)
+    return str(at)
+
+rows = []
+for at, req in requirements.items():
+    key = _activity_key(at).strip()
+    if not key:
+        continue
+    rows.append({
+        "activity_type": key,
+        "description": str(getattr(req, "description", key)),
+        "maintained_illuminance_lux": float(getattr(req, "maintained_illuminance", 0.0) or 0.0),
+        "uniformity_min": float(getattr(req, "uniformity_min", 0.0) or 0.0),
+        "ugr_max": float(getattr(req, "ugr_max", 0.0) or 0.0),
+        "cri_min": int(getattr(req, "cri_min", 0) or 0),
+        "standard_ref": str(getattr(req, "standard_reference", "EN 12464-1:2021")),
+        "category": category_map.get(key, "Other"),
+    })
+
+rows.sort(key=lambda r: (str(r.get("category", "")), str(r.get("activity_type", ""))))
+print(json.dumps(rows))
+"#;
+    let payload = run_python_json(&["-c".to_string(), script.to_string()])?;
+    Ok(payload)
+}
+
+#[tauri::command]
+fn set_compliance_profile_in_project(
+    project_path: String,
+    profile_id: String,
+    activity_type: String,
+    thresholds_json: String,
+) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if profile_id.trim().is_empty() {
+        return Err("Profile id is required".to_string());
+    }
+    if activity_type.trim().is_empty() {
+        return Err("Activity type is required".to_string());
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+
+from luxera.compliance import standards as std
+from luxera.project.io import load_project_schema, save_project_schema
+from luxera.project.schema import ComplianceProfile
+
+project_path = Path(sys.argv[1]).expanduser().resolve()
+profile_id = sys.argv[2].strip()
+activity_type = sys.argv[3].strip()
+raw_thresholds = sys.argv[4] if len(sys.argv) > 4 else "{}"
+
+project = load_project_schema(project_path)
+
+requirements = getattr(std, "STANDARD_REQUIREMENTS", None)
+if requirements is None:
+    requirements = getattr(std, "EN_12464_1_REQUIREMENTS", {})
+if requirements is None:
+    requirements = {}
+
+req = None
+for at, candidate in requirements.items():
+    name = getattr(at, "name", str(at))
+    if str(name).strip().upper() == activity_type.upper():
+        req = candidate
+        break
+if req is None:
+    raise ValueError(f"Unknown activity type: {activity_type}")
+
+thresholds = {
+    "maintained_illuminance_lux": float(getattr(req, "maintained_illuminance", 0.0) or 0.0),
+    "uniformity_min": float(getattr(req, "uniformity_min", 0.0) or 0.0),
+    "ugr_max": float(getattr(req, "ugr_max", 0.0) or 0.0),
+    "cri_min": float(getattr(req, "cri_min", 0.0) or 0.0),
+}
+if raw_thresholds.strip():
+    parsed = json.loads(raw_thresholds)
+    if not isinstance(parsed, dict):
+        raise ValueError("thresholds_json must be a JSON object")
+    for k, v in parsed.items():
+        try:
+            thresholds[str(k)] = float(v)
+        except Exception:
+            continue
+
+description = str(getattr(req, "description", activity_type))
+profile = ComplianceProfile(
+    id=profile_id,
+    name=description,
+    domain="indoor",
+    standard_ref=str(getattr(req, "standard_reference", "EN 12464-1:2021")),
+    thresholds=thresholds,
+    notes=f"ActivityType={activity_type}",
+)
+
+updated = False
+for i, existing in enumerate(project.compliance_profiles):
+    if str(getattr(existing, "id", "")) == profile_id:
+        project.compliance_profiles[i] = profile
+        updated = True
+        break
+if not updated:
+    project.compliance_profiles.append(profile)
+
+save_project_schema(project, project_path)
+print(json.dumps({
+    "ok": True,
+    "message": f"Applied compliance profile '{profile_id}' ({activity_type})",
+    "data": {
+        "profile_id": profile_id,
+        "activity_type": activity_type,
+        "thresholds": thresholds,
+    },
+}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        profile_id.trim().to_string(),
+        activity_type.trim().to_string(),
+        thresholds_json,
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Compliance profile operation completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    let project_doc = if success {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: project_doc,
+    })
+}
+
+#[tauri::command]
+fn propose_quick_layout(
+    project_path: String,
+    target_lux: f64,
+    max_rows: Option<i32>,
+    max_cols: Option<i32>,
+) -> Result<Value, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if !target_lux.is_finite() || target_lux <= 0.0 {
+        return Err("Target illuminance must be a positive number".to_string());
+    }
+    let max_rows_v = max_rows.unwrap_or(6).max(1);
+    let max_cols_v = max_cols.unwrap_or(6).max(1);
+    let script = r#"
+import json, os, sys
+from pathlib import Path
+
+from luxera.optim.layout import propose_layout
+from luxera.project.io import load_project_schema
+
+project_path = Path(sys.argv[1]).expanduser().resolve()
+target_lux = float(sys.argv[2])
+max_rows = int(sys.argv[3])
+max_cols = int(sys.argv[4])
+
+project = load_project_schema(project_path)
+os.chdir(project_path.parent)
+lums, best = propose_layout(project, target_lux=target_lux, max_rows=max_rows, max_cols=max_cols)
+
+rows = []
+for idx, lum in enumerate(lums, start=1):
+    pos = lum.transform.position
+    rows.append({
+        "id": f"ql_{idx}",
+        "name": str(getattr(lum, "name", "Luminaire")),
+        "x": float(pos[0]),
+        "y": float(pos[1]),
+        "z": float(pos[2]),
+        "asset_id": str(lum.photometry_asset_id),
+        "yaw_deg": float((lum.transform.rotation.euler_deg or (0.0, 0.0, 0.0))[0]),
+        "maintenance_factor": float(getattr(lum, "maintenance_factor", 1.0)),
+        "flux_multiplier": float(getattr(lum, "flux_multiplier", 1.0)),
+    })
+
+print(json.dumps({
+    "best": {
+        "rows": int(best.rows),
+        "cols": int(best.cols),
+        "mean_lux": float(best.mean_lux),
+        "uniformity": float(best.uniformity),
+        "fixture_count": len(rows),
+    },
+    "luminaires": rows,
+}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        target_lux.to_string(),
+        max_rows_v.to_string(),
+        max_cols_v.to_string(),
+    ])?;
+    Ok(payload)
+}
+
+#[tauri::command]
+fn apply_quick_layout(project_path: String, luminaires_json: String) -> Result<ToolOperationResult, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    let script = r#"
+import json, sys
+from pathlib import Path
+
+from luxera.project.history import push_snapshot
+from luxera.project.io import load_project_schema, save_project_schema
+from luxera.project.schema import LuminaireInstance, RotationSpec, TransformSpec
+
+project_path = Path(sys.argv[1]).expanduser().resolve()
+raw = sys.argv[2] if len(sys.argv) > 2 else "[]"
+items = json.loads(raw)
+if not isinstance(items, list):
+    raise ValueError("luminaires_json must be a JSON array")
+
+project = load_project_schema(project_path)
+push_snapshot(project, label="quick_layout_apply")
+
+new_lums = []
+for i, row in enumerate(items, start=1):
+    if not isinstance(row, dict):
+        continue
+    lid = str(row.get("id") or f"ql_{i}")
+    name = str(row.get("name") or f"Quick Layout {i}")
+    asset_id = str(row.get("asset_id") or "").strip()
+    if not asset_id:
+        raise ValueError(f"Missing asset_id for luminaire {lid}")
+    x = float(row.get("x", 0.0))
+    y = float(row.get("y", 0.0))
+    z = float(row.get("z", 0.0))
+    yaw = float(row.get("yaw_deg", 0.0))
+    mf = float(row.get("maintenance_factor", 1.0))
+    mult = float(row.get("flux_multiplier", 1.0))
+    new_lums.append(
+        LuminaireInstance(
+            id=lid,
+            name=name,
+            photometry_asset_id=asset_id,
+            transform=TransformSpec(
+                position=(x, y, z),
+                rotation=RotationSpec(type="euler_zyx", euler_deg=(yaw, 0.0, 0.0)),
+            ),
+            maintenance_factor=mf,
+            flux_multiplier=mult,
+        )
+    )
+
+project.luminaires = new_lums
+save_project_schema(project, project_path)
+print(json.dumps({
+    "ok": True,
+    "message": f"Applied quick layout with {len(new_lums)} luminaires",
+    "data": {"count": len(new_lums)},
+}))
+"#;
+    let payload = run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        luminaires_json,
+    ])?;
+    let success = payload.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let message = payload
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Quick layout apply completed")
+        .to_string();
+    let data = payload.get("data").cloned().unwrap_or(Value::Null);
+    let project_doc = if success {
+        Some(open_project_file(project.to_string_lossy().to_string())?)
+    } else {
+        None
+    };
+    Ok(ToolOperationResult {
+        success,
+        message,
+        data,
+        project: project_doc,
+    })
+}
+
+#[tauri::command]
 fn export_debug_bundle(project_path: String, job_id: String, output_path: String) -> Result<ExportOperationResult, String> {
     let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
     let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
@@ -3344,6 +3701,10 @@ pub fn run() {
             add_luminaire_to_project,
             add_grid_to_project,
             add_job_to_project,
+            list_standard_profiles,
+            set_compliance_profile_in_project,
+            propose_quick_layout,
+            apply_quick_layout,
             export_debug_bundle,
             export_client_bundle,
             export_backend_compare,
