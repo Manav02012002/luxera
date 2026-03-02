@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ArtifactBinaryRead, ArtifactEntry, ArtifactRead } from "../types";
 import { tauriInvoke } from "../utils/tauri";
 
@@ -17,6 +17,23 @@ export function useArtifacts({ hasTauri }: UseArtifactsArgs) {
   const [artifactListLoading, setArtifactListLoading] = useState(false);
   const [artifactListError, setArtifactListError] = useState("");
   const [selectedArtifactPath, setSelectedArtifactPath] = useState("");
+  const [artifactPreviewUrl, setArtifactPreviewUrl] = useState("");
+
+  useEffect(() => {
+    if (!artifactBinary || artifactBinary.mimeType !== "application/pdf") {
+      setArtifactPreviewUrl("");
+      return;
+    }
+    const binary = atob(artifactBinary.dataBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: artifactBinary.mimeType });
+    const url = URL.createObjectURL(blob);
+    setArtifactPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [artifactBinary]);
 
   const loadArtifactInventory = async (resultDir: string): Promise<void> => {
     if (!hasTauri || !resultDir.trim()) {
@@ -122,6 +139,7 @@ export function useArtifacts({ hasTauri }: UseArtifactsArgs) {
     artifactList,
     artifactListLoading,
     artifactListError,
+    artifactPreviewUrl,
     selectedArtifactPath,
     setSelectedArtifactPath,
     loadArtifactInventory,

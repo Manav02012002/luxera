@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::SystemTime;
+use tauri::Manager;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -394,6 +395,15 @@ fn collect_artifacts(root: &Path, cursor: &Path, out: &mut Vec<ArtifactEntry>) -
     Ok(())
 }
 
+fn recent_projects_store_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Cannot resolve app data directory: {}", e))?;
+    fs::create_dir_all(&dir).map_err(|e| format!("Cannot create app data directory {}: {}", dir.display(), e))?;
+    Ok(dir.join("recent_projects.json"))
+}
+
 fn mime_for_path(path: &Path) -> &'static str {
     match path
         .extension()
@@ -409,6 +419,66 @@ fn mime_for_path(path: &Path) -> &'static str {
         Some("pdf") => "application/pdf",
         _ => "application/octet-stream",
     }
+}
+
+#[tauri::command]
+fn load_recent_projects_store(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let path = recent_projects_store_path(&app)?;
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| format!("Cannot read {}: {}", path.display(), e))?;
+    let payload: Value =
+        serde_json::from_str(&raw).map_err(|e| format!("Invalid recent-projects JSON {}: {}", path.display(), e))?;
+    let projects = payload
+        .get("recent_projects")
+        .and_then(|x| x.as_array())
+        .map(|arr| {
+            let mut out: Vec<String> = Vec::new();
+            for row in arr {
+                if let Some(path) = row.as_str() {
+                    let clean = path.trim();
+                    if clean.is_empty() {
+                        continue;
+                    }
+                    if !out.iter().any(|v| v == clean) {
+                        out.push(clean.to_string());
+                    }
+                }
+            }
+            out
+        })
+        .unwrap_or_default();
+    Ok(projects)
+}
+
+#[tauri::command]
+fn save_recent_projects_store(app: tauri::AppHandle, projects: Vec<String>) -> Result<bool, String> {
+    let path = recent_projects_store_path(&app)?;
+    let mut sanitized: Vec<String> = Vec::new();
+    for project in projects {
+        let clean = project.trim();
+        if clean.is_empty() {
+            continue;
+        }
+        if !sanitized.iter().any(|v| v == clean) {
+            sanitized.push(clean.to_string());
+        }
+        if sanitized.len() >= 50 {
+            break;
+        }
+    }
+    let updated_unix_s = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let payload = json!({
+        "recent_projects": sanitized,
+        "updated_unix_s": updated_unix_s,
+    });
+    let text = serde_json::to_string_pretty(&payload).map_err(|e| format!("Cannot encode recent-projects payload: {}", e))?;
+    fs::write(&path, text).map_err(|e| format!("Cannot write {}: {}", path.display(), e))?;
+    Ok(true)
 }
 
 #[tauri::command]
@@ -930,6 +1000,9 @@ import json, sys
 from pathlib import Path
 from luxera.project.io import load_project_schema
 from luxera.photometry.verify import verify_photometry_file
+from luxera.parser.ies_parser import parse_ies_text
+from luxera.parser.ldt_parser import parse_ldt_text
+from luxera.photometry.model import photometry_from_parsed_ies, photometry_from_parsed_ldt
 project_path = Path(sys.argv[1]).expanduser().resolve()
 asset_id = sys.argv[2].strip()
 project = load_project_schema(project_path)
@@ -944,6 +1017,25 @@ else:
         apath = (project_path.parent / apath).resolve()
     try:
         result = verify_photometry_file(str(apath), fmt=asset.format).to_dict()
+        raw = apath.read_text(encoding="utf-8", errors="replace")
+        fmt = str(asset.format or "").upper()
+        if fmt == "IES":
+            phot = photometry_from_parsed_ies(parse_ies_text(raw, source_path=apath))
+        elif fmt == "LDT":
+            phot = photometry_from_parsed_ldt(parse_ldt_text(raw))
+        else:
+            phot = None
+        if phot is not None and len(phot.c_angles_deg) > 0 and len(phot.gamma_angles_deg) > 0:
+            c_angles = [float(x) for x in phot.c_angles_deg]
+            g_angles = [float(x) for x in phot.gamma_angles_deg]
+            c_idx = min(range(len(c_angles)), key=lambda i: abs(c_angles[i]))
+            c_plane = float(c_angles[c_idx])
+            profile = []
+            for gi, g in enumerate(g_angles):
+                cd = float(phot.candela[c_idx][gi]) if gi < len(phot.candela[c_idx]) else 0.0
+                profile.append({"gamma_deg": float(g), "cd": cd})
+            result["c_plane_deg"] = c_plane
+            result["c0_profile"] = profile
         result["asset_id"] = asset.id
         result["asset_format"] = asset.format
         result["asset_path"] = str(apath)
@@ -2692,6 +2784,8 @@ pub fn run() {
             poll_project_job_run,
             cancel_project_job_run,
             list_recent_runs,
+            load_recent_projects_store,
+            save_recent_projects_store,
             read_artifact,
             read_artifact_binary,
             list_result_artifacts,

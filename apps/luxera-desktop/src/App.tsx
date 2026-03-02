@@ -74,6 +74,26 @@ function pointsToSvgPath(points: Array<{ x: number; y: number }>): string {
   return `${out} Z`;
 }
 
+function polarProfileToSvgPath(profile: Array<{ gammaDeg: number; cd: number }>, size = 220): string {
+  if (profile.length < 2) {
+    return "";
+  }
+  const maxCd = Math.max(...profile.map((p) => p.cd), 1e-9);
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = size * 0.44;
+  const points = profile.map((p) => {
+    const normalized = Math.max(0, p.cd) / maxCd;
+    const r = normalized * radius;
+    const angle = (p.gammaDeg / 180) * Math.PI - Math.PI / 2;
+    return {
+      x: cx + r * Math.cos(angle),
+      y: cy + r * Math.sin(angle),
+    };
+  });
+  return pointsToSvgPath(points);
+}
+
 const initialState: AppState = {
   resultDir: "",
   loading: false,
@@ -399,6 +419,23 @@ export default function App() {
     );
   }, [projectPhotometryRows, state.photometryLibraryQuery]);
   const photometryVerifyRows = useMemo(() => flattenJsonRows(state.photometryVerifyResult ?? null, "photometry_verify"), [state.photometryVerifyResult]);
+  const photometryPolarProfile = useMemo<Array<{ gammaDeg: number; cd: number }>>(() => {
+    const raw = (state.photometryVerifyResult?.c0_profile as unknown[]) ?? [];
+    const profile: Array<{ gammaDeg: number; cd: number }> = [];
+    for (const row of raw) {
+      if (!row || typeof row !== "object") {
+        continue;
+      }
+      const rec = row as Record<string, unknown>;
+      const gammaDeg = Number(rec.gamma_deg ?? rec.gammaDeg);
+      const cd = Number(rec.cd);
+      if (Number.isFinite(gammaDeg) && Number.isFinite(cd)) {
+        profile.push({ gammaDeg, cd });
+      }
+    }
+    return profile.sort((a, b) => a.gammaDeg - b.gammaDeg);
+  }, [state.photometryVerifyResult]);
+  const photometryPolarPath = useMemo(() => polarProfileToSvgPath(photometryPolarProfile, 220), [photometryPolarProfile]);
   const sceneRooms = useMemo<ScenePolygon[]>(() => {
     const rooms = ((projectModel?.geometry as { rooms?: Array<Record<string, unknown>> } | undefined)?.rooms ?? []) as Array<
       Record<string, unknown>
@@ -813,7 +850,15 @@ export default function App() {
     }
   };
 
-  const persistRecentProjects = (paths: string[]): void => {
+  const persistRecentProjects = async (paths: string[]): Promise<void> => {
+    if (hasTauri) {
+      try {
+        await tauriInvoke<boolean>("save_recent_projects_store", { projects: paths });
+        return;
+      } catch {
+        // Fallback to localStorage in web/dev mode.
+      }
+    }
     try {
       window.localStorage.setItem(RECENT_PROJECTS_STORAGE_KEY, JSON.stringify(paths));
     } catch {
@@ -828,7 +873,7 @@ export default function App() {
     }
     const next = [normalized, ...state.recentProjects.filter((p) => p !== normalized)].slice(0, MAX_RECENT_PROJECTS);
     patchState({ recentProjects: next });
-    persistRecentProjects(next);
+    void persistRecentProjects(next);
   };
 
   const browseProjectPath = async (): Promise<void> => {
@@ -2129,23 +2174,41 @@ export default function App() {
   useEffect(() => {
     void refreshRecentRuns();
     void loadContract();
-    try {
-      const raw = window.localStorage.getItem(RECENT_PROJECTS_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown;
-        if (Array.isArray(parsed)) {
-          const sanitized = parsed
+    const loadRecentProjects = async (): Promise<void> => {
+      if (hasTauri) {
+        try {
+          const stored = await tauriInvoke<string[]>("load_recent_projects_store", {});
+          const sanitized = (stored ?? [])
             .map((v) => String(v ?? "").trim())
             .filter((v) => v)
             .slice(0, MAX_RECENT_PROJECTS);
           if (sanitized.length > 0) {
             patchState({ recentProjects: sanitized });
           }
+          return;
+        } catch {
+          // Fallback to localStorage in web/dev mode.
         }
       }
-    } catch {
-      // Best effort only.
-    }
+      try {
+        const raw = window.localStorage.getItem(RECENT_PROJECTS_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as unknown;
+          if (Array.isArray(parsed)) {
+            const sanitized = parsed
+              .map((v) => String(v ?? "").trim())
+              .filter((v) => v)
+              .slice(0, MAX_RECENT_PROJECTS);
+            if (sanitized.length > 0) {
+              patchState({ recentProjects: sanitized });
+            }
+          }
+        }
+      } catch {
+        // Best effort only.
+      }
+    };
+    void loadRecentProjects();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -3575,7 +3638,7 @@ export default function App() {
                 <ToolbarButton
                   onClick={() => {
                     patchState({ recentProjects: [] });
-                    persistRecentProjects([]);
+                    void persistRecentProjects([]);
                   }}
                   disabled={state.recentProjects.length === 0}
                 >
@@ -3784,7 +3847,7 @@ export default function App() {
                     Use Selected Asset
                   </ToolbarButton>
                   <ToolbarButton onClick={() => void verifySelectedProjectPhotometry()} disabled={state.photometryVerifyLoading}>
-                    {state.photometryVerifyLoading ? "Verifying..." : "Verify Selected Asset"}
+                    {state.photometryVerifyLoading ? "Inspecting..." : "Inspect Selected Asset"}
                   </ToolbarButton>
                 </div>
                 {filteredPhotometryRows.length === 0 ? (
@@ -3826,6 +3889,35 @@ export default function App() {
               {photometryVerifyRows.length > 0 ? (
                 <div className="mb-2 rounded border border-border/60 bg-panelSoft/50 p-2">
                   <div className="mb-1 text-xs uppercase tracking-[0.12em] text-muted">Photometry Verification</div>
+                  <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-4">
+                    <div className="rounded border border-border/60 bg-panel px-2 py-1 text-[11px] text-muted">
+                      Asset: {String(state.photometryVerifyResult?.asset_id ?? "N/A")}
+                    </div>
+                    <div className="rounded border border-border/60 bg-panel px-2 py-1 text-[11px] text-muted">
+                      Format: {String(state.photometryVerifyResult?.format ?? state.photometryVerifyResult?.asset_format ?? "N/A")}
+                    </div>
+                    <div className="rounded border border-border/60 bg-panel px-2 py-1 text-[11px] text-muted">
+                      Flux: {String((state.photometryVerifyResult?.luminous as Record<string, unknown> | undefined)?.flux_lm ?? "N/A")} lm
+                    </div>
+                    <div className="rounded border border-border/60 bg-panel px-2 py-1 text-[11px] text-muted">
+                      Peak: {String((state.photometryVerifyResult?.candela_stats as Record<string, unknown> | undefined)?.max_cd ?? "N/A")} cd
+                    </div>
+                  </div>
+                  {photometryPolarPath ? (
+                    <div className="mb-2 rounded border border-border/60 bg-panel p-2">
+                      <div className="mb-1 text-[11px] text-muted">
+                        Polar Candela Plot (C-plane {String(state.photometryVerifyResult?.c_plane_deg ?? 0)} deg)
+                      </div>
+                      <svg viewBox="0 0 220 220" className="h-56 w-56 rounded border border-border/60 bg-panelSoft/50">
+                        <circle cx="110" cy="110" r="96" fill="none" stroke="rgba(148,163,184,0.2)" strokeWidth="1" />
+                        <circle cx="110" cy="110" r="64" fill="none" stroke="rgba(148,163,184,0.2)" strokeWidth="1" />
+                        <circle cx="110" cy="110" r="32" fill="none" stroke="rgba(148,163,184,0.2)" strokeWidth="1" />
+                        <line x1="110" y1="14" x2="110" y2="206" stroke="rgba(148,163,184,0.2)" strokeWidth="1" />
+                        <line x1="14" y1="110" x2="206" y2="110" stroke="rgba(148,163,184,0.2)" strokeWidth="1" />
+                        <path d={photometryPolarPath} fill="none" stroke="rgba(56,189,248,0.95)" strokeWidth="2" />
+                      </svg>
+                    </div>
+                  ) : null}
                   <div className="max-h-32 overflow-auto rounded border border-border/60 bg-panel p-2">
                     <pre className="whitespace-pre-wrap text-[11px] text-muted">
                       {JSON.stringify(state.photometryVerifyResult, null, 2)}
@@ -4923,7 +5015,7 @@ export default function App() {
                     />
                   ) : artifacts.artifactBinary.mimeType === "application/pdf" ? (
                     <iframe
-                      src={`data:${artifacts.artifactBinary.mimeType};base64,${artifacts.artifactBinary.dataBase64}`}
+                      src={artifacts.artifactPreviewUrl || `data:${artifacts.artifactBinary.mimeType};base64,${artifacts.artifactBinary.dataBase64}`}
                       title="Artifact PDF preview"
                       className="h-[640px] w-full rounded border border-border/60 bg-panelSoft/50"
                     />

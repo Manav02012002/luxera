@@ -16,6 +16,7 @@ Files emitted by runner:
 
 ### Slice 0: Project Lifecycle
 - project init/open/save flow (desktop command surface + editor) -> `wired`
+- persistent recent-projects store (desktop-managed, distribution-safe) -> `wired`
 - project schema validation (all jobs or selected job) -> `wired`
 
 ### Slice 0.5: Geometry Authoring
@@ -30,6 +31,7 @@ Files emitted by runner:
 - photometry asset import (IES/LDT) -> `wired`
 - project photometry asset browser (search/select/use-asset) -> `wired`
 - photometry verification (import file + selected project asset) -> `wired`
+- inline photometry inspector (flux/stats + polar candela plot) -> `wired`
 - luminaire placement with transform/maintenance/tilt -> `wired`
 - luminaire rectangular array placement -> `wired`
 - luminaire aiming (yaw) -> `wired`
