@@ -2033,6 +2033,355 @@ print(json.dumps({
 }
 
 #[tauri::command]
+fn evaluate_compliance_detailed(result_dir: String, project_path: String) -> Result<Value, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let result_path = resolve_repo_relative(&PathBuf::from(result_dir.trim()), &cwd)?;
+    if !result_path.exists() || !result_path.is_dir() {
+        return Err(format!("Result directory not found: {}", result_path.display()));
+    }
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+
+    let script = r#"
+import json, sys
+from pathlib import Path
+
+from luxera.project.io import load_project_schema
+
+result_dir = Path(sys.argv[1]).expanduser().resolve()
+project_path = Path(sys.argv[2]).expanduser().resolve()
+
+result_file = result_dir / "result.json"
+if not result_file.exists():
+    raise FileNotFoundError(f"Missing result.json in {result_dir}")
+
+with result_file.open("r", encoding="utf-8") as f:
+    result_payload = json.load(f)
+
+summary = result_payload.get("summary") if isinstance(result_payload, dict) else {}
+if not isinstance(summary, dict):
+    summary = {}
+
+def _as_float(value):
+    if isinstance(value, (int, float)):
+        v = float(value)
+        if v == v and v not in (float("inf"), float("-inf")):
+            return v
+    return None
+
+def _pick_first_numeric(src, keys):
+    for key in keys:
+        if not isinstance(src, dict):
+            continue
+        v = _as_float(src.get(key))
+        if v is not None:
+            return v
+    return None
+
+def _threshold(profile_thresholds, keys):
+    if not isinstance(profile_thresholds, dict):
+        return None
+    for key in keys:
+        v = _as_float(profile_thresholds.get(key))
+        if v is not None:
+            return v
+    return None
+
+def _metric_check(metric, actual, required, unit, direction):
+    if required is None:
+        return {
+            "metric": metric,
+            "actual": actual,
+            "required": None,
+            "unit": unit,
+            "direction": direction,
+            "status": "N/A",
+            "delta": None,
+            "delta_percent": None,
+            "suggestion": None,
+        }
+    if actual is None:
+        return {
+            "metric": metric,
+            "actual": None,
+            "required": required,
+            "unit": unit,
+            "direction": direction,
+            "status": "N/A",
+            "delta": None,
+            "delta_percent": None,
+            "suggestion": None,
+        }
+    delta = actual - required
+    delta_percent = (delta / required * 100.0) if abs(required) > 1e-12 else None
+    passed = actual >= required if direction == ">=" else actual <= required
+    status = "PASS" if passed else "FAIL"
+    suggestion = None
+    if status == "FAIL":
+        if metric.startswith("Maintained Illuminance"):
+            suggestion = f"Increase by ~{abs(delta):.0f} lux. Try: reduce luminaire spacing, increase flux multiplier, or add luminaires."
+        elif metric.startswith("Uniformity"):
+            suggestion = f"Improve uniformity by {abs(delta):.2f}. Try: reduce spacing between luminaires or add supplementary luminaires in dark areas."
+        elif metric.startswith("Glare Rating"):
+            suggestion = f"Reduce glare by {abs(delta):.1f} points. Try: increase mounting height, use lower-luminance luminaires, or adjust aiming."
+        elif metric.startswith("Minimum Illuminance"):
+            suggestion = f"Increase minimum illuminance by ~{abs(delta):.0f} lux. Try: fill dark zones with additional luminaires and tighten spacing."
+    return {
+        "metric": metric,
+        "actual": actual,
+        "required": required,
+        "unit": unit,
+        "direction": direction,
+        "status": status,
+        "delta": delta,
+        "delta_percent": delta_percent,
+        "suggestion": suggestion,
+    }
+
+project = load_project_schema(project_path)
+profiles = list(getattr(project, "compliance_profiles", []) or [])
+if not profiles:
+    print(json.dumps({
+        "profile_name": None,
+        "standard": None,
+        "overall_status": "NO_PROFILE",
+        "checks": [],
+    }))
+    raise SystemExit(0)
+
+profile = profiles[0]
+thresholds = dict(getattr(profile, "thresholds", {}) or {})
+
+mean_lux = _pick_first_numeric(summary, ("mean_lux", "avg_lux", "mean_illuminance_lux"))
+min_lux = _pick_first_numeric(summary, ("min_lux", "minimum_lux", "emin_lux"))
+uniformity_ratio = _pick_first_numeric(summary, ("uniformity_ratio", "u0", "uniformity"))
+ugr_worst_case = _pick_first_numeric(summary, ("ugr_worst_case", "highest_ugr", "ugr"))
+
+checks = [
+    _metric_check(
+        "Maintained Illuminance (Em)",
+        mean_lux,
+        _threshold(thresholds, ("maintained_illuminance_lux", "target_lux", "em_lux")),
+        "lux",
+        ">=",
+    ),
+    _metric_check(
+        "Minimum Illuminance (Emin)",
+        min_lux,
+        _threshold(thresholds, ("minimum_illuminance_lux", "emin_lux")),
+        "lux",
+        ">=",
+    ),
+    _metric_check(
+        "Uniformity (Uo)",
+        uniformity_ratio,
+        _threshold(thresholds, ("uniformity_min", "u0_min")),
+        "",
+        ">=",
+    ),
+    _metric_check(
+        "Glare Rating (UGR)",
+        ugr_worst_case,
+        _threshold(thresholds, ("ugr_max", "ugr_limit")),
+        "",
+        "<=",
+    ),
+]
+checks = [c for c in checks if c.get("required") is not None or c.get("actual") is not None]
+
+overall_status = "PASS"
+for c in checks:
+    if c.get("status") == "FAIL":
+        overall_status = "FAIL"
+        break
+if checks and all(c.get("status") == "N/A" for c in checks):
+    overall_status = "N/A"
+
+print(json.dumps({
+    "profile_name": str(getattr(profile, "id", "") or getattr(profile, "name", "") or "Compliance Profile"),
+    "standard": str(getattr(profile, "standard_ref", "") or "EN 12464-1:2021"),
+    "overall_status": overall_status,
+    "checks": checks,
+}))
+"#;
+    run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        result_path.to_string_lossy().to_string(),
+        project.to_string_lossy().to_string(),
+    ])
+}
+
+#[tauri::command]
+fn estimate_illuminance_fast(project_path: String) -> Result<Value, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    let script = r#"
+import json, math, os, sys
+from pathlib import Path
+
+from luxera.parser.ies_parser import parse_ies_text
+from luxera.parser.ldt_parser import parse_ldt_text
+from luxera.photometry.model import photometry_from_parsed_ies, photometry_from_parsed_ldt
+from luxera.project.io import load_project_schema
+
+def _as_float(v, default=0.0):
+    try:
+        x = float(v)
+        if x == x and x not in (float("inf"), float("-inf")):
+            return x
+    except Exception:
+        pass
+    return default
+
+def approx_uf(ri: float, rho_c: float, rho_w: float, rho_f: float) -> float:
+    base = 0.25 + 0.15 * min(max(ri, 0.0), 5.0)
+    ceiling_boost = max(0.0, min(1.0, rho_c)) * 0.15
+    wall_boost = max(0.0, min(1.0, rho_w)) * 0.10
+    floor_effect = max(0.0, min(1.0, rho_f)) * 0.02
+    return min(0.85, max(0.05, base + ceiling_boost + wall_boost + floor_effect))
+
+def _load_asset_flux_lm(project_dir: Path, asset) -> float | None:
+    path = getattr(asset, "path", None)
+    fmt = str(getattr(asset, "format", "") or "").strip().upper()
+    if not path:
+        return None
+    ap = Path(path).expanduser()
+    if not ap.is_absolute():
+        ap = (project_dir / ap).resolve()
+    if not ap.exists() or not ap.is_file():
+        return None
+    text = ap.read_text(encoding="utf-8", errors="replace")
+    if fmt == "IES":
+        parsed = parse_ies_text(text, source_path=ap)
+        phot = photometry_from_parsed_ies(parsed)
+        flux = getattr(phot, "luminous_flux_lm", None)
+        return float(flux) if isinstance(flux, (int, float)) and float(flux) > 0 else None
+    if fmt == "LDT":
+        parsed = parse_ldt_text(text)
+        phot = photometry_from_parsed_ldt(parsed)
+        flux = getattr(phot, "luminous_flux_lm", None)
+        if isinstance(flux, (int, float)) and float(flux) > 0:
+            return float(flux)
+        lamp_sets = getattr(parsed.header, "lamp_sets", []) or []
+        total = 0.0
+        for ls in lamp_sets:
+            total += max(0.0, _as_float(getattr(ls, "total_flux", 0.0), 0.0))
+        return total if total > 0 else None
+    return None
+
+project_path = Path(sys.argv[1]).expanduser().resolve()
+project = load_project_schema(project_path)
+project_dir = project_path.parent
+
+rooms = list(getattr(project, "geometry", None).rooms if getattr(project, "geometry", None) is not None else [])
+luminaires = list(getattr(project, "luminaires", []) or [])
+assets = list(getattr(project, "photometry_assets", []) or [])
+asset_by_id = {str(getattr(a, "id", "") or ""): a for a in assets}
+
+if not rooms or not luminaires:
+    print(json.dumps({
+        "estimated_mean_lux": None,
+        "estimated_uniformity": None,
+        "luminaire_count": len(luminaires),
+        "total_lumens": 0.0,
+        "room_area_m2": None,
+        "room_index": None,
+        "utilization_factor": None,
+        "avg_maintenance_factor": None,
+        "confidence": "low",
+    }))
+    raise SystemExit(0)
+
+room = rooms[0]
+room_w = max(0.0, _as_float(getattr(room, "width", 0.0), 0.0))
+room_l = max(0.0, _as_float(getattr(room, "length", 0.0), 0.0))
+if room_w <= 0.0 or room_l <= 0.0:
+    print(json.dumps({
+        "estimated_mean_lux": None,
+        "estimated_uniformity": None,
+        "luminaire_count": len(luminaires),
+        "total_lumens": 0.0,
+        "room_area_m2": None,
+        "room_index": None,
+        "utilization_factor": None,
+        "avg_maintenance_factor": None,
+        "confidence": "low",
+    }))
+    raise SystemExit(0)
+
+rho_f = max(0.0, min(1.0, _as_float(getattr(room, "floor_reflectance", 0.2), 0.2)))
+rho_w = max(0.0, min(1.0, _as_float(getattr(room, "wall_reflectance", 0.5), 0.5)))
+rho_c = max(0.0, min(1.0, _as_float(getattr(room, "ceiling_reflectance", 0.7), 0.7)))
+
+asset_flux_cache: dict[str, float | None] = {}
+workplane_z = 0.8
+mount_heights: list[float] = []
+maintenance_vals: list[float] = []
+effective_flux_per_lum: list[float] = []
+known_flux_count = 0
+
+for lum in luminaires:
+    aid = str(getattr(lum, "photometry_asset_id", "") or "")
+    if aid not in asset_flux_cache:
+        asset = asset_by_id.get(aid)
+        asset_flux_cache[aid] = _load_asset_flux_lm(project_dir, asset) if asset is not None else None
+    base_flux = asset_flux_cache.get(aid)
+    mult = max(0.0, _as_float(getattr(lum, "flux_multiplier", 1.0), 1.0))
+    mf = max(0.0, _as_float(getattr(lum, "maintenance_factor", 1.0), 1.0))
+    maintenance_vals.append(mf)
+    transform = getattr(lum, "transform", None)
+    pos = getattr(transform, "position", None) if transform is not None else None
+    z = _as_float(pos[2], 2.8) if isinstance(pos, (list, tuple)) and len(pos) >= 3 else 2.8
+    mount_heights.append(max(0.1, z - workplane_z))
+    if isinstance(base_flux, (int, float)) and float(base_flux) > 0:
+        known_flux_count += 1
+        effective_flux_per_lum.append(float(base_flux) * mult)
+    else:
+        effective_flux_per_lum.append(0.0)
+
+luminaire_count = len(luminaires)
+area = room_w * room_l
+hm = sum(mount_heights) / max(1, len(mount_heights))
+ri = (room_w * room_l) / max(1e-6, hm * (room_w + room_l))
+uf = approx_uf(ri, rho_c, rho_w, rho_f)
+avg_mf = sum(maintenance_vals) / max(1, len(maintenance_vals))
+total_lumens = float(sum(effective_flux_per_lum))
+phi_avg = (total_lumens / luminaire_count) if luminaire_count > 0 else 0.0
+estimated_em = (luminaire_count * phi_avg * uf * avg_mf) / area if area > 1e-9 else None
+u0 = 0.4 + 0.3 * min(max(ri, 0.0), 3.0) / 3.0
+u0 = max(0.0, min(1.0, u0))
+
+coverage = known_flux_count / max(1, luminaire_count)
+confidence = "high" if coverage >= 0.8 else ("medium" if coverage >= 0.5 else "low")
+if luminaire_count < 2:
+    confidence = "low"
+
+print(json.dumps({
+    "estimated_mean_lux": float(estimated_em) if estimated_em is not None else None,
+    "estimated_uniformity": float(u0),
+    "luminaire_count": luminaire_count,
+    "total_lumens": float(total_lumens),
+    "room_area_m2": float(area),
+    "room_index": float(ri),
+    "utilization_factor": float(uf),
+    "avg_maintenance_factor": float(avg_mf),
+    "confidence": confidence,
+}))
+"#;
+    run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+    ])
+}
+
+#[tauri::command]
 fn propose_quick_layout(
     project_path: String,
     target_lux: f64,
@@ -3703,6 +4052,8 @@ pub fn run() {
             add_job_to_project,
             list_standard_profiles,
             set_compliance_profile_in_project,
+            evaluate_compliance_detailed,
+            estimate_illuminance_fast,
             propose_quick_layout,
             apply_quick_layout,
             export_debug_bundle,
