@@ -1099,6 +1099,30 @@ def _cmd_agent_chat(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_autopilot(args: argparse.Namespace) -> int:
+    from luxera.agent.pipeline import CompliancePipeline
+
+    out_dir = Path(args.output).expanduser().resolve()
+    library_db = Path(args.library_db).expanduser().resolve() if args.library_db else None
+    default_ies = Path(args.default_ies).expanduser().resolve() if args.default_ies else None
+    pipeline = CompliancePipeline(output_dir=out_dir, library_db=library_db, default_ies_path=default_ies)
+    try:
+        result = pipeline.run(args.intent)
+    except Exception as e:
+        print(f"[ERROR] Autopilot failed: {e}")
+        return 2
+
+    print("Autopilot Compliance Pipeline")
+    print(f"  Project: {result.project_path}")
+    print(f"  Report: {result.report_path}")
+    print(f"  E_avg: {result.final_E_avg:.2f} lux")
+    print(f"  Uniformity: {result.final_uniformity:.2f}")
+    print(f"  Compliant: {result.compliant}")
+    print(f"  Iterations: {result.iterations}")
+    print(f"  Luminaires: {result.luminaire_count}")
+    return 0
+
+
 def _library_db_path(raw: str | None) -> Path:
     if raw:
         return Path(raw).expanduser().resolve()
@@ -1439,6 +1463,13 @@ def main(argv: list[str] | None = None) -> int:
     report.add_argument("--job", dest="job_id", default=None, help="Optional job id (default: latest result)")
     report.add_argument("--style", choices=["standard", "professional"], default="standard", help="Report rendering style")
     report.set_defaults(func=_cmd_report)
+
+    autopilot = sub.add_parser("autopilot", help="Run one-command compliance automation from natural-language intent.")
+    autopilot.add_argument("intent", help='Design intent, e.g. "500 lux open plan office 12x8m EN 12464"')
+    autopilot.add_argument("--output", required=True, help="Output directory for generated project/report")
+    autopilot.add_argument("--library-db", default=None, help="Optional photometry library SQLite DB path")
+    autopilot.add_argument("--default-ies", default=None, help="Optional fallback IES path")
+    autopilot.set_defaults(func=_cmd_autopilot)
 
     cr = sub.add_parser("compare-results", help="Compare two job results and output deltas.")
     cr.add_argument("project", help="Path to project JSON")
