@@ -21,6 +21,8 @@ import { useJobRunner } from "./hooks/useJobRunner";
 import { buildDesktopViewModel, type DesktopResultBundle } from "./resultContracts";
 import type {
   AppState,
+  AgentConversationMessage,
+  AgentDiffPreview,
   AgentRunEntry,
   BackendContract,
   BeamSpreadResponse,
@@ -258,6 +260,9 @@ const initialState: AppState = {
   agentApprovalRunJob: false,
   agentSelectedOptionIndex: "0",
   agentRunHistory: [],
+  agentConversation: [],
+  agentDiffPreview: null,
+  agentDiffApproved: false,
   materialIdInput: "",
   materialSurfaceIdsCsv: "",
   editRoomId: "",
@@ -375,39 +380,6 @@ export default function App() {
     () => flattenJsonRows(model?.raw.roadwaySubmission ?? null, "roadwaySubmission"),
     [model?.raw.roadwaySubmission],
   );
-  const agentResponseRows = useMemo(() => flattenJsonRows(state.agentResponse ?? null, "agent"), [state.agentResponse]);
-  const agentActionRows = useMemo<JsonRow[]>(
-    () => (((state.agentResponse?.actions as unknown[]) ?? []).map((v, i) => (v && typeof v === "object" ? (v as JsonRow) : { index: i, value: String(v) }))),
-    [state.agentResponse],
-  );
-  const agentDiffPreviewRows = useMemo<JsonRow[]>(
-    () =>
-      (((state.agentResponse?.diff_preview as unknown[]) ?? []).map((v, i) =>
-        v && typeof v === "object" ? (v as JsonRow) : { index: i, value: String(v) },
-      )),
-    [state.agentResponse],
-  );
-  const agentWarningRows = useMemo<JsonRow[]>(
-    () => (((state.agentResponse?.warnings as unknown[]) ?? []).map((v, i) => ({ index: i, warning: String(v) }))),
-    [state.agentResponse],
-  );
-  const agentErrorRows = useMemo<JsonRow[]>(
-    () => (((state.agentResponse?.errors as unknown[]) ?? []).map((v, i) => ({ index: i, error: String(v) }))),
-    [state.agentResponse],
-  );
-  const agentHistoryRows = useMemo<JsonRow[]>(
-    () =>
-      state.agentRunHistory.map((r, i) => ({
-        index: i + 1,
-        at: new Date(r.atUnixMs).toLocaleString(),
-        ok: r.ok,
-        actions: r.actions,
-        warnings: r.warnings,
-        errors: r.errors,
-        intent: r.intent,
-      })),
-    [state.agentRunHistory],
-  );
   const designResultRows = useMemo(() => flattenJsonRows(state.designResult ?? null, "design"), [state.designResult]);
   const optimizationOptionsRows = useMemo<JsonRow[]>(
     () => ((state.designResult?.options as JsonRow[] | undefined) ?? []),
@@ -489,6 +461,24 @@ export default function App() {
     const target = Number(thresholds.maintained_illuminance_lux ?? thresholds.target_lux ?? NaN);
     return Number.isFinite(target) ? target : null;
   }, [projectModel, selectedStandardProfile]);
+  const assistantSuggestions = useMemo<string[]>(() => {
+    const hasLuminaires = luminaireInstances.length > 0;
+    const hasCalc = !!state.model;
+    const complianceStatus = (state.complianceDetailed?.overall_status || state.model?.compliance.status || "").toUpperCase();
+    if (!hasLuminaires) {
+      return ["Place luminaires to hit 500 lux", "Create a room and workplane grid", "Import geometry and detect rooms"];
+    }
+    if (hasLuminaires && !hasCalc) {
+      return ["Run calculation", "Create or select a direct job and run it", "Check luminaire spacing and aiming"];
+    }
+    if (complianceStatus === "FAIL") {
+      return ["Optimize layout for compliance", "Reduce UGR while keeping 500 lux", "Improve uniformity with fewer additions"];
+    }
+    if (complianceStatus === "PASS") {
+      return ["Generate EN 12464 report", "Export client bundle", "Create a compliance summary for this run"];
+    }
+    return ["Run calculation", "Optimize layout for compliance", "Generate EN 12464 report"];
+  }, [luminaireInstances.length, state.model, state.complianceDetailed?.overall_status]);
   const standardProfilesByCategory = useMemo(() => {
     const map = new Map<string, StandardProfileOption[]>();
     for (const row of state.standardProfiles) {
@@ -771,6 +761,20 @@ export default function App() {
     }
     return out;
   }, [projectModel]);
+  const agentDiffInvolvedIds = useMemo(() => {
+    const ids = new Set<string>();
+    const preview = state.agentDiffPreview;
+    if (!preview) {
+      return ids;
+    }
+    for (const id of preview.removes) {
+      ids.add(id);
+    }
+    for (const mv of preview.moves) {
+      ids.add(mv.id);
+    }
+    return ids;
+  }, [state.agentDiffPreview]);
   const sceneGrids = useMemo<ScenePolygon[]>(() => {
     const grids = (projectModel?.grids as Array<Record<string, unknown>> | undefined) ?? [];
     const out: ScenePolygon[] = [];
@@ -2375,6 +2379,73 @@ export default function App() {
     }
   };
 
+  const parseAgentDiffPreview = (response: Record<string, unknown>): AgentDiffPreview | null => {
+    const raw = response.diff_preview as Record<string, unknown> | undefined;
+    const ops = (raw?.ops as unknown[]) ?? [];
+    if (!Array.isArray(ops) || ops.length === 0) {
+      return null;
+    }
+    const adds: AgentDiffPreview["adds"] = [];
+    const removes: string[] = [];
+    const moves: AgentDiffPreview["moves"] = [];
+
+    const findNum = (payload: Record<string, unknown>, keys: string[]): number | null => {
+      for (const k of keys) {
+        const v = Number(payload[k]);
+        if (Number.isFinite(v)) {
+          return v;
+        }
+      }
+      return null;
+    };
+
+    for (const opAny of ops) {
+      if (!opAny || typeof opAny !== "object") {
+        continue;
+      }
+      const op = opAny as Record<string, unknown>;
+      const kind = String(op.kind ?? "").toLowerCase();
+      const mode = String(op.op ?? "").toLowerCase();
+      const id = String(op.id ?? "");
+      const payload = op.payload && typeof op.payload === "object" ? (op.payload as Record<string, unknown>) : null;
+      if (kind !== "luminaire") {
+        continue;
+      }
+      if (mode === "add" && payload) {
+        const pos = payload.transform && typeof payload.transform === "object" ? (payload.transform as Record<string, unknown>).position : null;
+        const arr = Array.isArray(pos) ? pos : null;
+        const x = arr ? Number(arr[0]) : findNum(payload, ["x", "new_x"]);
+        const y = arr ? Number(arr[1]) : findNum(payload, ["y", "new_y"]);
+        const z = arr ? Number(arr[2]) : findNum(payload, ["z", "new_z"]);
+        if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
+          adds.push({ id: id || `add_${adds.length + 1}`, x, y, z });
+        }
+      }
+      if (mode === "remove" && id) {
+        removes.push(id);
+      }
+      if (mode === "modify" && payload && id) {
+        const oldPayload = payload.old && typeof payload.old === "object" ? (payload.old as Record<string, unknown>) : payload;
+        const newPayload = payload.new && typeof payload.new === "object" ? (payload.new as Record<string, unknown>) : payload;
+        const oldTransform = oldPayload.transform && typeof oldPayload.transform === "object" ? (oldPayload.transform as Record<string, unknown>) : null;
+        const newTransform = newPayload.transform && typeof newPayload.transform === "object" ? (newPayload.transform as Record<string, unknown>) : null;
+        const oldPos = Array.isArray(oldTransform?.position) ? (oldTransform?.position as unknown[]) : null;
+        const newPos = Array.isArray(newTransform?.position) ? (newTransform?.position as unknown[]) : null;
+        const oldX = oldPos ? Number(oldPos[0]) : findNum(oldPayload, ["old_x", "x", "from_x"]);
+        const oldY = oldPos ? Number(oldPos[1]) : findNum(oldPayload, ["old_y", "y", "from_y"]);
+        const newX = newPos ? Number(newPos[0]) : findNum(newPayload, ["new_x", "x", "to_x"]);
+        const newY = newPos ? Number(newPos[1]) : findNum(newPayload, ["new_y", "y", "to_y"]);
+        if (Number.isFinite(oldX) && Number.isFinite(oldY) && Number.isFinite(newX) && Number.isFinite(newY)) {
+          moves.push({ id, oldX, oldY, newX, newY });
+        }
+      }
+    }
+    if (adds.length === 0 && removes.length === 0 && moves.length === 0) {
+      return null;
+    }
+    return { adds, removes, moves };
+  };
+
   const runAgentIntent = async (): Promise<void> => {
     if (!hasTauri) {
       patchState({ agentError: "Agent runtime requires Tauri runtime." });
@@ -2410,17 +2481,48 @@ export default function App() {
       approvalsObj.selected_option_index = Math.round(selectedIdx);
     }
     const approvalsJson = JSON.stringify(approvalsObj);
-    patchState({ agentLoading: true, agentError: "", agentResponse: null });
+    const userMessage: AgentConversationMessage = {
+      role: "user",
+      content: state.agentIntent.trim(),
+      timestamp: Date.now(),
+    };
+    const outboundConversation = [...state.agentConversation, userMessage];
+    patchState({
+      agentLoading: true,
+      agentError: "",
+      agentResponse: null,
+      agentConversation: outboundConversation,
+      agentDiffPreview: null,
+      agentDiffApproved: false,
+    });
     try {
-      const payload = await tauriInvoke<{ response: Record<string, unknown> }>("execute_agent_intent", {
+      const payload = await tauriInvoke<{ response: Record<string, unknown>; summary?: string; augmented_intent?: string }>("execute_agent_turn", {
         projectPath: state.projectPath,
         intent: state.agentIntent,
+        conversationJson: JSON.stringify(outboundConversation),
         approvalsJson,
       });
       const warnings = ((payload.response.warnings as unknown[]) ?? []).length;
       const errors = ((payload.response.errors as unknown[]) ?? []).length;
       const actions = ((payload.response.actions as unknown[]) ?? []).length;
       const ok = errors === 0;
+      const assistantActions =
+        ((payload.response.actions as unknown[]) ?? [])
+          .filter((v): v is Record<string, unknown> => !!v && typeof v === "object")
+          .map((v) => ({
+            kind: String(v.kind ?? "action"),
+            payload: v.payload && typeof v.payload === "object" ? (v.payload as Record<string, unknown>) : null,
+          }));
+      const assistantWarnings = ((payload.response.warnings as unknown[]) ?? []).map((v) => String(v));
+      const assistantErrors = ((payload.response.errors as unknown[]) ?? []).map((v) => String(v));
+      const assistantMessage: AgentConversationMessage = {
+        role: "assistant",
+        content: String(payload.summary || payload.response.plan || "Completed."),
+        timestamp: Date.now(),
+        actions: assistantActions,
+        warnings: assistantWarnings,
+        errors: assistantErrors,
+      };
       const historyEntry: AgentRunEntry = {
         atUnixMs: Date.now(),
         intent: state.agentIntent,
@@ -2433,7 +2535,11 @@ export default function App() {
       patchState({
         agentLoading: false,
         agentApprovalsJson: approvalsJson,
+        agentIntent: "",
         agentResponse: payload.response,
+        agentConversation: [...outboundConversation, assistantMessage],
+        agentDiffPreview: parseAgentDiffPreview(payload.response),
+        agentDiffApproved: false,
         agentRunHistory: [historyEntry, ...state.agentRunHistory].slice(0, 25),
       });
       await openProjectDocument(state.projectPath);
@@ -2442,6 +2548,69 @@ export default function App() {
         agentLoading: false,
         agentError: err instanceof Error ? err.message : String(err),
       });
+    }
+  };
+
+  const applyAgentDiffPreview = async (): Promise<void> => {
+    if (!hasTauri || !state.projectPath.trim()) {
+      patchState({ agentError: "Project path is required for applying agent diff." });
+      return;
+    }
+    const lastUser = [...state.agentConversation].reverse().find((m) => m.role === "user");
+    const intent = (lastUser?.content || state.agentIntent || "Apply the proposed diff").trim();
+    if (!intent) {
+      patchState({ agentError: "No agent intent available to apply diff." });
+      return;
+    }
+    let approvalsObj: Record<string, unknown> = {};
+    if (state.agentApprovalsJson.trim()) {
+      try {
+        const parsed = JSON.parse(state.agentApprovalsJson) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          approvalsObj = parsed as Record<string, unknown>;
+        }
+      } catch {
+        approvalsObj = {};
+      }
+    }
+    approvalsObj.apply_diff = true;
+    approvalsObj.run_job = state.agentApprovalRunJob;
+    const selectedIdx = Number(state.agentSelectedOptionIndex);
+    if (Number.isFinite(selectedIdx) && selectedIdx >= 0) {
+      approvalsObj.selected_option_index = Math.round(selectedIdx);
+    }
+    const approvalsJson = JSON.stringify(approvalsObj);
+    patchState({ agentLoading: true, agentError: "" });
+    try {
+      const payload = await tauriInvoke<{ response: Record<string, unknown>; summary?: string }>("execute_agent_turn", {
+        projectPath: state.projectPath,
+        intent,
+        conversationJson: JSON.stringify(state.agentConversation),
+        approvalsJson,
+      });
+      const actionsRaw = ((payload.response.actions as unknown[]) ?? []).filter((v): v is Record<string, unknown> => !!v && typeof v === "object");
+      const assistantMessage: AgentConversationMessage = {
+        role: "assistant",
+        content: String(payload.summary || payload.response.plan || "Applied."),
+        timestamp: Date.now(),
+        actions: actionsRaw.map((v) => ({
+          kind: String(v.kind ?? "action"),
+          payload: v.payload && typeof v.payload === "object" ? (v.payload as Record<string, unknown>) : null,
+        })),
+        warnings: ((payload.response.warnings as unknown[]) ?? []).map((v) => String(v)),
+        errors: ((payload.response.errors as unknown[]) ?? []).map((v) => String(v)),
+      };
+      patchState({
+        agentLoading: false,
+        agentApprovalsJson: approvalsJson,
+        agentResponse: payload.response,
+        agentConversation: [...state.agentConversation, assistantMessage],
+        agentDiffPreview: parseAgentDiffPreview(payload.response),
+        agentDiffApproved: true,
+      });
+      await openProjectDocument(state.projectPath);
+    } catch (err) {
+      patchState({ agentLoading: false, agentError: err instanceof Error ? err.message : String(err) });
     }
   };
 
@@ -4199,14 +4368,71 @@ export default function App() {
                             return null;
                           }
                           const selected = selectedLuminaireIdsSet.has(lum.id) || state.aimLuminaireId === lum.id;
+                          const previewActive = !!state.agentDiffPreview;
+                          const dimmed = previewActive && !agentDiffInvolvedIds.has(lum.id);
+                          const removed = previewActive && (state.agentDiffPreview?.removes ?? []).includes(lum.id);
                           return (
                             <g key={`lum-${lum.id}`} onClick={() => patchState({ aimLuminaireId: lum.id, sceneSelectedLuminaireIdsCsv: lum.id })}>
-                              <circle cx={mapped.x} cy={mapped.y} r={selected ? 1.5 : 1.1} fill={selected ? "#f59e0b" : "#fbbf24"} />
-                              <circle cx={mapped.x} cy={mapped.y} r={selected ? 2.6 : 2.2} fill="transparent" stroke={selected ? "rgba(251,191,36,0.95)" : "rgba(251,191,36,0.55)"} strokeWidth={0.16} />
+                              <circle cx={mapped.x} cy={mapped.y} r={selected ? 1.5 : 1.1} fill={removed ? "#ef4444" : selected ? "#f59e0b" : "#fbbf24"} opacity={dimmed ? 0.4 : 1} />
+                              <circle
+                                cx={mapped.x}
+                                cy={mapped.y}
+                                r={selected ? 2.6 : 2.2}
+                                fill="transparent"
+                                stroke={removed ? "rgba(248,113,113,0.95)" : selected ? "rgba(251,191,36,0.95)" : "rgba(251,191,36,0.55)"}
+                                strokeWidth={0.16}
+                                opacity={dimmed ? 0.4 : 1}
+                              />
+                              {removed ? (
+                                <text x={mapped.x} y={mapped.y - 3.2} textAnchor="middle" fill="#ef4444" fontSize={1.6}>
+                                  ×
+                                </text>
+                              ) : null}
                             </g>
                           );
                         })
                       : null}
+                    {state.agentDiffPreview ? (
+                      <>
+                        <defs>
+                          <marker id="agent-diff-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth">
+                            <polygon points="0 0, 7 3.5, 0 7" fill="#60a5fa" />
+                          </marker>
+                        </defs>
+                        {state.agentDiffPreview.moves.map((mv, i) => {
+                          const from = sceneProject(mv.oldX, mv.oldY, 0);
+                          const to = sceneProject(mv.newX, mv.newY, 0);
+                          if (!from || !to) {
+                            return null;
+                          }
+                          return (
+                            <g key={`agent-diff-move-${mv.id}-${i}`}>
+                              <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#60a5fa" strokeWidth={0.28} markerEnd="url(#agent-diff-arrow)" />
+                              <circle cx={to.x} cy={to.y} r={2.6} fill="none" stroke="#60a5fa" strokeDasharray="1.2 0.8" strokeWidth={0.2} opacity={0.95} />
+                              <text x={to.x} y={to.y - 3.4} textAnchor="middle" fill="#60a5fa" fontSize={1.4}>
+                                ↔
+                              </text>
+                            </g>
+                          );
+                        })}
+                        {state.agentDiffPreview.adds.map((add, i) => {
+                          const proj = sceneProject(add.x, add.y, add.z);
+                          if (!proj) {
+                            return null;
+                          }
+                          return (
+                            <g key={`agent-diff-add-${add.id}-${i}`}>
+                              <circle cx={proj.x} cy={proj.y} r={4} fill="#22c55e" opacity={0.8}>
+                                <animate attributeName="opacity" values="0.4;0.9;0.4" dur="1.5s" repeatCount="indefinite" />
+                              </circle>
+                              <text x={proj.x} y={proj.y - 6} textAnchor="middle" fill="#22c55e" fontSize="8">
+                                +
+                              </text>
+                            </g>
+                          );
+                        })}
+                      </>
+                    ) : null}
                     {(state.sceneViewMode === "3d" ? sceneBounds3d : sceneBounds) && selectedPoint
                       ? (() => {
                           const m = sceneProject(selectedPoint.x, selectedPoint.y, selectedPoint.z ?? 0);
@@ -5849,11 +6075,95 @@ export default function App() {
             </section>
             <section className="rounded-md border border-border bg-panel p-3">
               <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Agent Console</div>
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <ToolbarButton
+                  onClick={() => patchState({ agentConversation: [], agentDiffPreview: null, agentDiffApproved: false })}
+                  disabled={state.agentLoading || state.agentConversation.length === 0}
+                >
+                  Clear Conversation
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => {
+                    const pick = assistantSuggestions[0] ?? "";
+                    if (pick) {
+                      patchState({ agentIntent: pick });
+                    }
+                  }}
+                  disabled={state.agentLoading || assistantSuggestions.length === 0}
+                >
+                  Suggest
+                </ToolbarButton>
+                {assistantSuggestions.slice(0, 4).map((s) => (
+                  <button
+                    key={`agent-suggest-${s}`}
+                    type="button"
+                    onClick={() => patchState({ agentIntent: s })}
+                    className="rounded border border-border/70 bg-panelSoft/50 px-2 py-1 text-[11px] text-muted hover:border-border hover:text-text"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+              <div className="mb-2 max-h-72 space-y-2 overflow-auto rounded border border-border/60 bg-panelSoft/30 p-2">
+                {state.agentConversation.length === 0 ? (
+                  <div className="text-xs text-muted">No conversation yet. Send an intent to start a multi-turn agent session.</div>
+                ) : (
+                  state.agentConversation.map((msg, idx) => (
+                    <div key={`${msg.timestamp}-${idx}`} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={
+                          msg.role === "user"
+                            ? "max-w-[85%] rounded border border-blue-400/40 bg-blue-950/40 px-2 py-1 text-xs text-blue-100"
+                            : "max-w-[85%] rounded border border-border/70 bg-panel px-2 py-1 text-xs text-text"
+                        }
+                      >
+                        <div className="mb-1 text-[10px] uppercase tracking-[0.08em] text-muted">
+                          {msg.role === "user" ? "User" : "Assistant"} • {new Date(msg.timestamp).toLocaleTimeString()}
+                        </div>
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                        {msg.role === "assistant" && (msg.actions ?? []).length > 0 ? (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {(msg.actions ?? []).map((a, aIdx) => (
+                              <span key={`${a.kind}-${aIdx}`} className="rounded border border-emerald-500/40 bg-emerald-950/25 px-1.5 py-0.5 text-[10px] text-emerald-200">
+                                ✓ {a.kind.replaceAll("_", " ")}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        {msg.role === "assistant" && (msg.warnings ?? []).length > 0 ? (
+                          <div className="mt-1 space-y-1">
+                            {(msg.warnings ?? []).map((w, wIdx) => (
+                              <div key={`w-${wIdx}`} className="text-[11px] text-amber-200">
+                                ⚠ {w}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                        {msg.role === "assistant" && (msg.errors ?? []).length > 0 ? (
+                          <div className="mt-1 space-y-1">
+                            {(msg.errors ?? []).map((e, eIdx) => (
+                              <div key={`e-${eIdx}`} className="text-[11px] text-rose-200">
+                                ✕ {e}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
               <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[3fr_2fr_1fr]">
                 <input
                   value={state.agentIntent}
                   onChange={(e) => patchState({ agentIntent: e.target.value })}
-                  placeholder='Intent (example: "import file.dxf detect rooms and add grid")'
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void runAgentIntent();
+                    }
+                  }}
+                  placeholder='Send a message (example: "Place 500 lux layout")'
                   className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
                 />
                 <input
@@ -5863,7 +6173,7 @@ export default function App() {
                   className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 font-mono text-xs text-text outline-none"
                 />
                 <ToolbarButton onClick={() => void runAgentIntent()} disabled={state.agentLoading}>
-                  {state.agentLoading ? "Running..." : "Execute Intent"}
+                  {state.agentLoading ? "Sending..." : "Send"}
                 </ToolbarButton>
               </div>
               <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_1fr_3fr]">
@@ -5890,51 +6200,26 @@ export default function App() {
                   className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none"
                 />
                 <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
-                  Agent loop: edit intent/approvals and rerun to iterate on previous result.
+                  Conversation context from recent turns is included automatically.
                 </div>
               </div>
               {state.agentError ? <div className="mb-2 text-xs text-rose-300">{state.agentError}</div> : null}
-              {state.agentResponse ? (
-                <div className="space-y-2">
-                  <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
-                    Plan: {(state.agentResponse.plan as string) ?? "N/A"}
+              {state.agentDiffPreview ? (
+                <div className="rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
+                  <div className="mb-2 text-text">
+                    Preview: +{state.agentDiffPreview.adds.length} luminaires, −{state.agentDiffPreview.removes.length} removed, ↔
+                    {state.agentDiffPreview.moves.length} moved
                   </div>
-                  <div className="grid grid-cols-1 gap-2 xl:grid-cols-4">
-                    <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
-                      Success: {String((state.agentResponse.ok as boolean | undefined) ?? false)}
-                    </div>
-                    <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
-                      Actions: {String(((state.agentResponse.actions as unknown[]) ?? []).length)}
-                    </div>
-                    <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
-                      Warnings: {String(((state.agentResponse.warnings as unknown[]) ?? []).length)}
-                    </div>
-                    <div className="rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">
-                      Errors: {String(((state.agentResponse.errors as unknown[]) ?? []).length)}
-                    </div>
-                  </div>
-                  <DataTable title="Agent Actions" rows={agentActionRows} />
-                  <DataTable title="Agent Diff Preview" rows={agentDiffPreviewRows} />
-                  <DataTable title="Agent Warnings" rows={agentWarningRows} />
-                  <DataTable title="Agent Errors" rows={agentErrorRows} />
-                  <DataTable title="Agent Response Paths" rows={agentResponseRows} />
-                </div>
-              ) : null}
-              {state.agentRunHistory.length > 0 ? (
-                <div className="mt-2 space-y-2">
-                  <DataTable title="Agent Run History" rows={agentHistoryRows} />
-                  <div className="max-h-32 space-y-1 overflow-auto rounded border border-border/60 bg-panelSoft/50 p-2 text-xs text-muted">
-                    {state.agentRunHistory.slice(0, 8).map((r) => (
-                      <div key={`${r.atUnixMs}-${r.intent}`} className="flex items-center gap-2">
-                        <span className="truncate text-text">{new Date(r.atUnixMs).toLocaleTimeString()} - {r.intent}</span>
-                        <ToolbarButton
-                          onClick={() => patchState({ agentIntent: r.intent, agentApprovalsJson: r.approvalsJson })}
-                          className="ml-auto"
-                        >
-                          Reuse
-                        </ToolbarButton>
-                      </div>
-                    ))}
+                  <div className="flex gap-2">
+                    <ToolbarButton onClick={() => void applyAgentDiffPreview()} disabled={state.agentLoading}>
+                      ✓ Apply Changes
+                    </ToolbarButton>
+                    <ToolbarButton
+                      onClick={() => patchState({ agentDiffPreview: null, agentDiffApproved: false })}
+                      disabled={state.agentLoading}
+                    >
+                      ✗ Discard
+                    </ToolbarButton>
                   </div>
                 </div>
               ) : null}

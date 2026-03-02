@@ -653,6 +653,19 @@ class AgentRuntime:
         return f"{index}:{op.op}:{op.kind}:{op.id}"
 
     def _diff_preview(self, diff: ProjectDiff) -> Dict[str, Any]:
+        def _payload_json(payload: Any) -> Any:
+            if payload is None:
+                return None
+            if isinstance(payload, (str, int, float, bool)):
+                return payload
+            if isinstance(payload, dict):
+                return {str(k): _payload_json(v) for k, v in payload.items()}
+            if isinstance(payload, (list, tuple)):
+                return [_payload_json(v) for v in payload]
+            if hasattr(payload, "__dict__"):
+                return {str(k): _payload_json(v) for k, v in vars(payload).items()}
+            return str(payload)
+
         def _payload_fields(payload: Any) -> List[str]:
             if isinstance(payload, dict):
                 return sorted([str(k) for k in payload.keys()])
@@ -679,6 +692,7 @@ class AgentRuntime:
                 "id": op.id,
                 "payload_fields": _payload_fields(op.payload),
                 "payload_summary": _payload_summary(op.payload),
+                "payload": _payload_json(op.payload),
             }
             for i, op in enumerate(diff.ops)
         ]
