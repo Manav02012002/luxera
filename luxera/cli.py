@@ -1116,6 +1116,45 @@ def _cmd_agent_chat(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_agent_batch(args: argparse.Namespace) -> int:
+    from luxera.agent.batch import BatchRunner, BatchStep
+
+    output_dir = Path(args.output).expanduser().resolve() if args.output else (Path.cwd() / "out")
+    if args.file:
+        runner = BatchRunner(project_path=str(args.project or ""), output_dir=output_dir)
+        try:
+            results = runner.run_from_file(Path(args.file))
+        except Exception as e:
+            print(f"[ERROR] Batch run failed: {e}")
+            return 2
+    else:
+        if not args.project:
+            print("[ERROR] --project is required when --file is not provided")
+            return 2
+        raw_steps = list(args.steps or [])
+        if not raw_steps:
+            print("[ERROR] Provide at least one step via --steps")
+            return 2
+        steps = [BatchStep(intent=str(s)) for s in raw_steps]
+        runner = BatchRunner(project_path=str(Path(args.project).expanduser().resolve()), output_dir=output_dir)
+        try:
+            results = runner.run_steps(steps)
+        except Exception as e:
+            print(f"[ERROR] Batch run failed: {e}")
+            return 2
+
+    for r in results:
+        status = "PASS" if r.success else "FAIL"
+        print(f"[{status}] step={r.step_index} intent={r.intent!r} duration={r.duration_seconds:.2f}s")
+        if r.error:
+            print(f"  error: {r.error}")
+        if r.artifacts:
+            print(f"  artifacts: {r.artifacts}")
+
+    print(runner.generate_summary(results))
+    return 0 if all(r.success for r in results) else 2
+
+
 def _cmd_autopilot(args: argparse.Namespace) -> int:
     from luxera.agent.pipeline import CompliancePipeline
 
@@ -1598,6 +1637,13 @@ def main(argv: list[str] | None = None) -> int:
     agent_chat = agent_sub.add_parser("chat", help="Start interactive multi-turn agent chat.")
     agent_chat.add_argument("--project", required=True, help="Path to project JSON")
     agent_chat.set_defaults(func=_cmd_agent_chat)
+
+    agent_batch = agent_sub.add_parser("batch", help="Run agent intents in non-interactive batch mode.")
+    agent_batch.add_argument("--file", default=None, help="Batch file (.json/.yaml/.yml)")
+    agent_batch.add_argument("--project", default=None, help="Project path (required if --file not used)")
+    agent_batch.add_argument("--steps", nargs="*", default=None, help="Inline step intents")
+    agent_batch.add_argument("--output", default="./output", help="Output directory for batch artifacts")
+    agent_batch.set_defaults(func=_cmd_agent_batch)
 
     validate = sub.add_parser("validate", help="Run validation suites.")
     validate.add_argument("--suite", required=True, help="Validation suite id (e.g. cie171)")
