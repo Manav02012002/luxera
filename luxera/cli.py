@@ -38,6 +38,23 @@ from luxera.photometry.verify import verify_photometry_file
 from luxera.io.import_pipeline import run_import_pipeline
 from luxera.geometry.scene_prep import clean_scene_surfaces, detect_room_volumes_from_surfaces
 
+_PLUGIN_REGISTRY = None
+
+
+def _load_plugins_once() -> None:
+    global _PLUGIN_REGISTRY
+    if _PLUGIN_REGISTRY is not None:
+        return
+    try:
+        from luxera.plugins.registry import PluginRegistry
+
+        bundled = Path(__file__).resolve().parent / "plugins"
+        reg = PluginRegistry(plugin_dirs=[Path.home() / ".luxera" / "plugins", bundled])
+        reg.load_all()
+        _PLUGIN_REGISTRY = reg
+    except Exception:
+        _PLUGIN_REGISTRY = False
+
 
 _DEMO_IES_TEXT = """IESNA:LM-63-2002
 [MANUFAC] Luxera Demo
@@ -1222,6 +1239,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _load_plugins_once()
     p = argparse.ArgumentParser(prog="luxera")
     sub = p.add_subparsers(dest="cmd", required=True)
 

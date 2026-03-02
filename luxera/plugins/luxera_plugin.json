@@ -1,0 +1,10 @@
+{
+  "name": "example-material-library",
+  "version": "1.0.0",
+  "author": "Luxera",
+  "description": "Example plugin that contributes additional material presets.",
+  "plugin_type": "material_library",
+  "entry_point": "luxera.plugins.example_plugin.ExtraMaterialsPlugin",
+  "dependencies": [],
+  "min_luxera_version": "0.3.0"
+}
