@@ -15,13 +15,15 @@ from luxera.geometry.bvh import (
 )
 from luxera.geometry.core import Surface, Vector3
 from luxera.geometry.tolerance import EPS_POS
+from luxera.engine.radiosity.hemicube import HemicubeEngine
 
 
 @dataclass(frozen=True)
 class FormFactorConfig:
-    method: Literal["analytic", "monte_carlo"] = "monte_carlo"
+    method: Literal["analytic", "monte_carlo", "hemicube"] = "monte_carlo"
     use_visibility: bool = True
     monte_carlo_samples: int = 16
+    hemicube_resolution: int = 128
 
 
 def build_form_factor_matrix(
@@ -49,6 +51,9 @@ def build_form_factor_matrix(
     normals = normals / np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-12)
     id_to_index = {p.id: i for i, p in enumerate(patches)}
 
+    if config.method == "hemicube":
+        engine = HemicubeEngine(resolution=int(config.hemicube_resolution))
+        return engine.compute_matrix(patches=patches, all_surfaces=all_surfaces, bvh=bvh if config.use_visibility else None)
     if config.method == "analytic" or not config.use_visibility:
         delta = centroids[None, :, :] - centroids[:, None, :]
         dist2 = np.einsum("ijk,ijk->ij", delta, delta)

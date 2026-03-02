@@ -35,6 +35,7 @@ class RadiosityConfig:
     use_visibility: bool = True
     form_factor_method: str = "monte_carlo"
     monte_carlo_samples: int = 16
+    hemicube_resolution: int = 128
     seed: int = 0
 
 
@@ -113,9 +114,16 @@ def solve_radiosity(
         patches,
         surfaces,
         config=FormFactorConfig(
-            method="analytic" if str(config.form_factor_method).lower().startswith("an") else "monte_carlo",
+            method=(
+                "analytic"
+                if str(config.form_factor_method).lower().startswith("an")
+                else "hemicube"
+                if str(config.form_factor_method).lower().startswith("hemi")
+                else "monte_carlo"
+            ),
             use_visibility=bool(config.use_visibility),
             monte_carlo_samples=int(config.monte_carlo_samples),
+            hemicube_resolution=int(config.hemicube_resolution),
         ),
         rng=rng,
         bvh=bvh,
