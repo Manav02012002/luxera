@@ -282,6 +282,39 @@ export interface AgentDiffPreview {
   moves: Array<{ id: string; oldX: number; oldY: number; newX: number; newY: number }>;
 }
 
+export interface VariantVisualMetrics {
+  mean_lux: number | null;
+  uniformity: number | null;
+  ugr: number | null;
+  fixture_count: number | null;
+}
+
+export interface VariantVisualEntry {
+  id: string;
+  name: string;
+  metrics: VariantVisualMetrics;
+  heatmap_base64: string | null;
+  compliant: boolean;
+  error?: string | null;
+}
+
+export interface VariantVisualThresholds {
+  mean_lux_min: number | null;
+  uniformity_min: number | null;
+  ugr_max: number | null;
+}
+
+export interface VariantVisualResponse {
+  variants: VariantVisualEntry[];
+  comparison: {
+    best_illuminance: string | null;
+    best_uniformity: string | null;
+    best_efficiency: string | null;
+    best_glare: string | null;
+  };
+  thresholds: VariantVisualThresholds;
+}
+
 export interface AppState {
   resultDir: string;
   loading: boolean;
@@ -445,11 +478,16 @@ export interface AppState {
   designError: string;
   designMessage: string;
   designResult: Record<string, unknown> | null;
+  variantVisualResult: VariantVisualResponse | null;
   falseColorData: FalseColorGridResponse | null;
   beamSpreadData: BeamSpreadResponse | null;
   falseColorOpacity: string;
   falseColorShowContours: boolean;
   falseColorShowValues: boolean;
+  layerIsolux: boolean;
+  isoluxLabelInterval: number;
+  isoluxLevelCount: number;
+  isoluxCustomLevels: string;
   sceneZoom: number;
   scenePanX: number;
   scenePanY: number;

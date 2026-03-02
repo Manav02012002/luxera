@@ -527,6 +527,8 @@ fn load_backend_outputs(result_dir: Option<String>) -> Result<DesktopResultBundl
 fn get_falsecolor_grid_data(
     result_dir: String,
     grid_name: Option<String>,
+    contour_level_count: Option<i64>,
+    contour_custom_levels_csv: Option<String>,
 ) -> Result<FalseColorGridResponse, String> {
     let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
     let raw_path = PathBuf::from(result_dir.trim());
@@ -538,6 +540,8 @@ fn get_falsecolor_grid_data(
         return Err(format!("Directory not found: {}", resolved.display()));
     }
     let selected_grid = grid_name.unwrap_or_default().trim().to_string();
+    let contour_level_count = contour_level_count.unwrap_or(8).clamp(4, 20);
+    let contour_custom_levels_csv = contour_custom_levels_csv.unwrap_or_default();
     let script = r##"
 import json
 import math
@@ -685,11 +689,20 @@ def _origin_wh_elev(row: dict, points: np.ndarray | None, nx: int, ny: int) -> t
     return [float(ox), float(oy), float(oz)], float(width), float(height), float(elevation)
 
 
-def _build_contours(values: np.ndarray, origin: list[float], width: float, height: float, nx: int, ny: int) -> list[dict]:
+def _build_contours(
+    values: np.ndarray,
+    origin: list[float],
+    width: float,
+    height: float,
+    nx: int,
+    ny: int,
+    level_count: int,
+    custom_levels: list[float],
+) -> list[dict]:
     if nx < 2 or ny < 2:
         return []
     z = values.reshape(ny, nx)
-    levels = compute_contour_levels(z, n_levels=8)
+    levels = [float(v) for v in custom_levels if np.isfinite(v)] if custom_levels else compute_contour_levels(z, n_levels=int(level_count))
     if not levels:
         return []
     x = np.linspace(float(origin[0]), float(origin[0]) + float(width), nx)
@@ -715,6 +728,21 @@ def _build_contours(values: np.ndarray, origin: list[float], width: float, heigh
 def main() -> None:
     result_dir = Path(sys.argv[1]).expanduser().resolve()
     selected = (sys.argv[2] if len(sys.argv) > 2 else "").strip()
+    level_count = int(float(sys.argv[3])) if len(sys.argv) > 3 and str(sys.argv[3]).strip() else 8
+    level_count = max(4, min(20, level_count))
+    custom_levels_raw = (sys.argv[4] if len(sys.argv) > 4 else "").strip()
+    custom_levels = []
+    if custom_levels_raw:
+        for token in custom_levels_raw.split(","):
+            token = token.strip()
+            if not token:
+                continue
+            try:
+                custom_levels.append(float(token))
+            except Exception:
+                continue
+    if custom_levels:
+        custom_levels = sorted(set(custom_levels))
     result_json = _load_json(result_dir / "result.json")
     tables_json = _load_json(result_dir / "tables.json")
 
@@ -748,7 +776,7 @@ def main() -> None:
         norm = mcolors.Normalize(vmin=vmin, vmax=vmax) if vmax > vmin else mcolors.Normalize(vmin=vmin - 1.0, vmax=vmin + 1.0)
         cmap = cm.get_cmap("inferno")
         cells = [{"lux": float(v), "color": _hex_from_rgba(cmap(norm(float(v))))} for v in values.tolist()]
-        contours = _build_contours(values, origin, width, height, nx, ny)
+        contours = _build_contours(values, origin, width, height, nx, ny, level_count, custom_levels)
         out.append(
             {
                 "name": name,
@@ -774,6 +802,8 @@ if __name__ == "__main__":
         script.to_string(),
         resolved.to_string_lossy().to_string(),
         selected_grid,
+        contour_level_count.to_string(),
+        contour_custom_levels_csv,
     ])?;
     let grids = payload
         .get("grids")
@@ -2944,6 +2974,248 @@ print(json.dumps({"ok": res.ok, "message": res.message, "data": res.data}))
 }
 
 #[tauri::command]
+fn compare_variants_visual(
+    project_path: String,
+    job_id: String,
+    variant_ids_csv: String,
+) -> Result<Value, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+    if job_id.trim().is_empty() {
+        return Err("Job id is required".to_string());
+    }
+    if variant_ids_csv.trim().is_empty() {
+        return Err("At least one variant id is required".to_string());
+    }
+    let script = r#"
+import base64
+import csv
+import io
+import json
+import re
+import tempfile
+from pathlib import Path
+
+import numpy as np
+
+from luxera.project.io import load_project_schema
+from luxera.project.runner import run_job_in_memory
+from luxera.project.variants import _apply_variant
+from luxera.results.grid_viz import write_grid_heatmap_and_isolux
+
+
+def _to_float(v, default=None):
+    try:
+        out = float(v)
+        if np.isfinite(out):
+            return out
+    except Exception:
+        pass
+    return default
+
+
+def _slug(text: str) -> str:
+    clean = re.sub(r"[^a-zA-Z0-9_-]+", "_", str(text).strip())
+    return clean.strip("_") or "grid"
+
+
+def _first_threshold(project):
+    profiles = list(getattr(project, "compliance_profiles", []) or [])
+    if not profiles:
+        return {"mean_lux_min": None, "uniformity_min": None, "ugr_max": None}
+    thresholds = getattr(profiles[0], "thresholds", {}) or {}
+    return {
+        "mean_lux_min": _to_float(thresholds.get("maintained_illuminance_lux", thresholds.get("target_lux"))),
+        "uniformity_min": _to_float(thresholds.get("uniformity_min")),
+        "ugr_max": _to_float(thresholds.get("ugr_max")),
+    }
+
+
+def _candidate_csvs(result_dir: Path, grid_row: dict):
+    out = []
+    gid = str(grid_row.get("id", "")).strip()
+    gname = str(grid_row.get("name", "")).strip()
+    if gid:
+        out.append(result_dir / f"grid_{gid}.csv")
+    if gname:
+        out.append(result_dir / f"grid_{_slug(gname)}.csv")
+    out.append(result_dir / "grid.csv")
+    seen = set()
+    unique = []
+    for p in out:
+        k = str(p)
+        if k in seen:
+            continue
+        seen.add(k)
+        unique.append(p)
+    return unique
+
+
+def _load_grid_points_values(result_dir: Path):
+    tables_path = result_dir / "tables.json"
+    if not tables_path.exists():
+        return None
+    tables = json.loads(tables_path.read_text(encoding="utf-8"))
+    grids = (((tables or {}).get("tables") or {}).get("grids") or [])
+    if not grids:
+        return None
+    row = grids[0] if isinstance(grids[0], dict) else {}
+    nx = int(row.get("nx", 0) or 0)
+    ny = int(row.get("ny", 0) or 0)
+    if nx <= 0 or ny <= 0:
+        return None
+    for csv_path in _candidate_csvs(result_dir, row):
+        if not csv_path.exists():
+            continue
+        try:
+            with csv_path.open("r", encoding="utf-8", newline="") as f:
+                reader = csv.DictReader(f)
+                pts = []
+                vals = []
+                for rec in reader:
+                    pts.append([float(rec["x"]), float(rec["y"]), float(rec.get("z", 0.0))])
+                    vals.append(float(rec["lux"]))
+            points = np.asarray(pts, dtype=float)
+            values = np.asarray(vals, dtype=float)
+            if points.shape[0] == nx * ny and values.shape[0] == nx * ny:
+                return points, values, nx, ny
+        except Exception:
+            continue
+    return None
+
+
+def _to_heatmap_b64(result_dir: Path):
+    loaded = _load_grid_points_values(result_dir)
+    if loaded is None:
+        return None
+    points, values, nx, ny = loaded
+    with tempfile.TemporaryDirectory(prefix="luxera_variant_heat_") as td:
+        out = write_grid_heatmap_and_isolux(Path(td), points, values, nx, ny)
+        heatmap_path = out.get("heatmap")
+        if not heatmap_path or not Path(heatmap_path).exists():
+            return None
+        raw = Path(heatmap_path).read_bytes()
+        return base64.b64encode(raw).decode("ascii")
+
+
+def _summary_metric(summary: dict, *keys):
+    for k in keys:
+        if k in summary:
+            v = _to_float(summary.get(k))
+            if v is not None:
+                return v
+    return None
+
+
+def _is_compliant(metrics: dict, thresholds: dict):
+    checks = []
+    if thresholds.get("mean_lux_min") is not None and metrics.get("mean_lux") is not None:
+        checks.append(metrics["mean_lux"] >= thresholds["mean_lux_min"])
+    if thresholds.get("uniformity_min") is not None and metrics.get("uniformity") is not None:
+        checks.append(metrics["uniformity"] >= thresholds["uniformity_min"])
+    if thresholds.get("ugr_max") is not None and metrics.get("ugr") is not None:
+        checks.append(metrics["ugr"] <= thresholds["ugr_max"])
+    return bool(checks) and all(checks)
+
+
+project_path = str(Path(sys.argv[1]).expanduser().resolve())
+job_id = sys.argv[2].strip()
+variant_ids = [x.strip() for x in sys.argv[3].split(",") if x.strip()]
+
+project = load_project_schema(project_path)
+project.root_dir = str(Path(project_path).parent)
+variant_by_id = {v.id: v for v in project.variants}
+thresholds = _first_threshold(project)
+
+variants_out = []
+for vid in variant_ids:
+    variant = variant_by_id.get(vid)
+    if variant is None:
+        variants_out.append(
+            {
+                "id": vid,
+                "name": vid,
+                "metrics": {"mean_lux": None, "uniformity": None, "ugr": None, "fixture_count": None},
+                "heatmap_base64": None,
+                "compliant": False,
+                "error": f"Unknown variant id: {vid}",
+            }
+        )
+        continue
+    try:
+        vp = _apply_variant(project, variant)
+        ref = run_job_in_memory(vp, job_id)
+        summary = dict(ref.summary or {})
+        metrics = {
+            "mean_lux": _summary_metric(summary, "mean_lux", "E_avg"),
+            "uniformity": _summary_metric(summary, "uniformity_ratio", "uniformity_min_avg", "U0"),
+            "ugr": _summary_metric(summary, "ugr_worst_case", "UGR"),
+            "fixture_count": int(len(getattr(vp, "luminaires", []) or [])),
+        }
+        variants_out.append(
+            {
+                "id": variant.id,
+                "name": variant.name,
+                "metrics": metrics,
+                "heatmap_base64": _to_heatmap_b64(Path(ref.result_dir)),
+                "compliant": _is_compliant(metrics, thresholds),
+                "error": None,
+            }
+        )
+    except Exception as e:
+        variants_out.append(
+            {
+                "id": variant.id,
+                "name": variant.name,
+                "metrics": {"mean_lux": None, "uniformity": None, "ugr": None, "fixture_count": None},
+                "heatmap_base64": None,
+                "compliant": False,
+                "error": str(e),
+            }
+        )
+
+ok_rows = [v for v in variants_out if not v.get("error")]
+
+def _best_by(metric: str, mode: str):
+    rows = [r for r in ok_rows if _to_float(((r.get("metrics") or {}).get(metric))) is not None]
+    if not rows:
+        return None
+    if mode == "max":
+        best = max(rows, key=lambda r: float(r["metrics"][metric]))
+    else:
+        best = min(rows, key=lambda r: float(r["metrics"][metric]))
+    return best.get("id")
+
+comparison = {
+    "best_illuminance": _best_by("mean_lux", "max"),
+    "best_uniformity": _best_by("uniformity", "max"),
+    "best_efficiency": _best_by("fixture_count", "min"),
+    "best_glare": _best_by("ugr", "min"),
+}
+
+print(
+    json.dumps(
+        {
+            "variants": variants_out,
+            "comparison": comparison,
+            "thresholds": thresholds,
+        }
+    )
+)
+"#;
+    run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        project.to_string_lossy().to_string(),
+        job_id.trim().to_string(),
+        variant_ids_csv,
+    ])
+}
+
+#[tauri::command]
 fn propose_project_optimizations(
     project_path: String,
     job_id: String,
@@ -4156,6 +4428,7 @@ pub fn run() {
             assign_material_in_project,
             add_project_variant,
             compare_project_variants,
+            compare_variants_visual,
             propose_project_optimizations,
             apply_project_optimization_option,
             edit_room_in_project,
