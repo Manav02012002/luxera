@@ -176,6 +176,25 @@ export interface QuickLayoutResult {
   luminaires: QuickLayoutLuminaire[];
 }
 
+export interface DetailedComplianceCheck {
+  metric: string;
+  actual: number | null;
+  required: number | null;
+  unit: string;
+  direction: ">=" | "<=";
+  status: "PASS" | "FAIL" | "N/A";
+  delta: number | null;
+  delta_percent: number | null;
+  suggestion: string | null;
+}
+
+export interface DetailedComplianceResponse {
+  profile_name: string | null;
+  standard: string | null;
+  overall_status: "PASS" | "FAIL" | "N/A" | "NO_PROFILE";
+  checks: DetailedComplianceCheck[];
+}
+
 export interface JobRunResponse {
   projectPath: string;
   jobId: string;
@@ -242,6 +261,9 @@ export interface AppState {
   error: string;
   bundle: DesktopResultBundle | null;
   model: DesktopViewModel | null;
+  complianceDetailed: DetailedComplianceResponse | null;
+  complianceDetailedLoading: boolean;
+  complianceDetailedError: string;
   recentRuns: RecentRun[];
   recentLoading: boolean;
   recentProjects: string[];

@@ -24,6 +24,7 @@ import type {
   AgentRunEntry,
   BackendContract,
   BeamSpreadResponse,
+  DetailedComplianceResponse,
   ExportOperationResult,
   FalseColorGridResponse,
   GeometryOperationResult,
@@ -146,6 +147,9 @@ const initialState: AppState = {
   error: "",
   bundle: null,
   model: null,
+  complianceDetailed: null,
+  complianceDetailedLoading: false,
+  complianceDetailedError: "",
   recentRuns: [],
   recentLoading: false,
   recentProjects: [],
@@ -1300,6 +1304,40 @@ export default function App() {
       await tauriInvoke<void>("open_result_dir", { path });
     } catch (err) {
       patchState({ error: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  const loadComplianceDetailed = async (explicitResultDir?: string, explicitProjectPath?: string): Promise<void> => {
+    if (!hasTauri) {
+      return;
+    }
+    const resultDir = (explicitResultDir ?? state.resultDir).trim();
+    const projectPath = ((explicitProjectPath && explicitProjectPath.trim()) || state.projectPath || state.projectDoc?.path || "").trim();
+    if (!resultDir) {
+      patchState({ complianceDetailed: null, complianceDetailedLoading: false, complianceDetailedError: "" });
+      return;
+    }
+    if (!projectPath) {
+      patchState({
+        complianceDetailed: null,
+        complianceDetailedLoading: false,
+        complianceDetailedError: "No compliance profile set. Select a standard in Calc Setup.",
+      });
+      return;
+    }
+    patchState({ complianceDetailedLoading: true, complianceDetailedError: "" });
+    try {
+      const payload = await tauriInvoke<DetailedComplianceResponse>("evaluate_compliance_detailed", {
+        resultDir,
+        projectPath,
+      });
+      patchState({ complianceDetailed: payload, complianceDetailedLoading: false, complianceDetailedError: "" });
+    } catch (err) {
+      patchState({
+        complianceDetailed: null,
+        complianceDetailedLoading: false,
+        complianceDetailedError: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
@@ -2943,6 +2981,28 @@ export default function App() {
   }, [state.gridElevation, state.workplanePreset]);
 
   useEffect(() => {
+    if (!hasTauri) {
+      return;
+    }
+    const resultDir = state.resultDir.trim();
+    if (!resultDir) {
+      patchState({ complianceDetailed: null, complianceDetailedLoading: false, complianceDetailedError: "" });
+      return;
+    }
+    const projectPath = (state.projectPath || state.projectDoc?.path || "").trim();
+    if (!projectPath) {
+      patchState({
+        complianceDetailed: null,
+        complianceDetailedLoading: false,
+        complianceDetailedError: "No compliance profile set. Select a standard in Calc Setup.",
+      });
+      return;
+    }
+    void loadComplianceDetailed(resultDir, projectPath);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasTauri, state.resultDir, state.projectPath, state.projectDoc?.path]);
+
+  useEffect(() => {
     if (!selectedStandardProfile) {
       return;
     }
@@ -3028,12 +3088,19 @@ export default function App() {
     </div>
   );
 
+  const complianceOverallStatus = state.complianceDetailed?.overall_status ?? "N/A";
   const complianceTone =
-    model?.compliance.status === "PASS"
+    complianceOverallStatus === "PASS"
       ? "text-emerald-300"
-      : model?.compliance.status === "FAIL"
+      : complianceOverallStatus === "FAIL"
         ? "text-rose-300"
         : "text-amber-200";
+  const complianceBannerClass =
+    complianceOverallStatus === "PASS"
+      ? "border-emerald-500/40 bg-emerald-950/25 text-emerald-100"
+      : complianceOverallStatus === "FAIL"
+        ? "border-rose-500/40 bg-rose-950/25 text-rose-100"
+        : "border-border/70 bg-panelSoft/60 text-muted";
   const sceneZoomRef = useRef(state.sceneZoom);
   const scenePanXRef = useRef(state.scenePanX);
   const scenePanYRef = useRef(state.scenePanY);
@@ -6403,14 +6470,85 @@ export default function App() {
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
               <section className="rounded-md border border-border bg-panel p-3">
                 <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Compliance</div>
-                <div className={`text-sm font-semibold ${complianceTone}`}>{model?.compliance.status ?? "N/A"}</div>
-                <ul className="mt-2 space-y-1 text-xs text-muted">
-                  {(model?.compliance.reasons ?? []).length > 0 ? (
-                    (model?.compliance.reasons ?? []).map((reason) => <li key={reason}>{reason}</li>)
-                  ) : (
-                    <li>No compliance reasons reported.</li>
-                  )}
-                </ul>
+                {state.complianceDetailedLoading ? (
+                  <div className="text-xs text-muted">Evaluating detailed compliance...</div>
+                ) : state.complianceDetailedError ? (
+                  <div className="rounded border border-amber-500/40 bg-amber-950/25 p-2 text-xs text-amber-100">
+                    {state.complianceDetailedError}
+                  </div>
+                ) : state.complianceDetailed?.overall_status === "NO_PROFILE" ? (
+                  <div className="rounded border border-amber-500/40 bg-amber-950/25 p-2 text-xs text-amber-100">
+                    No compliance profile set. Select a standard in Calc Setup.
+                  </div>
+                ) : state.complianceDetailed ? (
+                  <div className="space-y-2">
+                    <div className={`rounded border px-2 py-1 text-xs font-semibold ${complianceBannerClass}`}>
+                      <span className={complianceTone}>{complianceOverallStatus === "PASS" ? "COMPLIANT" : "NON-COMPLIANT"}</span>
+                      {" • "}
+                      {state.complianceDetailed.profile_name ?? "Compliance Profile"}
+                      {state.complianceDetailed.standard ? ` (${state.complianceDetailed.standard})` : ""}
+                    </div>
+                    {(state.complianceDetailed.checks ?? []).map((check, idx) => {
+                      const hasRequired = typeof check.required === "number" && Number.isFinite(check.required);
+                      const hasActual = typeof check.actual === "number" && Number.isFinite(check.actual);
+                      const ratio = hasRequired && hasActual && check.required !== 0 ? Math.min(check.actual / check.required, 1.5) : 0;
+                      const widthPercent = Math.max(0, ratio * 100);
+                      const pass = check.status === "PASS";
+                      const fail = check.status === "FAIL";
+                      return (
+                        <div key={`${check.metric}-${idx}`} className="rounded border border-border/70 bg-panelSoft/40 p-2">
+                          <div className="flex items-center justify-between gap-2 text-xs">
+                            <div className="font-semibold text-text">{check.metric}</div>
+                            <div className={pass ? "text-emerald-300" : fail ? "text-rose-300" : "text-amber-200"}>{check.status}</div>
+                          </div>
+                          <div className="relative mt-1 h-2 overflow-hidden rounded bg-panel">
+                            <div className="absolute inset-y-0 left-[66.666%] w-px bg-border" />
+                            {check.direction === "<=" ? (
+                              <div
+                                className={pass ? "absolute right-0 top-0 h-full bg-emerald-500/70" : "absolute right-0 top-0 h-full bg-rose-500/70"}
+                                style={{ width: `${widthPercent}%` }}
+                              />
+                            ) : (
+                              <div
+                                className={pass ? "absolute left-0 top-0 h-full bg-emerald-500/70" : "absolute left-0 top-0 h-full bg-rose-500/70"}
+                                style={{ width: `${widthPercent}%` }}
+                              />
+                            )}
+                          </div>
+                          <div className="mt-1 grid grid-cols-2 gap-2 text-[11px] text-muted">
+                            <div>
+                              Actual: {hasActual ? check.actual.toFixed(2) : "N/A"}
+                              {check.unit ? ` ${check.unit}` : ""}
+                            </div>
+                            <div>
+                              Required: {hasRequired ? check.required.toFixed(2) : "N/A"}
+                              {check.unit ? ` ${check.unit}` : ""}
+                              {` (${check.direction})`}
+                            </div>
+                          </div>
+                          <div className={fail ? "mt-1 text-[11px] text-rose-200" : "mt-1 text-[11px] text-emerald-200"}>
+                            Delta:{" "}
+                            {typeof check.delta === "number" && Number.isFinite(check.delta)
+                              ? `${check.delta.toFixed(2)}${check.unit ? ` ${check.unit}` : ""}`
+                              : "N/A"}
+                            {typeof check.delta_percent === "number" && Number.isFinite(check.delta_percent)
+                              ? ` (${check.delta_percent.toFixed(1)}%)`
+                              : ""}
+                          </div>
+                          {fail && check.suggestion ? <div className="mt-1 text-[11px] text-muted">{check.suggestion}</div> : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <ul className="mt-2 space-y-1 text-xs text-muted">
+                    {(model?.compliance.reasons ?? []).length > 0 ? (
+                      (model?.compliance.reasons ?? []).map((reason) => <li key={reason}>{reason}</li>)
+                    ) : (
+                      <li>No compliance reasons reported.</li>
+                    )}
+                  </ul>
+                )}
               </section>
               <section className="rounded-md border border-border bg-panel p-3">
                 <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Tables</div>

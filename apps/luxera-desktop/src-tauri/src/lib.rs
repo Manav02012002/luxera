@@ -2033,6 +2033,188 @@ print(json.dumps({
 }
 
 #[tauri::command]
+fn evaluate_compliance_detailed(result_dir: String, project_path: String) -> Result<Value, String> {
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot resolve current directory: {}", e))?;
+    let result_path = resolve_repo_relative(&PathBuf::from(result_dir.trim()), &cwd)?;
+    if !result_path.exists() || !result_path.is_dir() {
+        return Err(format!("Result directory not found: {}", result_path.display()));
+    }
+    let project = resolve_repo_relative(&PathBuf::from(project_path.trim()), &cwd)?;
+    if !project.exists() || !project.is_file() {
+        return Err(format!("Project file not found: {}", project.display()));
+    }
+
+    let script = r#"
+import json, sys
+from pathlib import Path
+
+from luxera.project.io import load_project_schema
+
+result_dir = Path(sys.argv[1]).expanduser().resolve()
+project_path = Path(sys.argv[2]).expanduser().resolve()
+
+result_file = result_dir / "result.json"
+if not result_file.exists():
+    raise FileNotFoundError(f"Missing result.json in {result_dir}")
+
+with result_file.open("r", encoding="utf-8") as f:
+    result_payload = json.load(f)
+
+summary = result_payload.get("summary") if isinstance(result_payload, dict) else {}
+if not isinstance(summary, dict):
+    summary = {}
+
+def _as_float(value):
+    if isinstance(value, (int, float)):
+        v = float(value)
+        if v == v and v not in (float("inf"), float("-inf")):
+            return v
+    return None
+
+def _pick_first_numeric(src, keys):
+    for key in keys:
+        if not isinstance(src, dict):
+            continue
+        v = _as_float(src.get(key))
+        if v is not None:
+            return v
+    return None
+
+def _threshold(profile_thresholds, keys):
+    if not isinstance(profile_thresholds, dict):
+        return None
+    for key in keys:
+        v = _as_float(profile_thresholds.get(key))
+        if v is not None:
+            return v
+    return None
+
+def _metric_check(metric, actual, required, unit, direction):
+    if required is None:
+        return {
+            "metric": metric,
+            "actual": actual,
+            "required": None,
+            "unit": unit,
+            "direction": direction,
+            "status": "N/A",
+            "delta": None,
+            "delta_percent": None,
+            "suggestion": None,
+        }
+    if actual is None:
+        return {
+            "metric": metric,
+            "actual": None,
+            "required": required,
+            "unit": unit,
+            "direction": direction,
+            "status": "N/A",
+            "delta": None,
+            "delta_percent": None,
+            "suggestion": None,
+        }
+    delta = actual - required
+    delta_percent = (delta / required * 100.0) if abs(required) > 1e-12 else None
+    passed = actual >= required if direction == ">=" else actual <= required
+    status = "PASS" if passed else "FAIL"
+    suggestion = None
+    if status == "FAIL":
+        if metric.startswith("Maintained Illuminance"):
+            suggestion = f"Increase by ~{abs(delta):.0f} lux. Try: reduce luminaire spacing, increase flux multiplier, or add luminaires."
+        elif metric.startswith("Uniformity"):
+            suggestion = f"Improve uniformity by {abs(delta):.2f}. Try: reduce spacing between luminaires or add supplementary luminaires in dark areas."
+        elif metric.startswith("Glare Rating"):
+            suggestion = f"Reduce glare by {abs(delta):.1f} points. Try: increase mounting height, use lower-luminance luminaires, or adjust aiming."
+        elif metric.startswith("Minimum Illuminance"):
+            suggestion = f"Increase minimum illuminance by ~{abs(delta):.0f} lux. Try: fill dark zones with additional luminaires and tighten spacing."
+    return {
+        "metric": metric,
+        "actual": actual,
+        "required": required,
+        "unit": unit,
+        "direction": direction,
+        "status": status,
+        "delta": delta,
+        "delta_percent": delta_percent,
+        "suggestion": suggestion,
+    }
+
+project = load_project_schema(project_path)
+profiles = list(getattr(project, "compliance_profiles", []) or [])
+if not profiles:
+    print(json.dumps({
+        "profile_name": None,
+        "standard": None,
+        "overall_status": "NO_PROFILE",
+        "checks": [],
+    }))
+    raise SystemExit(0)
+
+profile = profiles[0]
+thresholds = dict(getattr(profile, "thresholds", {}) or {})
+
+mean_lux = _pick_first_numeric(summary, ("mean_lux", "avg_lux", "mean_illuminance_lux"))
+min_lux = _pick_first_numeric(summary, ("min_lux", "minimum_lux", "emin_lux"))
+uniformity_ratio = _pick_first_numeric(summary, ("uniformity_ratio", "u0", "uniformity"))
+ugr_worst_case = _pick_first_numeric(summary, ("ugr_worst_case", "highest_ugr", "ugr"))
+
+checks = [
+    _metric_check(
+        "Maintained Illuminance (Em)",
+        mean_lux,
+        _threshold(thresholds, ("maintained_illuminance_lux", "target_lux", "em_lux")),
+        "lux",
+        ">=",
+    ),
+    _metric_check(
+        "Minimum Illuminance (Emin)",
+        min_lux,
+        _threshold(thresholds, ("minimum_illuminance_lux", "emin_lux")),
+        "lux",
+        ">=",
+    ),
+    _metric_check(
+        "Uniformity (Uo)",
+        uniformity_ratio,
+        _threshold(thresholds, ("uniformity_min", "u0_min")),
+        "",
+        ">=",
+    ),
+    _metric_check(
+        "Glare Rating (UGR)",
+        ugr_worst_case,
+        _threshold(thresholds, ("ugr_max", "ugr_limit")),
+        "",
+        "<=",
+    ),
+]
+checks = [c for c in checks if c.get("required") is not None or c.get("actual") is not None]
+
+overall_status = "PASS"
+for c in checks:
+    if c.get("status") == "FAIL":
+        overall_status = "FAIL"
+        break
+if checks and all(c.get("status") == "N/A" for c in checks):
+    overall_status = "N/A"
+
+print(json.dumps({
+    "profile_name": str(getattr(profile, "id", "") or getattr(profile, "name", "") or "Compliance Profile"),
+    "standard": str(getattr(profile, "standard_ref", "") or "EN 12464-1:2021"),
+    "overall_status": overall_status,
+    "checks": checks,
+}))
+"#;
+    run_python_json(&[
+        "-c".to_string(),
+        script.to_string(),
+        result_path.to_string_lossy().to_string(),
+        project.to_string_lossy().to_string(),
+    ])
+}
+
+#[tauri::command]
 fn propose_quick_layout(
     project_path: String,
     target_lux: f64,
@@ -3703,6 +3885,7 @@ pub fn run() {
             add_job_to_project,
             list_standard_profiles,
             set_compliance_profile_in_project,
+            evaluate_compliance_detailed,
             propose_quick_layout,
             apply_quick_layout,
             export_debug_bundle,
