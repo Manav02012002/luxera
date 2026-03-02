@@ -13,6 +13,7 @@ from luxera.geometry.doctor import repair_mesh, scene_health_report
 from luxera.geometry.polygon2d import make_polygon_valid, validate_polygon_with_holes
 from luxera.io.dxf_import import DXFDocument, DXFInsert, load_dxf
 from luxera.io.geometry_import import GeometryImportResult, import_geometry_file
+from luxera.ifc.enhanced_importer import EnhancedIFCImporter
 from luxera.project.schema import Project
 from luxera.scene.build import build_scene_graph_from_project
 
@@ -313,16 +314,57 @@ def run_import_pipeline(
         report = ImportPipelineReport(source_file=str(p), format=fmt_used, stages=stages, layer_map=layer_map)
         return ImportPipelineResult(geometry=None, report=report)
 
-    # Normalized geometry + semantic extraction (current importer already does both).
+    # Normalized geometry + semantic extraction.
+    enhanced_ifc_used = False
     try:
-        geo = import_geometry_file(
-            str(p),
-            fmt=fmt_used,
-            dxf_scale=dxf_scale,
-            length_unit=length_unit,
-            scale_to_meters=scale_to_meters,
-            ifc_options=ifc_options,
-        )
+        if fmt_used == "IFC":
+            try:
+                importer = EnhancedIFCImporter(p)
+                proj = importer.to_project()
+                geo = GeometryImportResult(
+                    source_file=str(p),
+                    format="IFC",
+                    length_unit="m",
+                    source_length_unit="m",
+                    scale_to_meters=1.0,
+                    rooms=list(proj.geometry.rooms),
+                    surfaces=list(proj.geometry.surfaces),
+                    openings=list(proj.geometry.openings),
+                    obstructions=list(proj.geometry.obstructions),
+                    levels=list(proj.geometry.levels),
+                    warnings=["enhanced_ifc_importer=enabled"],
+                )
+                enhanced_ifc_used = True
+            except ImportError:
+                geo = import_geometry_file(
+                    str(p),
+                    fmt=fmt_used,
+                    dxf_scale=dxf_scale,
+                    length_unit=length_unit,
+                    scale_to_meters=scale_to_meters,
+                    ifc_options=ifc_options,
+                )
+                geo.warnings.append("enhanced_ifc_importer=fallback_basic")
+            except Exception:
+                # If enhanced importer fails unexpectedly on a file, keep compatibility by falling back.
+                geo = import_geometry_file(
+                    str(p),
+                    fmt=fmt_used,
+                    dxf_scale=dxf_scale,
+                    length_unit=length_unit,
+                    scale_to_meters=scale_to_meters,
+                    ifc_options=ifc_options,
+                )
+                geo.warnings.append("enhanced_ifc_importer=fallback_basic_error")
+        else:
+            geo = import_geometry_file(
+                str(p),
+                fmt=fmt_used,
+                dxf_scale=dxf_scale,
+                length_unit=length_unit,
+                scale_to_meters=scale_to_meters,
+                ifc_options=ifc_options,
+            )
     except Exception as exc:
         stages.append(ImportStage(name="NormalizedGeometry", status="error", errors=[str(exc)]))
         report = ImportPipelineReport(source_file=str(p), format=fmt_used, stages=stages, layer_map=layer_map)
@@ -338,6 +380,7 @@ def run_import_pipeline(
                 "scale_to_meters": geo.scale_to_meters,
                 "axis_transform_applied": geo.axis_transform_applied,
                 "axis_matrix": list(getattr(geo, "axis_matrix", [])),
+                "enhanced_ifc_used": enhanced_ifc_used if fmt_used == "IFC" else False,
             },
             warnings=list(geo.warnings),
         )
