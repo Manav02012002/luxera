@@ -40,6 +40,7 @@ import type {
   RecentRun,
   StandardProfileOption,
   ToolOperationResult,
+  VariantVisualResponse,
 } from "./types";
 import { flattenJsonRows, firstNumeric, objectToRows, rowsToPoints } from "./utils/table";
 import { hasTauriRuntime, tauriDialogOpen, tauriDialogSave, tauriInvoke } from "./utils/tauri";
@@ -142,6 +143,33 @@ function beamEllipseWorldPoint(cx: number, cy: number, yawRad: number, radiusC0:
     x: cx + cyaw * radiusC0 * ct - syaw * radiusC90 * st,
     y: cy + syaw * radiusC0 * ct + cyaw * radiusC90 * st,
   };
+}
+
+function infernoColorAt(level: number, minValue: number, maxValue: number): string {
+  const stops = [
+    [0.0, [0, 0, 4]],
+    [0.2, [52, 15, 94]],
+    [0.4, [123, 37, 129]],
+    [0.6, [186, 54, 85]],
+    [0.8, [249, 142, 9]],
+    [1.0, [252, 255, 164]],
+  ] as const;
+  const span = Math.max(maxValue - minValue, 1e-9);
+  const t = Math.max(0, Math.min(1, (level - minValue) / span));
+  let lo = stops[0];
+  let hi = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i += 1) {
+    if (t >= stops[i][0] && t <= stops[i + 1][0]) {
+      lo = stops[i];
+      hi = stops[i + 1];
+      break;
+    }
+  }
+  const local = hi[0] > lo[0] ? (t - lo[0]) / (hi[0] - lo[0]) : 0;
+  const r = Math.round(lo[1][0] + (hi[1][0] - lo[1][0]) * local);
+  const g = Math.round(lo[1][1] + (hi[1][1] - lo[1][1]) * local);
+  const b = Math.round(lo[1][2] + (hi[1][2] - lo[1][2]) * local);
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
 }
 
 const initialState: AppState = {
@@ -307,11 +335,16 @@ const initialState: AppState = {
   designError: "",
   designMessage: "",
   designResult: null,
+  variantVisualResult: null,
   falseColorData: null,
   beamSpreadData: null,
   falseColorOpacity: "0.7",
   falseColorShowContours: true,
   falseColorShowValues: false,
+  layerIsolux: false,
+  isoluxLabelInterval: 2,
+  isoluxLevelCount: 8,
+  isoluxCustomLevels: "",
   sceneZoom: 1,
   scenePanX: 0,
   scenePanY: 0,
@@ -389,6 +422,40 @@ export default function App() {
     () => ((state.designResult?.rows as JsonRow[] | undefined) ?? []),
     [state.designResult],
   );
+  const variantVisualRows = useMemo<JsonRow[]>(
+    () =>
+      (state.variantVisualResult?.variants ?? []).map((v) => ({
+        id: v.id,
+        name: v.name,
+        mean_lux: v.metrics.mean_lux,
+        uniformity: v.metrics.uniformity,
+        ugr: v.metrics.ugr,
+        fixture_count: v.metrics.fixture_count,
+        compliant: v.compliant,
+        error: v.error ?? "",
+      })),
+    [state.variantVisualResult],
+  );
+  const variantVisualChart = useMemo(() => {
+    const result = state.variantVisualResult;
+    if (!result || result.variants.length === 0) {
+      return null;
+    }
+    const ok = result.variants.filter((v) => !v.error);
+    if (ok.length === 0) {
+      return null;
+    }
+    const thresholds = result.thresholds;
+    return {
+      variants: ok,
+      metrics: [
+        { key: "mean_lux" as const, label: "Em (lux)", better: "max" as const, threshold: thresholds.mean_lux_min },
+        { key: "uniformity" as const, label: "Uo", better: "max" as const, threshold: thresholds.uniformity_min },
+        { key: "ugr" as const, label: "UGR", better: "min" as const, threshold: thresholds.ugr_max },
+        { key: "fixture_count" as const, label: "Fixtures", better: "min" as const, threshold: null as number | null },
+      ],
+    };
+  }, [state.variantVisualResult]);
   const projectModel = useMemo<Record<string, unknown> | null>(() => {
     if (!state.projectDocContent.trim()) {
       return null;
@@ -1408,9 +1475,14 @@ export default function App() {
       return;
     }
     try {
+      const levelCount = Number.isFinite(Number(state.isoluxLevelCount))
+        ? Math.max(4, Math.min(20, Math.round(Number(state.isoluxLevelCount))))
+        : 8;
       const payload = await tauriInvoke<FalseColorGridResponse>("get_falsecolor_grid_data", {
         resultDir,
         gridName: null,
+        contourLevelCount: levelCount,
+        contourCustomLevelsCsv: state.isoluxCustomLevels.trim() || null,
       });
       patchState({ falseColorData: payload, error: "" });
     } catch (err) {
@@ -1790,6 +1862,46 @@ export default function App() {
       }
     } catch (err) {
       patchState({ exportError: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  const browseResultDir = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ error: "Result directory browsing requires Tauri runtime." });
+      return;
+    }
+    try {
+      const picked = await tauriDialogOpen({
+        title: "Select Result Directory",
+        defaultPath: state.resultDir.trim() || undefined,
+        multiple: false,
+        directory: true,
+      });
+      if (typeof picked === "string" && picked.trim()) {
+        patchState({ resultDir: picked, error: "" });
+      }
+    } catch (err) {
+      patchState({ error: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  const browseArtifactPath = async (): Promise<void> => {
+    if (!hasTauri) {
+      patchState({ error: "Artifact browsing requires Tauri runtime." });
+      return;
+    }
+    try {
+      const picked = await tauriDialogOpen({
+        title: "Select Artifact File",
+        defaultPath: artifacts.artifactPath.trim() || state.resultDir.trim() || undefined,
+        multiple: false,
+        directory: false,
+      });
+      if (typeof picked === "string" && picked.trim()) {
+        artifacts.setArtifactPath(picked);
+      }
+    } catch (err) {
+      patchState({ error: err instanceof Error ? err.message : String(err) });
     }
   };
 
@@ -3050,15 +3162,30 @@ export default function App() {
       patchState({ designError: "Variant ids CSV is required." });
       return;
     }
-    patchState({ designLoading: true, designError: "", designMessage: "", designResult: null });
+    patchState({ designLoading: true, designError: "", designMessage: "", designResult: null, variantVisualResult: null });
     try {
-      const res = await tauriInvoke<ToolOperationResult>("compare_project_variants", {
+      const payload = await tauriInvoke<VariantVisualResponse>("compare_variants_visual", {
         projectPath: state.projectPath,
         jobId,
         variantIdsCsv: state.variantCompareIdsCsv.trim(),
-        baselineVariantId: state.variantCompareBaselineId.trim() ? state.variantCompareBaselineId.trim() : null,
       });
-      await applyDesignResult(res, false);
+      const rows: JsonRow[] = payload.variants.map((v) => ({
+        id: v.id,
+        name: v.name,
+        mean_lux: v.metrics.mean_lux,
+        uniformity: v.metrics.uniformity,
+        ugr: v.metrics.ugr,
+        fixture_count: v.metrics.fixture_count,
+        compliant: v.compliant,
+        error: v.error ?? "",
+      }));
+      patchState({
+        designLoading: false,
+        designError: "",
+        designMessage: `Compared ${payload.variants.length} variants.`,
+        designResult: { rows },
+        variantVisualResult: payload,
+      });
     } catch (err) {
       patchState({ designLoading: false, designError: err instanceof Error ? err.message : String(err) });
     }
@@ -3423,6 +3550,10 @@ export default function App() {
   });
   const luminaireInstanceRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   const prevSceneModeRef = useRef<"plan" | "3d">(state.sceneViewMode);
+  const openProjectFromDialogRef = useRef<() => Promise<void>>(async () => {});
+  const chooseNewProjectPathAndInitRef = useRef<() => Promise<void>>(async () => {});
+  const saveProjectAsDialogRef = useRef<() => Promise<void>>(async () => {});
+  const saveProjectDocumentRef = useRef<(pathOverride?: string) => Promise<void>>(async () => {});
   useEffect(() => {
     sceneZoomRef.current = state.sceneZoom;
     scenePanXRef.current = state.scenePanX;
@@ -3477,6 +3608,38 @@ export default function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [state.placementMode]);
+  openProjectFromDialogRef.current = openProjectFromDialog;
+  chooseNewProjectPathAndInitRef.current = chooseNewProjectPathAndInit;
+  saveProjectAsDialogRef.current = saveProjectAsDialog;
+  saveProjectDocumentRef.current = saveProjectDocument;
+  useEffect(() => {
+    const onKeyDown = (evt: KeyboardEvent): void => {
+      if (!(evt.metaKey || evt.ctrlKey) || evt.altKey) {
+        return;
+      }
+      const key = evt.key.toLowerCase();
+      if (key === "o" && !evt.shiftKey) {
+        evt.preventDefault();
+        void openProjectFromDialogRef.current();
+        return;
+      }
+      if (key === "n" && !evt.shiftKey) {
+        evt.preventDefault();
+        void chooseNewProjectPathAndInitRef.current();
+        return;
+      }
+      if (key === "s") {
+        evt.preventDefault();
+        if (evt.shiftKey) {
+          void saveProjectAsDialogRef.current();
+        } else {
+          void saveProjectDocumentRef.current();
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   useEffect(() => {
     const firstId = state.sceneSelectedLuminaireIdsCsv
       .split(",")
@@ -4140,6 +4303,64 @@ export default function App() {
                                     </g>
                                   ))
                                 : null}
+                            </g>
+                          );
+                        })
+                      : null}
+                    {state.layerIsolux && state.falseColorData && (state.sceneViewMode === "3d" ? sceneBounds3d : sceneBounds)
+                      ? state.falseColorData.grids.map((grid, gi) => {
+                          const elev = Number(grid.elevation ?? grid.origin?.[2] ?? 0);
+                          const labelEvery = Math.max(1, Math.round(Number(state.isoluxLabelInterval) || 2));
+                          const minLux = Number(grid.stats?.min ?? 0);
+                          const maxLux = Number(grid.stats?.max ?? minLux + 1);
+                          return (
+                            <g key={`isolux-grid-${gi}-${grid.name}`}>
+                              {grid.contours.map((contour, ci) => {
+                                const level = Number(contour.level ?? 0);
+                                const contourColor = infernoColorAt(level, minLux, maxLux);
+                                let bestLabel: { x: number; y: number } | null = null;
+                                let bestSeg = -1;
+                                const projectedPaths = contour.paths
+                                  .map((path) =>
+                                    path
+                                      .map((pt) => sceneProject(Number(pt[0] ?? 0), Number(pt[1] ?? 0), elev))
+                                      .filter((p): p is { x: number; y: number } => !!p),
+                                  )
+                                  .filter((mapped) => mapped.length >= 2);
+                                for (const mapped of projectedPaths) {
+                                  for (let i = 1; i < mapped.length; i += 1) {
+                                    const a = mapped[i - 1];
+                                    const b = mapped[i];
+                                    const len = Math.hypot(b.x - a.x, b.y - a.y);
+                                    if (len > bestSeg) {
+                                      bestSeg = len;
+                                      bestLabel = { x: (a.x + b.x) * 0.5, y: (a.y + b.y) * 0.5 };
+                                    }
+                                  }
+                                }
+                                return (
+                                  <g key={`isolux-contour-${gi}-${ci}`}>
+                                    {projectedPaths.map((mapped, pi) => (
+                                      <polyline
+                                        key={`isolux-path-${gi}-${ci}-${pi}`}
+                                        points={mapped.map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).join(" ")}
+                                        fill="none"
+                                        stroke={contourColor}
+                                        strokeWidth={0.22}
+                                        opacity={1}
+                                      />
+                                    ))}
+                                    {ci % labelEvery === 0 && bestLabel ? (
+                                      <g>
+                                        <rect x={bestLabel.x - 2.2} y={bestLabel.y - 1.35} width={4.4} height={2.45} fill="white" opacity={0.85} rx={0.35} />
+                                        <text x={bestLabel.x} y={bestLabel.y + 0.45} textAnchor="middle" fontSize={1.1} fill={contourColor}>
+                                          {level.toFixed(0)}
+                                        </text>
+                                      </g>
+                                    ) : null}
+                                  </g>
+                                );
+                              })}
                             </g>
                           );
                         })
@@ -5022,6 +5243,61 @@ export default function App() {
                       />
                       Show Values
                     </label>
+                    <div className="mt-2 rounded border border-border/60 bg-panel p-2 text-[11px] text-muted">
+                      <div className="mb-1 text-text">Isolux Layer</div>
+                      <label className="mb-1 flex items-center gap-2 rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-[11px]">
+                        <input
+                          type="checkbox"
+                          checked={state.layerIsolux}
+                          onChange={(e) => patchState({ layerIsolux: e.target.checked })}
+                        />
+                        Isolux Contours
+                      </label>
+                      <label className="mb-1 block text-[11px] text-muted">
+                        Label every Nth contour
+                        <input
+                          type="number"
+                          min={1}
+                          max={20}
+                          step={1}
+                          value={state.isoluxLabelInterval}
+                          onChange={(e) =>
+                            patchState({
+                              isoluxLabelInterval: Math.max(1, Math.min(20, Math.round(Number(e.target.value) || 1))),
+                            })
+                          }
+                          className="mt-1 w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-[11px] text-text outline-none"
+                        />
+                      </label>
+                      <label className="mb-1 block text-[11px] text-muted">
+                        Number of levels (4-20)
+                        <input
+                          type="number"
+                          min={4}
+                          max={20}
+                          step={1}
+                          value={state.isoluxLevelCount}
+                          onChange={(e) =>
+                            patchState({
+                              isoluxLevelCount: Math.max(4, Math.min(20, Math.round(Number(e.target.value) || 8))),
+                            })
+                          }
+                          className="mt-1 w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-[11px] text-text outline-none"
+                        />
+                      </label>
+                      <label className="mb-2 block text-[11px] text-muted">
+                        Custom levels (lux CSV)
+                        <input
+                          value={state.isoluxCustomLevels}
+                          onChange={(e) => patchState({ isoluxCustomLevels: e.target.value })}
+                          placeholder="e.g. 100,200,300,500"
+                          className="mt-1 w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-[11px] text-text outline-none"
+                        />
+                      </label>
+                      <ToolbarButton onClick={() => void loadFalseColorData()} className="w-full">
+                        Reload Contours
+                      </ToolbarButton>
+                    </div>
                   </div>
                   <div className="rounded border border-border/60 bg-panelSoft/50 p-2 text-[11px] text-muted">
                     <div className="mb-1 text-text">Transform Inspector</div>
@@ -5122,6 +5398,9 @@ export default function App() {
                     Heatmap
                   </label>
                   <label className="flex items-center gap-2 rounded border border-border/60 bg-panelSoft/50 px-2 py-1">
+                    <input type="checkbox" checked={state.layerIsolux} onChange={(e) => patchState({ layerIsolux: e.target.checked })} /> Isolux Contours
+                  </label>
+                  <label className="flex items-center gap-2 rounded border border-border/60 bg-panelSoft/50 px-2 py-1">
                     <input type="checkbox" checked={state.layerBeamSpread} onChange={(e) => patchState({ layerBeamSpread: e.target.checked })} /> Beam Spread
                   </label>
                   <label className="flex items-center gap-2 rounded border border-border/60 bg-panelSoft/50 px-2 py-1">
@@ -5186,15 +5465,22 @@ export default function App() {
               </div>
             </section>
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-[2fr_1fr]">
-              <label className="block">
-                <span className="mb-1 block text-xs uppercase tracking-[0.12em] text-muted">Result Directory</span>
-                <input
-                  value={state.resultDir}
-                  onChange={(e) => patchState({ resultDir: e.target.value })}
-                  placeholder="Absolute path to job output folder (contains result.json)"
-                  className="w-full rounded-md border border-border bg-panel px-3 py-2 text-sm text-text outline-none focus:ring-2 focus:ring-blue-400/30"
-                />
-              </label>
+              <div className="grid grid-cols-1 gap-2 xl:grid-cols-[3fr_1fr]">
+                <label className="block">
+                  <span className="mb-1 block text-xs uppercase tracking-[0.12em] text-muted">Result Directory</span>
+                  <input
+                    value={state.resultDir}
+                    onChange={(e) => patchState({ resultDir: e.target.value })}
+                    placeholder="Absolute path to job output folder (contains result.json)"
+                    className="w-full rounded-md border border-border bg-panel px-3 py-2 text-sm text-text outline-none focus:ring-2 focus:ring-blue-400/30"
+                  />
+                </label>
+                <div className="flex items-end">
+                  <ToolbarButton onClick={() => void browseResultDir()} disabled={state.loading} className="w-full">
+                    Browse
+                  </ToolbarButton>
+                </div>
+              </div>
               <div className="flex items-end gap-2">
                 <ToolbarButton onClick={() => void loadOutputs(state.resultDir)} disabled={state.loading} className="w-full">
                   {state.loading ? "Loading..." : "Load Path"}
@@ -6566,7 +6852,141 @@ export default function App() {
               {state.designMessage ? (
                 <div className="mb-2 rounded border border-border/60 bg-panelSoft/50 px-2 py-1 text-xs text-muted">{state.designMessage}</div>
               ) : null}
+              {state.variantVisualResult ? (
+                <div className="mb-2 space-y-3">
+                  <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+                    {state.variantVisualResult.variants.map((variant, idx) => {
+                      const meanReq = state.variantVisualResult?.thresholds.mean_lux_min;
+                      const uoReq = state.variantVisualResult?.thresholds.uniformity_min;
+                      const ugrReq = state.variantVisualResult?.thresholds.ugr_max;
+                      const meanOk = typeof variant.metrics.mean_lux === "number" && typeof meanReq === "number" ? variant.metrics.mean_lux >= meanReq : null;
+                      const uoOk = typeof variant.metrics.uniformity === "number" && typeof uoReq === "number" ? variant.metrics.uniformity >= uoReq : null;
+                      const ugrOk = typeof variant.metrics.ugr === "number" && typeof ugrReq === "number" ? variant.metrics.ugr <= ugrReq : null;
+                      const badgeClass = variant.compliant ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200" : "border-rose-500/50 bg-rose-500/10 text-rose-200";
+                      return (
+                        <div key={`variant-visual-${variant.id}-${idx}`} className="rounded border border-border/60 bg-panelSoft/40 p-2">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm text-text">{variant.name || variant.id}</div>
+                              <div className="truncate text-[11px] text-muted">{variant.id}</div>
+                            </div>
+                            <div className={`rounded border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${badgeClass}`}>
+                              {variant.compliant ? "COMPLIANT" : "NON-COMPLIANT"}
+                            </div>
+                          </div>
+                          {variant.heatmap_base64 ? (
+                            <img
+                              src={`data:image/png;base64,${variant.heatmap_base64}`}
+                              alt={`${variant.name || variant.id} heatmap`}
+                              className="mb-2 h-40 w-full rounded border border-border/60 object-cover"
+                            />
+                          ) : (
+                            <div className="mb-2 flex h-40 items-center justify-center rounded border border-border/60 bg-panel text-xs text-muted">
+                              No heatmap available
+                            </div>
+                          )}
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className={`${meanOk === null ? "text-muted" : meanOk ? "text-emerald-300" : "text-rose-300"}`}>
+                              Em: {typeof variant.metrics.mean_lux === "number" ? variant.metrics.mean_lux.toFixed(1) : "N/A"} lux
+                            </div>
+                            <div className={`${uoOk === null ? "text-muted" : uoOk ? "text-emerald-300" : "text-rose-300"}`}>
+                              Uo: {typeof variant.metrics.uniformity === "number" ? variant.metrics.uniformity.toFixed(2) : "N/A"}
+                            </div>
+                            <div className={`${ugrOk === null ? "text-muted" : ugrOk ? "text-emerald-300" : "text-rose-300"}`}>
+                              UGR: {typeof variant.metrics.ugr === "number" ? variant.metrics.ugr.toFixed(1) : "N/A"}
+                            </div>
+                            <div className="text-muted">
+                              Fixtures: {typeof variant.metrics.fixture_count === "number" ? String(variant.metrics.fixture_count) : "N/A"}
+                            </div>
+                          </div>
+                          {variant.error ? <div className="mt-2 text-xs text-rose-300">Error: {variant.error}</div> : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {variantVisualChart ? (
+                    <div className="rounded border border-border/60 bg-panelSoft/40 p-2">
+                      <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Variant Metric Comparison</div>
+                      {(() => {
+                        const chartWidth = 900;
+                        const chartHeight = 260;
+                        const left = 42;
+                        const top = 12;
+                        const bottom = 34;
+                        const plotHeight = chartHeight - top - bottom;
+                        const groupCount = variantVisualChart.metrics.length;
+                        const groupWidth = (chartWidth - left - 12) / groupCount;
+                        const palette = ["#60a5fa", "#f97316", "#34d399", "#f43f5e", "#a78bfa", "#facc15"];
+                        return (
+                          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="h-56 w-full rounded border border-border/50 bg-panel">
+                            {variantVisualChart.metrics.map((metric, metricIndex) => {
+                              const gx = left + metricIndex * groupWidth;
+                              const numeric = variantVisualChart.variants
+                                .map((v) => Number(v.metrics[metric.key] ?? NaN))
+                                .filter((v) => Number.isFinite(v));
+                              const dataMax = numeric.length > 0 ? Math.max(...numeric) : 1;
+                              const threshold = typeof metric.threshold === "number" && Number.isFinite(metric.threshold) ? metric.threshold : null;
+                              const scaleMax = Math.max(dataMax, threshold ?? 0, 1e-6);
+                              const innerWidth = groupWidth - 12;
+                              const barGap = 4;
+                              const barWidth = Math.max(8, (innerWidth - barGap * (variantVisualChart.variants.length - 1)) / Math.max(1, variantVisualChart.variants.length));
+                              return (
+                                <g key={`metric-group-${metric.key}`} transform={`translate(${gx},0)`}>
+                                  <line x1={0} y1={chartHeight - bottom} x2={groupWidth - 10} y2={chartHeight - bottom} stroke="#334155" strokeWidth="1" />
+                                  {threshold !== null ? (
+                                    <line
+                                      x1={0}
+                                      y1={chartHeight - bottom - (threshold / scaleMax) * plotHeight}
+                                      x2={groupWidth - 10}
+                                      y2={chartHeight - bottom - (threshold / scaleMax) * plotHeight}
+                                      stroke="#eab308"
+                                      strokeWidth="1"
+                                      strokeDasharray="3 2"
+                                    />
+                                  ) : null}
+                                  {variantVisualChart.variants.map((variant, variantIndex) => {
+                                    const val = Number(variant.metrics[metric.key] ?? NaN);
+                                    const safeVal = Number.isFinite(val) ? Math.max(0, val) : 0;
+                                    const h = (safeVal / scaleMax) * plotHeight;
+                                    const x = variantIndex * (barWidth + barGap);
+                                    const y = chartHeight - bottom - h;
+                                    return (
+                                      <g key={`bar-${metric.key}-${variant.id}`}>
+                                        <rect x={x} y={y} width={barWidth} height={h} fill={palette[variantIndex % palette.length]} opacity="0.85" />
+                                      </g>
+                                    );
+                                  })}
+                                  <text x={(groupWidth - 10) / 2} y={chartHeight - 10} textAnchor="middle" fill="#cbd5e1" fontSize="10">
+                                    {metric.label}
+                                  </text>
+                                </g>
+                              );
+                            })}
+                            <g transform={`translate(${left},${chartHeight - 4})`}>
+                              {variantVisualChart.variants.map((variant, idx) => (
+                                <g key={`legend-${variant.id}`} transform={`translate(${idx * 138},0)`}>
+                                  <rect x={0} y={-10} width={10} height={10} fill={["#60a5fa", "#f97316", "#34d399", "#f43f5e", "#a78bfa", "#facc15"][idx % 6]} />
+                                  <text x={14} y={-1} fill="#cbd5e1" fontSize="10">
+                                    {variant.name || variant.id}
+                                  </text>
+                                </g>
+                              ))}
+                            </g>
+                          </svg>
+                        );
+                      })()}
+                      <div className="mt-2 grid grid-cols-1 gap-1 text-[11px] text-muted xl:grid-cols-2">
+                        <div>Best illuminance: {state.variantVisualResult.comparison.best_illuminance || "N/A"}</div>
+                        <div>Best uniformity: {state.variantVisualResult.comparison.best_uniformity || "N/A"}</div>
+                        <div>Best efficiency: {state.variantVisualResult.comparison.best_efficiency || "N/A"}</div>
+                        <div>Best glare: {state.variantVisualResult.comparison.best_glare || "N/A"}</div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               {variantCompareRows.length > 0 ? <DataTable title="Variant Compare Rows" rows={variantCompareRows} /> : null}
+              {variantVisualRows.length > 0 ? <DataTable title="Variant Visual Rows" rows={variantVisualRows} /> : null}
               {optimizationOptionsRows.length > 0 ? (
                 <DataTable
                   title="Optimization Options"
@@ -6580,13 +7000,16 @@ export default function App() {
             </section>
             <section className="rounded-md border border-border bg-panel p-3">
               <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Run Control</div>
-              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr]">
+              <div className="mb-2 grid grid-cols-1 gap-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
                 <input
                   value={state.projectPath}
                   onChange={(e) => patchState({ projectPath: e.target.value })}
                   placeholder="Project file path (.json)"
                   className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none focus:ring-2 focus:ring-blue-400/30"
                 />
+                <ToolbarButton onClick={() => void browseProjectPath()} disabled={state.jobsLoading || runner.runLoading}>
+                  Browse
+                </ToolbarButton>
                 <ToolbarButton onClick={() => void loadProjectJobs()} disabled={state.jobsLoading || runner.runLoading}>
                   {state.jobsLoading ? "Loading Jobs..." : "Load Jobs"}
                 </ToolbarButton>
@@ -7072,6 +7495,9 @@ export default function App() {
                   placeholder="Path to artifact file"
                   className="w-full rounded border border-border bg-panelSoft/50 px-2 py-1 text-xs text-text outline-none focus:ring-2 focus:ring-blue-400/30"
                 />
+                <ToolbarButton onClick={() => void browseArtifactPath()} disabled={artifacts.artifactLoading || artifacts.artifactBinaryLoading}>
+                  Browse
+                </ToolbarButton>
                 <ToolbarButton onClick={() => void artifacts.readArtifact()} disabled={artifacts.artifactLoading}>
                   {artifacts.artifactLoading ? "Reading..." : "Read"}
                 </ToolbarButton>
