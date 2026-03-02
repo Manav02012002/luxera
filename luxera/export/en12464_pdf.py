@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
+
+import numpy as np
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
 from reportlab.lib import colors
 
 from luxera.export.en12464_report import EN12464ReportModel
+from luxera.viz.contours import compute_contour_levels
 
 
 def _kv_table(rows):
@@ -30,6 +34,48 @@ def _kv_table(rows):
         )
     )
     return t
+
+
+def _draw_header_footer(canvas, doc, project_name: str) -> None:
+    canvas.saveState()
+    canvas.setFont("Helvetica", 8)
+    canvas.setFillColor(colors.grey)
+    canvas.drawString(doc.leftMargin, A4[1] - 1.2 * cm, f"Luxera EN 12464-1 Compliance Report — {project_name}")
+    canvas.drawRightString(A4[0] - doc.rightMargin, 0.9 * cm, f"Page {canvas.getPageNumber()}")
+    canvas.restoreState()
+
+
+def _embed_image(story, image_path: Path, max_w_cm: float = 17.5, max_h_cm: float = 20.0) -> None:
+    if not image_path.exists():
+        return
+    img = Image(str(image_path))
+    img._restrictSize(max_w_cm * cm, max_h_cm * cm)
+    story.append(img)
+
+
+def _first_grid_levels(result_dir: Path) -> list[float]:
+    grids_dir = result_dir / "grids"
+    if not grids_dir.exists():
+        return []
+    for p in sorted(grids_dir.glob("*.csv")):
+        try:
+            arr = np.loadtxt(str(p), delimiter=",", skiprows=1, dtype=float)
+            if arr.ndim == 1:
+                arr = arr.reshape(1, -1)
+            if arr.shape[1] < 4:
+                continue
+            order = np.lexsort((arr[:, 0], arr[:, 1]))
+            arr = arr[order]
+            nx = int(np.unique(arr[:, 0]).size)
+            ny = int(np.unique(arr[:, 1]).size)
+            if nx <= 1 or ny <= 1:
+                continue
+            z = arr[:, 3].reshape(ny, nx)
+            levels = compute_contour_levels(z, n_levels=8)
+            return [float(v) for v in levels]
+        except Exception:
+            continue
+    return []
 
 
 def render_en12464_pdf(model: EN12464ReportModel, out_path: Path) -> Path:
@@ -211,17 +257,78 @@ def render_en12464_pdf(model: EN12464ReportModel, out_path: Path) -> Path:
         story.append(_kv_table([[f"U{i+1}", a] for i, a in enumerate(audit.unsupported_features)]))
 
     result_dir = Path(model.result_dir).expanduser().resolve()
-    heatmap = result_dir / "heatmap.png"
-    isolux = result_dir / "isolux.png"
-    if heatmap.exists() or isolux.exists():
-        story.append(Spacer(1, 0.35 * cm))
-        story.append(Paragraph("Plots", h2))
-        for p in (heatmap, isolux):
-            if p.exists():
-                img = Image(str(p))
-                img._restrictSize(17.0 * cm, 10.0 * cm)
-                story.append(img)
-                story.append(Spacer(1, 0.2 * cm))
 
-    doc.build(story)
+    if model.layout_path:
+        lp = Path(model.layout_path)
+        if lp.exists():
+            story.append(PageBreak())
+            story.append(Paragraph("Room Layout", h2))
+            story.append(Spacer(1, 0.2 * cm))
+            _embed_image(story, lp, max_w_cm=18.0, max_h_cm=22.0)
+
+    if model.heatmap_paths:
+        story.append(PageBreak())
+        story.append(Paragraph("Illuminance Heatmap", h2))
+        story.append(Spacer(1, 0.2 * cm))
+        for p in model.heatmap_paths:
+            _embed_image(story, Path(p), max_w_cm=18.0, max_h_cm=18.0)
+            story.append(Spacer(1, 0.15 * cm))
+        summary = model.worst_case_summary if isinstance(model.worst_case_summary, dict) else {}
+        story.append(
+            Paragraph(
+                f"Min/Avg/Max (lux): {summary.get('global_worst_min_lux', '-')} / "
+                f"{summary.get('global_mean_of_means_lux', '-')} / {summary.get('global_highest_lux', summary.get('global_worst_max_lux', '-'))}",
+                body,
+            )
+        )
+        story.append(Spacer(1, 0.1 * cm))
+        story.append(Paragraph("Legend: Inferno scale from low (dark) to high (bright).", body))
+
+    if model.isolux_paths:
+        story.append(PageBreak())
+        story.append(Paragraph("Isolux Contours", h2))
+        story.append(Spacer(1, 0.2 * cm))
+        for p in model.isolux_paths:
+            _embed_image(story, Path(p), max_w_cm=18.0, max_h_cm=18.0)
+            story.append(Spacer(1, 0.15 * cm))
+        levels = _first_grid_levels(result_dir)
+        if levels:
+            levels_txt = ", ".join(f"{v:.0f}" for v in levels)
+            story.append(Paragraph(f"Contour level legend (lux): {levels_txt}", body))
+        else:
+            story.append(Paragraph("Contour level legend: auto-scaled from grid values.", body))
+
+    if model.polar_paths:
+        story.append(PageBreak())
+        story.append(Paragraph("Photometric Data", h2))
+        story.append(Spacer(1, 0.2 * cm))
+        meta_by_asset = {str(m.get("asset_id")): m for m in (model.polar_meta or []) if isinstance(m, dict)}
+        for p in model.polar_paths:
+            pp = Path(p)
+            _embed_image(story, pp, max_w_cm=10.0, max_h_cm=10.0)
+            stem = pp.stem
+            aid = stem.replace("polar_", "", 1)
+            meta = meta_by_asset.get(aid, {})
+            story.append(
+                _kv_table(
+                    [
+                        ["Asset ID", str(meta.get("asset_id", aid))],
+                        ["Filename", str(meta.get("filename", "-"))],
+                        ["Total Lumens", str(meta.get("total_lumens", "-"))],
+                        ["Beam Angle (deg)", str(meta.get("beam_angle", "-"))],
+                    ]
+                )
+            )
+            story.append(Spacer(1, 0.2 * cm))
+
+    doc.build(
+        story,
+        onFirstPage=lambda c, d: _draw_header_footer(c, d, model.audit.project_name),
+        onLaterPages=lambda c, d: _draw_header_footer(c, d, model.audit.project_name),
+    )
+
+    if model.image_temp_dir:
+        tmp = Path(model.image_temp_dir).expanduser()
+        if tmp.exists() and tmp.name.startswith("luxera_en12464_"):
+            shutil.rmtree(tmp, ignore_errors=True)
     return out_path
