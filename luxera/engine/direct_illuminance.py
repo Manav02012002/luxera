@@ -55,6 +55,36 @@ class OcclusionContext:
 _OCCLUSION_CACHE: Dict[Tuple[str, bool], OcclusionContext] = {}
 
 
+def compute_direct_illuminance_rgb(
+    direct_illuminance: Dict[str, float],
+    *,
+    cct_kelvin: Optional[float] = None,
+    cct_by_surface: Optional[Dict[str, float]] = None,
+) -> Dict[str, Tuple[float, float, float]]:
+    """
+    Convert scalar direct illuminance map to RGB using CCT.
+
+    If per-surface CCT is unavailable, defaults to 4000K.
+    """
+    from luxera.engine.radiosity.spectral import CCTConverter
+
+    out: Dict[str, Tuple[float, float, float]] = {}
+    default_cct = float(cct_kelvin) if cct_kelvin is not None else 4000.0
+    default_rgb = np.asarray(CCTConverter.cct_to_photopic_rgb_scale(default_cct), dtype=float)
+
+    for sid, val in direct_illuminance.items():
+        cct_local = float(cct_by_surface.get(sid, default_cct)) if cct_by_surface is not None else default_cct
+        rgb_scale = (
+            np.asarray(CCTConverter.cct_to_photopic_rgb_scale(cct_local), dtype=float)
+            if cct_by_surface is not None
+            else default_rgb
+        )
+        e = float(val)
+        rgb = e * rgb_scale
+        out[str(sid)] = (float(rgb[0]), float(rgb[1]), float(rgb[2]))
+    return out
+
+
 def _static_surface_signature(project: Project, include_room_shell: bool) -> str:
     payload = {
         "include_room_shell": bool(include_room_shell),

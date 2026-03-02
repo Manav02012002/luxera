@@ -36,6 +36,7 @@ class RadiosityConfig:
     form_factor_method: str = "monte_carlo"
     monte_carlo_samples: int = 16
     hemicube_resolution: int = 128
+    spectral: bool = False
     seed: int = 0
 
 
@@ -131,6 +132,57 @@ def solve_radiosity(
 
     n = len(patches)
     areas = np.array([max(p.area, 1e-12) for p in patches], dtype=float)
+
+    if bool(config.spectral):
+        from luxera.engine.radiosity.spectral import CCTConverter, SpectralRadiositySolver
+
+        reflectance_rgb = np.zeros((n, 3), dtype=float)
+        for i, p in enumerate(patches):
+            color = getattr(p.material, "color", None)
+            if isinstance(color, tuple) and len(color) == 3:
+                reflectance_rgb[i, :] = np.clip(np.asarray(color, dtype=float), 0.0, 1.0)
+            else:
+                r = max(0.0, min(1.0, float(p.material.reflectance)))
+                reflectance_rgb[i, :] = np.array([r, r, r], dtype=float)
+
+        source_rgb = np.array(CCTConverter.cct_to_photopic_rgb_scale(4000.0), dtype=float)
+        direct_rgb: Dict[str, tuple[float, float, float]] = {}
+        if direct_illuminance:
+            for sid, val in direct_illuminance.items():
+                if isinstance(val, (tuple, list, np.ndarray)) and len(val) == 3:
+                    rgb = np.asarray(val, dtype=float)
+                else:
+                    rgb = float(val) * source_rgb
+                direct_rgb[str(sid)] = (float(rgb[0]), float(rgb[1]), float(rgb[2]))
+
+        spectral = SpectralRadiositySolver().solve(
+            patches=patches,
+            form_factors=F,
+            direct_illuminance_rgb=direct_rgb,
+            reflectance_rgb=reflectance_rgb,
+            max_iters=int(config.max_iters),
+            tol=float(config.tol),
+            damping=float(config.damping),
+        )
+        irr = spectral.illuminance_photopic
+        e_spec = spectral.energy_rgb
+        total_emitted = float(np.sum(e_spec))
+        # Convert channel energy back to scalar accounting for existing API.
+        energy = EnergyAccounting(
+            total_emitted=total_emitted,
+            total_absorbed=float(np.sum((1.0 - np.clip(np.mean(reflectance_rgb, axis=1), 0.0, 1.0)) * irr * areas)),
+            total_reflected=float(np.sum(np.clip(np.mean(reflectance_rgb, axis=1), 0.0, 1.0) * irr * areas)),
+            total_exitance=float(np.sum((spectral.radiosity_rgb @ np.array([0.2126, 0.7152, 0.0722])) * areas)),
+        )
+        return RadiositySolveResult(
+            patches=patches,
+            form_factors=F,
+            status=spectral.status,
+            energy=energy,
+            radiosity=spectral.radiosity_rgb @ np.array([0.2126, 0.7152, 0.0722]),
+            irradiance=irr,
+        )
+
     reflectance = np.array([max(0.0, min(1.0, p.material.reflectance)) for p in patches], dtype=float)
     emission = np.zeros((n,), dtype=float)
     if direct_illuminance:
