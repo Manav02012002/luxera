@@ -1007,6 +1007,21 @@ def _cmd_agent_context_reset(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_validate(args: argparse.Namespace) -> int:
+    suite = str(args.suite).strip().lower()
+    if suite != "cie171":
+        print(f"[ERROR] Unsupported validation suite: {args.suite}")
+        print("Supported suites: cie171")
+        return 2
+    from luxera.validation.cie171_runner import CIE171ValidationRunner
+
+    runner = CIE171ValidationRunner()
+    results = runner.run_all()
+    report = runner.generate_report(results)
+    print(report)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="luxera")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -1343,6 +1358,10 @@ def main(argv: list[str] | None = None) -> int:
     agent_ctx_reset = agent_ctx_sub.add_parser("reset", help="Reset agent context memory for project.")
     agent_ctx_reset.add_argument("project", help="Path to project JSON")
     agent_ctx_reset.set_defaults(func=_cmd_agent_context_reset)
+
+    validate = sub.add_parser("validate", help="Run validation suites.")
+    validate.add_argument("--suite", required=True, help="Validation suite id (e.g. cie171)")
+    validate.set_defaults(func=_cmd_validate)
 
     args = p.parse_args(argv)
     return int(args.func(args))
