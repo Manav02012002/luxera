@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import uuid
 from pathlib import Path
@@ -1061,6 +1062,43 @@ def _cmd_agent_context_reset(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_agent_chat(args: argparse.Namespace) -> int:
+    from luxera.agent.conversation import ConversationEngine
+    from luxera.ai.llm_client import LLMClient
+
+    project_path = Path(args.project).expanduser().resolve()
+    if not project_path.exists():
+        print(f"[ERROR] Project not found: {project_path}")
+        return 2
+
+    llm = None
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        try:
+            llm = LLMClient()
+        except Exception:
+            llm = None
+
+    engine = ConversationEngine(str(project_path), llm_client=llm)
+    print("Luxera agent chat. Type 'exit' to quit.")
+    while True:
+        try:
+            line = input("Luxera> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        if not line:
+            continue
+        if line.lower() in {"exit", "quit"}:
+            break
+        try:
+            response = engine.process_message(line)
+        except Exception as e:
+            print(f"[ERROR] Agent failed: {e}")
+            continue
+        print(response)
+    return 0
+
+
 def _library_db_path(raw: str | None) -> Path:
     if raw:
         return Path(raw).expanduser().resolve()
@@ -1495,6 +1533,10 @@ def main(argv: list[str] | None = None) -> int:
     agent_ctx_reset = agent_ctx_sub.add_parser("reset", help="Reset agent context memory for project.")
     agent_ctx_reset.add_argument("project", help="Path to project JSON")
     agent_ctx_reset.set_defaults(func=_cmd_agent_context_reset)
+
+    agent_chat = agent_sub.add_parser("chat", help="Start interactive multi-turn agent chat.")
+    agent_chat.add_argument("--project", required=True, help="Path to project JSON")
+    agent_chat.set_defaults(func=_cmd_agent_chat)
 
     validate = sub.add_parser("validate", help="Run validation suites.")
     validate.add_argument("--suite", required=True, help="Validation suite id (e.g. cie171)")
