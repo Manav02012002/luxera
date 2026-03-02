@@ -21,6 +21,7 @@ from luxera.results.grid_viz import write_grid_heatmap_and_isolux
 from luxera.export.report_model import AuditHeader, build_report_model
 from luxera.project.schema import Project, JobResultRef
 from luxera.compliance.energy import compute_leni_from_project
+from luxera.compliance.maintenance import MAINTENANCE_PROFILES, MaintenanceFactorComponents, compute_maintenance_factors
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,7 @@ class EN12464ReportModel:
     polar_paths: list[str] = field(default_factory=list)
     image_temp_dir: str | None = None
     polar_meta: list[Dict[str, Any]] = field(default_factory=list)
+    maintenance_factor_table: list[Dict[str, Any]] = field(default_factory=list)
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -333,6 +335,45 @@ def build_en12464_report_model(project: Project, job_ref: JobResultRef) -> EN124
     audit_payload = unified.get("audit", {}) if isinstance(unified, dict) else {}
     assumptions = list(audit_payload.get("assumptions", [])) if isinstance(audit_payload, dict) else []
     heatmap_paths, isolux_paths, layout_path, polar_paths, polar_meta, image_temp_dir = _generate_report_images(project, result_dir)
+    maintenance_rows: list[Dict[str, Any]] = []
+    for lum in project.luminaires:
+        row: Dict[str, Any] = {
+            "luminaire_id": str(lum.id),
+            "name": str(lum.name),
+            "mode": "scalar",
+            "maintenance_factor": float(getattr(lum, "maintenance_factor", 1.0)),
+            "llmf": None,
+            "lsf": None,
+            "lmf": None,
+            "rsf": None,
+        }
+        comp = getattr(lum, "maintenance_components", None)
+        if isinstance(comp, dict):
+            comp_obj = MaintenanceFactorComponents(
+                llmf=float(comp.get("llmf", 1.0)),
+                lsf=float(comp.get("lsf", 1.0)),
+                lmf=float(comp.get("lmf", 1.0)),
+                rsf=float(comp.get("rsf", 1.0)),
+            )
+            row["mode"] = "components"
+            row["llmf"] = float(comp_obj.llmf)
+            row["lsf"] = float(comp_obj.lsf)
+            row["lmf"] = float(comp_obj.lmf)
+            row["rsf"] = float(comp_obj.rsf)
+            row["maintenance_factor"] = float(comp_obj.mf)
+        else:
+            sched_name = getattr(lum, "maintenance_schedule", None)
+            if isinstance(sched_name, str) and sched_name.strip():
+                sched = MAINTENANCE_PROFILES.get(sched_name.strip())
+                if sched is not None:
+                    factors = compute_maintenance_factors(sched)
+                    row["mode"] = f"profile:{sched_name.strip()}"
+                    row["llmf"] = float(factors.llmf)
+                    row["lsf"] = float(factors.lsf)
+                    row["lmf"] = float(factors.lmf)
+                    row["rsf"] = float(factors.rsf)
+                    row["maintenance_factor"] = float(factors.mf)
+        maintenance_rows.append(row)
 
     return EN12464ReportModel(
         audit=audit,
@@ -350,4 +391,5 @@ def build_en12464_report_model(project: Project, job_ref: JobResultRef) -> EN124
         polar_paths=polar_paths,
         image_temp_dir=image_temp_dir,
         polar_meta=polar_meta,
+        maintenance_factor_table=maintenance_rows,
     )

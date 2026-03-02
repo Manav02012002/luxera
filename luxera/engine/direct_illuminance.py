@@ -30,6 +30,7 @@ from luxera.photometry.canonical import canonical_from_photometry
 from luxera.photometry.interp import build_interpolation_lut
 from luxera.cache.photometry_cache import load_lut_from_cache, save_lut_to_cache
 from luxera.photometry.model import photometry_from_parsed_ies, photometry_from_parsed_ldt
+from luxera.compliance.maintenance import MAINTENANCE_PROFILES, MaintenanceFactorComponents, compute_maintenance_factors
 from luxera.project.schema import ArbitraryPlaneSpec, CalcGrid, LineGridSpec, PointSetSpec, PolygonWorkplaneSpec, Project, RoomSpec, VerticalPlaneSpec
 from luxera.core.units import project_scale_to_meters
 
@@ -221,13 +222,30 @@ def load_luminaires(project: Project, hash_asset_fn) -> tuple[List[Luminaire], D
         except Exception:
             lut = None
 
+        mf_effective = max(0.0, float(getattr(inst, "maintenance_factor", 1.0) or 1.0))
+        comp_payload = getattr(inst, "maintenance_components", None)
+        if isinstance(comp_payload, dict):
+            comp = MaintenanceFactorComponents(
+                llmf=float(comp_payload.get("llmf", 1.0)),
+                lsf=float(comp_payload.get("lsf", 1.0)),
+                lmf=float(comp_payload.get("lmf", 1.0)),
+                rsf=float(comp_payload.get("rsf", 1.0)),
+            )
+            mf_effective = max(0.0, min(1.0, float(comp.mf)))
+        else:
+            sched_name = getattr(inst, "maintenance_schedule", None)
+            if isinstance(sched_name, str) and sched_name.strip():
+                sched = MAINTENANCE_PROFILES.get(sched_name.strip())
+                if sched is not None:
+                    mf_effective = max(0.0, min(1.0, float(compute_maintenance_factors(sched).mf)))
+
         tf = inst.transform.to_transform()
         tf.position = tf.position * float(length_scale)
         luminaires.append(
             Luminaire(
                 photometry=phot,
                 transform=tf,
-                flux_multiplier=inst.flux_multiplier,
+                flux_multiplier=float(inst.flux_multiplier) * mf_effective,
                 tilt_deg=inst.tilt_deg,
                 lut=lut,
             )

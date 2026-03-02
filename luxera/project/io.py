@@ -168,6 +168,12 @@ def _project_from_dict(d: Dict[str, Any]) -> Project:
                 photometry_asset_id=l["photometry_asset_id"],
                 transform=_transform_from_dict(l["transform"]),
                 maintenance_factor=l.get("maintenance_factor", 1.0),
+                maintenance_schedule=l.get("maintenance_schedule"),
+                maintenance_components=(
+                    dict(l["maintenance_components"])
+                    if isinstance(l.get("maintenance_components"), dict)
+                    else None
+                ),
                 flux_multiplier=l.get("flux_multiplier", 1.0),
                 tilt_deg=l.get("tilt_deg", 0.0),
                 family_id=l.get("family_id"),

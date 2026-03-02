@@ -25,6 +25,12 @@ from luxera.compliance.evaluate import (
     evaluate_emergency,
 )
 from luxera.compliance.energy import LENIInputs, LENIResult, LENI_PROFILES, compute_leni, compute_leni_from_project
+from luxera.compliance.maintenance import (
+    MAINTENANCE_PROFILES,
+    MaintenanceFactorComponents,
+    MaintenanceSchedule,
+    compute_maintenance_factors,
+)
 from luxera.compliance.emergency_standards import get_standard_profile
 
 __all__ = [
@@ -51,4 +57,8 @@ __all__ = [
     "LENI_PROFILES",
     "compute_leni",
     "compute_leni_from_project",
+    "MaintenanceFactorComponents",
+    "MaintenanceSchedule",
+    "MAINTENANCE_PROFILES",
+    "compute_maintenance_factors",
 ]

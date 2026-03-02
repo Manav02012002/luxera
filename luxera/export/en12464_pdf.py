@@ -185,6 +185,26 @@ def render_en12464_pdf(model: EN12464ReportModel, out_path: Path) -> Path:
         story.append(Paragraph("No per-grid stats.", body))
 
     story.append(Spacer(1, 0.35 * cm))
+    story.append(Paragraph("Maintenance Factor Decomposition", h2))
+    if model.maintenance_factor_table:
+        mrows = [["Luminaire", "Mode", "LLMF", "LSF", "LMF", "RSF", "MF"]]
+        for row in model.maintenance_factor_table:
+            mrows.append(
+                [
+                    str(row.get("luminaire_id", "-")),
+                    str(row.get("mode", "-")),
+                    str(row.get("llmf", "-")),
+                    str(row.get("lsf", "-")),
+                    str(row.get("lmf", "-")),
+                    str(row.get("rsf", "-")),
+                    str(row.get("maintenance_factor", "-")),
+                ]
+            )
+        story.append(_kv_table(mrows))
+    else:
+        story.append(Paragraph("No maintenance decomposition data available.", body))
+
+    story.append(Spacer(1, 0.35 * cm))
     story.append(Paragraph("Calculation Tables", h2))
     tbl = model.tables or {}
     rendered = False

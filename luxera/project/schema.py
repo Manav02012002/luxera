@@ -99,6 +99,8 @@ class LuminaireInstance:
     photometry_asset_id: str
     transform: TransformSpec
     maintenance_factor: float = 1.0
+    maintenance_schedule: Optional[str] = None
+    maintenance_components: Optional[Dict[str, float]] = None
     flux_multiplier: float = 1.0
     tilt_deg: float = 0.0
     family_id: Optional[str] = None
