@@ -17,30 +17,29 @@ import {
 } from "@luxera/luxera-ui";
 import { DataTable } from "./components/DataTable";
 import { useArtifacts } from "./hooks/useArtifacts";
+import { useCalcSetupState } from "./hooks/useCalcSetupState";
+import { useGeometryState } from "./hooks/useGeometryState";
 import { useJobRunner } from "./hooks/useJobRunner";
+import { useLuminaireState } from "./hooks/useLuminaireState";
+import { useAgentState } from "./hooks/useAgentState";
+import { useDesignState } from "./hooks/useDesignState";
+import { useProjectState } from "./hooks/useProjectState";
+import { useViewportState } from "./hooks/useViewportState";
 import { buildDesktopViewModel, type DesktopResultBundle } from "./resultContracts";
 import type {
   AppState,
-  AgentConversationMessage,
-  AgentDiffPreview,
   AgentRunEntry,
   BackendContract,
   BeamSpreadResponse,
   DetailedComplianceResponse,
   ExportOperationResult,
   FalseColorGridResponse,
-  GeometryOperationResult,
   JsonRow,
   LiveEstimateResult,
-  PhotometryVerifyResponse,
-  ProjectDocument,
-  ProjectJobsResponse,
-  ProjectValidationResult,
   QuickLayoutResult,
   RecentRun,
   StandardProfileOption,
   ToolOperationResult,
-  VariantVisualResponse,
 } from "./types";
 import { flattenJsonRows, firstNumeric, objectToRows, rowsToPoints } from "./utils/table";
 import { hasTauriRuntime, tauriDialogOpen, tauriDialogSave, tauriInvoke } from "./utils/tauri";
@@ -403,6 +402,50 @@ export default function App() {
   const [state, patchState] = useReducer(appReducer, initialState);
   const hasTauri = hasTauriRuntime();
   const artifacts = useArtifacts({ hasTauri });
+  const project = useProjectState({ hasTauri });
+  const geometry = useGeometryState({
+    hasTauri,
+    projectPath: project.state.projectPath || state.projectPath,
+    onProjectMutated: async () => {
+      const path = (project.state.projectPath || state.projectPath).trim();
+      if (path) {
+        await project.openProjectDocument(path);
+      }
+    },
+  });
+  const luminaires = useLuminaireState({
+    hasTauri,
+    projectPath: project.state.projectPath || state.projectPath,
+    onProjectMutated: async () => {
+      const path = (project.state.projectPath || state.projectPath).trim();
+      if (path) {
+        await project.openProjectDocument(path);
+      }
+    },
+  });
+  const calcSetup = useCalcSetupState({
+    hasTauri,
+    projectPath: project.state.projectPath || state.projectPath,
+    onProjectMutated: async () => {
+      const path = (project.state.projectPath || state.projectPath).trim();
+      if (path) {
+        await project.openProjectDocument(path);
+      }
+    },
+  });
+  const design = useDesignState({
+    hasTauri,
+    projectPath: project.state.projectPath || state.projectPath,
+    selectedJobId: project.state.selectedJobId || state.selectedJobId,
+    onProjectMutated: async () => {
+      const path = (project.state.projectPath || state.projectPath).trim();
+      if (path) {
+        await project.openProjectDocument(path);
+      }
+    },
+  });
+  const agent = useAgentState({ hasTauri });
+  const viewport = useViewportState();
 
   const model = state.model;
   const rawResultRows = useMemo(() => flattenJsonRows(model?.raw.result ?? null, "result"), [model?.raw.result]);
@@ -1587,29 +1630,14 @@ export default function App() {
   };
 
   const applyWorkplanePreset = (value: "floor" | "desk" | "standing" | "custom"): void => {
-    if (value === "floor") {
-      patchState({ workplanePreset: value, gridElevation: "0.0" });
-      return;
-    }
-    if (value === "desk") {
-      patchState({ workplanePreset: value, gridElevation: "0.75" });
-      return;
-    }
-    if (value === "standing") {
-      patchState({ workplanePreset: value, gridElevation: "1.2" });
-      return;
-    }
-    patchState({ workplanePreset: "custom" });
+    calcSetup.applyWorkplanePreset(value);
   };
 
   const startGridPlacement = (): void => {
-    if (state.sceneViewMode !== "plan") {
-      patchState({ calcSetupError: "Switch to plan view for click-to-place." });
-      return;
-    }
     placementRef.current.phase = "idle";
     placementRef.current.pointerId = null;
-    patchState({ placementMode: "grid", calcSetupError: "" });
+    const err = viewport.startGridPlacement(state.sceneViewMode);
+    patchState({ calcSetupError: err ?? "" });
   };
 
   const proposeQuickLayout = async (): Promise<void> => {
@@ -1711,140 +1739,28 @@ export default function App() {
     }
   };
 
-  const pushRecentProjectPath = (projectPath: string): void => {
-    const normalized = projectPath.trim();
-    if (!normalized) {
-      return;
-    }
-    const next = [normalized, ...state.recentProjects.filter((p) => p !== normalized)].slice(0, MAX_RECENT_PROJECTS);
-    patchState({ recentProjects: next });
-    void persistRecentProjects(next);
-  };
-
   const browseProjectPath = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ projectLifecycleError: "Project browsing requires Tauri runtime." });
-      return;
-    }
-    try {
-      const picked = await tauriDialogOpen({
-        title: "Open Luxera Project",
-        defaultPath: state.projectPath.trim() || undefined,
-        multiple: false,
-        directory: false,
-        filters: [{ name: "Project JSON", extensions: ["json"] }],
-      });
-      if (typeof picked === "string" && picked.trim()) {
-        patchState({ projectPath: picked, projectLifecycleError: "" });
-      }
-    } catch (err) {
-      patchState({ projectLifecycleError: err instanceof Error ? err.message : String(err) });
-    }
+    await project.browseProjectPath(state.projectPath);
   };
 
   const openProjectFromDialog = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
-      return;
-    }
-    try {
-      const picked = await tauriDialogOpen({
-        title: "Open Luxera Project",
-        defaultPath: state.projectPath.trim() || undefined,
-        multiple: false,
-        directory: false,
-        filters: [{ name: "Project JSON", extensions: ["json"] }],
-      });
-      if (typeof picked === "string" && picked.trim()) {
-        await openProjectDocument(picked);
-      }
-    } catch (err) {
-      patchState({ projectLifecycleError: err instanceof Error ? err.message : String(err) });
-    }
+    await project.openProjectFromDialog(state.projectPath);
   };
 
   const chooseNewProjectPathAndInit = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
-      return;
-    }
-    try {
-      const picked = await tauriDialogSave({
-        title: "Create New Luxera Project",
-        defaultPath: state.projectPath.trim() || undefined,
-      });
-      if (typeof picked === "string" && picked.trim()) {
-        await initProjectDocument(picked);
-      }
-    } catch (err) {
-      patchState({ projectLifecycleError: err instanceof Error ? err.message : String(err) });
-    }
+    await project.chooseNewProjectPathAndInit(state.projectPath, state.projectName);
   };
 
   const saveProjectAsDialog = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
-      return;
-    }
-    try {
-      const picked = await tauriDialogSave({
-        title: "Save Luxera Project As",
-        defaultPath: state.projectPath.trim() || undefined,
-      });
-      if (typeof picked === "string" && picked.trim()) {
-        await saveProjectDocument(picked);
-      }
-    } catch (err) {
-      patchState({ projectLifecycleError: err instanceof Error ? err.message : String(err) });
-    }
+    await project.saveProjectAsDialog(state.projectPath, state.projectDocContent);
   };
 
   const browseGeometryImportPath = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ geomError: "Geometry browsing requires Tauri runtime." });
-      return;
-    }
-    try {
-      const picked = await tauriDialogOpen({
-        title: "Import Geometry",
-        defaultPath: state.geomImportPath.trim() || undefined,
-        multiple: false,
-        directory: false,
-        filters: [
-          { name: "Geometry Files", extensions: ["dxf", "obj", "gltf", "glb", "fbx", "skp", "ifc", "dwg"] },
-          { name: "All Files", extensions: ["*"] },
-        ],
-      });
-      if (typeof picked === "string" && picked.trim()) {
-        patchState({ geomImportPath: picked, geomError: "" });
-      }
-    } catch (err) {
-      patchState({ geomError: err instanceof Error ? err.message : String(err) });
-    }
+    await geometry.browseGeometryImportPath(state.geomImportPath);
   };
 
   const browsePhotometryPath = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ luminaireError: "Photometry browsing requires Tauri runtime." });
-      return;
-    }
-    try {
-      const picked = await tauriDialogOpen({
-        title: "Import Photometry",
-        defaultPath: state.photometryFilePath.trim() || undefined,
-        multiple: false,
-        directory: false,
-        filters: [
-          { name: "Photometry", extensions: ["ies", "ldt"] },
-          { name: "All Files", extensions: ["*"] },
-        ],
-      });
-      if (typeof picked === "string" && picked.trim()) {
-        patchState({ photometryFilePath: picked, luminaireError: "" });
-      }
-    } catch (err) {
-      patchState({ luminaireError: err instanceof Error ? err.message : String(err) });
-    }
+    await luminaires.browsePhotometryPath(state.photometryFilePath);
   };
 
   const browseExportOutputPath = async (): Promise<void> => {
@@ -1906,552 +1822,119 @@ export default function App() {
   };
 
   const loadProjectJobs = async (pathOverride?: string): Promise<void> => {
-    if (!hasTauri) {
-      // surfaced in run control panel
-      return;
-    }
-    const path = (pathOverride ?? state.projectPath).trim();
-    if (!path) {
-      return;
-    }
-    patchState({ jobsLoading: true });
-    try {
-      const payload = await tauriInvoke<ProjectJobsResponse>("list_project_jobs", { projectPath: path });
-      const selectedJobId = payload.jobs.length > 0 ? payload.jobs[0].id : "";
-      patchState({
-        jobsLoading: false,
-        projectPath: payload.projectPath,
-        projectName: payload.projectName ?? "",
-        projectJobs: payload.jobs,
-        selectedJobId,
-      });
-    } catch (err) {
-      patchState({
-        jobsLoading: false,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
+    await project.loadProjectJobs(pathOverride ?? state.projectPath);
   };
 
   const openProjectDocument = async (pathOverride?: string): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
-      return;
-    }
-    const projectPath = (pathOverride ?? state.projectPath).trim();
-    if (!projectPath) {
-      patchState({ projectLifecycleError: "Project path is empty." });
-      return;
-    }
-    patchState({ projectLifecycleLoading: true, projectLifecycleError: "", projectValidation: null });
-    try {
-      const doc = await tauriInvoke<ProjectDocument>("open_project_file", { projectPath });
-      patchState({
-        projectLifecycleLoading: false,
-        projectDoc: doc,
-        projectDocContent: doc.content,
-        projectDocDirty: false,
-        projectPath: doc.path,
-        projectName: doc.name,
-      });
-      pushRecentProjectPath(doc.path);
-      await loadProjectJobs(doc.path);
-    } catch (err) {
-      patchState({
-        projectLifecycleLoading: false,
-        projectLifecycleError: err instanceof Error ? err.message : String(err),
-      });
-    }
+    await project.openProjectDocument(pathOverride ?? state.projectPath);
   };
 
   const initProjectDocument = async (pathOverride?: string): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
-      return;
-    }
-    const projectPath = (pathOverride ?? state.projectPath).trim();
-    if (!projectPath) {
-      patchState({ projectLifecycleError: "Project path is empty." });
-      return;
-    }
-    patchState({ projectLifecycleLoading: true, projectLifecycleError: "", projectValidation: null });
-    try {
-      const doc = await tauriInvoke<ProjectDocument>("init_project_file", {
-        projectPath,
-        name: state.projectName.trim() ? state.projectName.trim() : null,
-      });
-      patchState({
-        projectLifecycleLoading: false,
-        projectDoc: doc,
-        projectDocContent: doc.content,
-        projectDocDirty: false,
-        projectPath: doc.path,
-        projectName: doc.name,
-      });
-      pushRecentProjectPath(doc.path);
-      await loadProjectJobs(doc.path);
-    } catch (err) {
-      patchState({
-        projectLifecycleLoading: false,
-        projectLifecycleError: err instanceof Error ? err.message : String(err),
-      });
-    }
+    await project.initProjectDocument(pathOverride ?? state.projectPath, state.projectName);
   };
 
   const saveProjectDocument = async (pathOverride?: string): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
-      return;
-    }
-    const projectPath = (pathOverride ?? state.projectPath).trim();
-    if (!projectPath) {
-      patchState({ projectLifecycleError: "Project path is empty." });
-      return;
-    }
-    patchState({ projectLifecycleLoading: true, projectLifecycleError: "" });
-    try {
-      const doc = await tauriInvoke<ProjectDocument>("save_project_file", {
-        projectPath,
-        content: state.projectDocContent,
-      });
-      patchState({
-        projectLifecycleLoading: false,
-        projectDoc: doc,
-        projectDocContent: doc.content,
-        projectDocDirty: false,
-        projectPath: doc.path,
-        projectName: doc.name,
-      });
-      pushRecentProjectPath(doc.path);
-      await loadProjectJobs(doc.path);
-    } catch (err) {
-      patchState({
-        projectLifecycleLoading: false,
-        projectLifecycleError: err instanceof Error ? err.message : String(err),
-      });
-    }
+    await project.saveProjectDocument(pathOverride ?? state.projectPath, state.projectDocContent);
   };
 
   const validateProjectDocument = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ projectLifecycleError: "Project lifecycle requires Tauri runtime." });
-      return;
-    }
-    const projectPath = state.projectPath.trim();
-    if (!projectPath) {
-      patchState({ projectLifecycleError: "Project path is empty." });
-      return;
-    }
-    patchState({ projectLifecycleLoading: true, projectLifecycleError: "" });
-    try {
-      const validation = await tauriInvoke<ProjectValidationResult>("validate_project_file", {
-        projectPath,
-        jobId: state.selectedJobId.trim() ? state.selectedJobId.trim() : null,
-      });
-      patchState({
-        projectLifecycleLoading: false,
-        projectValidation: validation,
-      });
-    } catch (err) {
-      patchState({
-        projectLifecycleLoading: false,
-        projectLifecycleError: err instanceof Error ? err.message : String(err),
-      });
-    }
-  };
-
-  const applyGeometryResult = async (res: GeometryOperationResult): Promise<void> => {
-    patchState({
-      geomLoading: false,
-      geomLogStdout: res.stdout,
-      geomLogStderr: res.stderr,
-      geomError: res.success ? "" : `Geometry operation failed (exit ${res.exitCode}).`,
-    });
-    if (res.project) {
-      patchState({
-        projectDoc: res.project,
-        projectDocContent: res.project.content,
-        projectDocDirty: false,
-        projectPath: res.project.path,
-        projectName: res.project.name,
-      });
-      await loadProjectJobs();
-      if (res.success) {
-        scheduleLiveEstimateRefresh(res.project.path);
-      }
-    }
+    await project.validateProject(state.projectPath, state.selectedJobId);
   };
 
   const addRoomGeometry = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ geomError: "Geometry authoring requires Tauri runtime." });
-      return;
-    }
-    const width = Number(state.geomRoomWidth);
-    const length = Number(state.geomRoomLength);
-    const height = Number(state.geomRoomHeight);
-    const ox = Number(state.geomOriginX);
-    const oy = Number(state.geomOriginY);
-    const oz = Number(state.geomOriginZ);
-    if (!Number.isFinite(width) || !Number.isFinite(length) || !Number.isFinite(height) || width <= 0 || length <= 0 || height <= 0) {
-      patchState({ geomError: "Room dimensions must be positive numbers." });
-      return;
-    }
-    patchState({ geomLoading: true, geomError: "", geomLogStdout: "", geomLogStderr: "" });
-    try {
-      const res = await tauriInvoke<GeometryOperationResult>("add_room_to_project", {
-        projectPath: state.projectPath,
-        name: state.geomRoomName.trim() ? state.geomRoomName.trim() : null,
-        width,
-        length,
-        height,
-        originX: Number.isFinite(ox) ? ox : 0,
-        originY: Number.isFinite(oy) ? oy : 0,
-        originZ: Number.isFinite(oz) ? oz : 0,
-        floorReflectance: null,
-        wallReflectance: null,
-        ceilingReflectance: null,
-      });
-      await applyGeometryResult(res);
-    } catch (err) {
-      patchState({
-        geomLoading: false,
-        geomError: err instanceof Error ? err.message : String(err),
-      });
-    }
+    await geometry.addRoom({
+      geomRoomName: state.geomRoomName,
+      geomRoomWidth: state.geomRoomWidth,
+      geomRoomLength: state.geomRoomLength,
+      geomRoomHeight: state.geomRoomHeight,
+      geomOriginX: state.geomOriginX,
+      geomOriginY: state.geomOriginY,
+      geomOriginZ: state.geomOriginZ,
+    });
   };
 
   const importGeometry = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ geomError: "Geometry authoring requires Tauri runtime." });
-      return;
-    }
-    if (!state.geomImportPath.trim()) {
-      patchState({ geomError: "Geometry import path is empty." });
-      return;
-    }
-    patchState({ geomLoading: true, geomError: "", geomLogStdout: "", geomLogStderr: "" });
-    try {
-      const res = await tauriInvoke<GeometryOperationResult>("import_geometry_to_project", {
-        projectPath: state.projectPath,
-        filePath: state.geomImportPath.trim(),
-        format: state.geomImportFormat.trim() ? state.geomImportFormat.trim() : null,
-      });
-      await applyGeometryResult(res);
-    } catch (err) {
-      patchState({
-        geomLoading: false,
-        geomError: err instanceof Error ? err.message : String(err),
-      });
-    }
+    await geometry.importGeometry({
+      geomImportPath: state.geomImportPath,
+      geomImportFormat: state.geomImportFormat,
+    });
   };
 
   const cleanGeometry = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ geomError: "Geometry authoring requires Tauri runtime." });
-      return;
-    }
-    const snap = Number(state.geomCleanSnapTolerance);
-    if (!Number.isFinite(snap) || snap <= 0) {
-      patchState({ geomError: "Snap tolerance must be a positive number." });
-      return;
-    }
-    patchState({ geomLoading: true, geomError: "", geomLogStdout: "", geomLogStderr: "" });
-    try {
-      const res = await tauriInvoke<GeometryOperationResult>("clean_geometry_in_project", {
-        projectPath: state.projectPath,
-        snapTolerance: snap,
-        mergeCoplanar: state.geomCleanMergeCoplanar,
-        detectRooms: state.geomCleanDetectRooms,
-      });
-      await applyGeometryResult(res);
-    } catch (err) {
-      patchState({
-        geomLoading: false,
-        geomError: err instanceof Error ? err.message : String(err),
-      });
-    }
-  };
-
-  const applyLuminaireResult = async (res: GeometryOperationResult): Promise<void> => {
-    patchState({
-      luminaireLoading: false,
-      luminaireLogStdout: res.stdout,
-      luminaireLogStderr: res.stderr,
-      luminaireError: res.success ? "" : `Luminaire operation failed (exit ${res.exitCode}).`,
+    await geometry.cleanGeometry({
+      geomCleanSnapTolerance: state.geomCleanSnapTolerance,
+      geomCleanMergeCoplanar: state.geomCleanMergeCoplanar,
+      geomCleanDetectRooms: state.geomCleanDetectRooms,
     });
-    if (res.project) {
-      patchState({
-        projectDoc: res.project,
-        projectDocContent: res.project.content,
-        projectDocDirty: false,
-        projectPath: res.project.path,
-        projectName: res.project.name,
-      });
-      await loadProjectJobs();
-      if (res.success) {
-        scheduleLiveEstimateRefresh(res.project.path);
-      }
-    }
   };
 
   const addPhotometryAsset = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ luminaireError: "Luminaire authoring requires Tauri runtime." });
-      return;
-    }
-    if (!state.photometryFilePath.trim()) {
-      patchState({ luminaireError: "Photometry file path is empty." });
-      return;
-    }
-    patchState({ luminaireLoading: true, luminaireError: "", luminaireLogStdout: "", luminaireLogStderr: "" });
-    try {
-      const res = await tauriInvoke<GeometryOperationResult>("add_photometry_to_project", {
-        projectPath: state.projectPath,
-        filePath: state.photometryFilePath.trim(),
-        assetId: state.photometryAssetId.trim() ? state.photometryAssetId.trim() : null,
-        format: state.photometryFormat.trim() ? state.photometryFormat.trim() : null,
-      });
-      await applyLuminaireResult(res);
-    } catch (err) {
-      patchState({
-        luminaireLoading: false,
-        luminaireError: err instanceof Error ? err.message : String(err),
-      });
-    }
+    await luminaires.addPhotometryAsset({
+      photometryFilePath: state.photometryFilePath,
+      photometryAssetId: state.photometryAssetId,
+      photometryFormat: state.photometryFormat,
+    });
   };
 
   const verifyImportPhotometry = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ photometryVerifyError: "Photometry verification requires Tauri runtime." });
-      return;
-    }
-    const path = state.photometryFilePath.trim();
-    if (!path) {
-      patchState({ photometryVerifyError: "Photometry file path is empty.", photometryVerifyResult: null });
-      return;
-    }
-    patchState({ photometryVerifyLoading: true, photometryVerifyError: "", photometryVerifyResult: null });
-    try {
-      const res = await tauriInvoke<PhotometryVerifyResponse>("verify_photometry_file_input", {
-        filePath: path,
-        format: state.photometryFormat.trim() ? state.photometryFormat.trim() : null,
-      });
-      patchState({
-        photometryVerifyLoading: false,
-        photometryVerifyError: res.ok ? "" : String(res.error ?? "Photometry verification failed."),
-        photometryVerifyResult: res.result ?? null,
-      });
-    } catch (err) {
-      patchState({
-        photometryVerifyLoading: false,
-        photometryVerifyError: err instanceof Error ? err.message : String(err),
-        photometryVerifyResult: null,
-      });
-    }
+    await luminaires.verifyImportPhotometry({
+      photometryFilePath: state.photometryFilePath,
+      photometryFormat: state.photometryFormat,
+    });
   };
 
   const verifySelectedProjectPhotometry = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ photometryVerifyError: "Photometry verification requires Tauri runtime." });
-      return;
-    }
-    const projectPath = state.projectPath.trim();
     const assetId = state.selectedPhotometryAssetId.trim();
-    if (!projectPath) {
-      patchState({ photometryVerifyError: "Project path is empty.", photometryVerifyResult: null });
-      return;
-    }
-    if (!assetId) {
-      patchState({ photometryVerifyError: "Select a photometry asset first.", photometryVerifyResult: null });
-      return;
-    }
-    patchState({ photometryVerifyLoading: true, photometryVerifyError: "", photometryVerifyResult: null });
-    try {
-      const res = await tauriInvoke<PhotometryVerifyResponse>("verify_project_photometry_asset", {
-        projectPath,
-        assetId,
-      });
-      patchState({
-        photometryVerifyLoading: false,
-        photometryVerifyError: res.ok ? "" : String(res.error ?? "Photometry verification failed."),
-        photometryVerifyResult: res.result ?? null,
-      });
-    } catch (err) {
-      patchState({
-        photometryVerifyLoading: false,
-        photometryVerifyError: err instanceof Error ? err.message : String(err),
-        photometryVerifyResult: null,
-      });
-    }
+    luminaires.patch({ selectedPhotometryAssetId: assetId });
+    await luminaires.verifySelectedProjectPhotometry(assetId);
   };
 
   const loadPolarDistribution = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ polarPlotError: "Polar distribution requires Tauri runtime.", polarPlotData: null });
-      return;
-    }
     const asset = selectedPhotometryAsset;
     const filePath = String(asset?.path ?? state.photometryFilePath).trim();
     const format = String(asset?.format ?? state.photometryFormat).trim();
-    if (!filePath) {
-      patchState({ polarPlotError: "Selected photometry asset has no file path.", polarPlotData: null });
-      return;
-    }
-    patchState({ polarPlotLoading: true, polarPlotError: "", polarPlotData: null });
-    try {
-      const payload = await tauriInvoke<Record<string, unknown>>("get_photometry_polar_data", {
-        filePath,
-        format: format ? format : null,
-      });
-      patchState({ polarPlotLoading: false, polarPlotData: payload, polarPlotError: "" });
-    } catch (err) {
-      patchState({
-        polarPlotLoading: false,
-        polarPlotData: null,
-        polarPlotError: err instanceof Error ? err.message : String(err),
-      });
-    }
+    await luminaires.loadPolarDistribution(filePath, format || null);
   };
 
   const addLuminaire = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ luminaireError: "Luminaire authoring requires Tauri runtime." });
-      return;
-    }
-    if (!state.luminaireAssetId.trim()) {
-      patchState({ luminaireError: "Luminaire asset id is required." });
-      return;
-    }
-    const x = Number(state.luminaireX);
-    const y = Number(state.luminaireY);
-    const z = Number(state.luminaireZ);
-    const yaw = Number(state.luminaireYaw);
-    const pitch = Number(state.luminairePitch);
-    const roll = Number(state.luminaireRoll);
-    const maintenance = Number(state.luminaireMaintenance);
-    const multiplier = Number(state.luminaireMultiplier);
-    const tilt = Number(state.luminaireTilt);
-    if (![x, y, z, yaw, pitch, roll, maintenance, multiplier, tilt].every(Number.isFinite)) {
-      patchState({ luminaireError: "Luminaire numeric fields are invalid." });
-      return;
-    }
-    patchState({ luminaireLoading: true, luminaireError: "", luminaireLogStdout: "", luminaireLogStderr: "" });
-    try {
-      const res = await tauriInvoke<GeometryOperationResult>("add_luminaire_to_project", {
-        projectPath: state.projectPath,
-        assetId: state.luminaireAssetId.trim(),
-        luminaireId: state.luminaireId.trim() ? state.luminaireId.trim() : null,
-        name: state.luminaireName.trim() ? state.luminaireName.trim() : null,
-        x,
-        y,
-        z,
-        yaw,
-        pitch,
-        roll,
-        maintenance,
-        multiplier,
-        tilt,
-      });
-      await applyLuminaireResult(res);
-    } catch (err) {
-      patchState({
-        luminaireLoading: false,
-        luminaireError: err instanceof Error ? err.message : String(err),
-      });
-    }
-  };
-
-  const applyCalcSetupResult = async (res: GeometryOperationResult): Promise<void> => {
-    patchState({
-      calcSetupLoading: false,
-      calcSetupLogStdout: res.stdout,
-      calcSetupLogStderr: res.stderr,
-      calcSetupError: res.success ? "" : `Calculation setup operation failed (exit ${res.exitCode}).`,
+    await luminaires.addLuminaire({
+      luminaireAssetId: state.luminaireAssetId,
+      luminaireId: state.luminaireId,
+      luminaireName: state.luminaireName,
+      luminaireX: state.luminaireX,
+      luminaireY: state.luminaireY,
+      luminaireZ: state.luminaireZ,
+      luminaireYaw: state.luminaireYaw,
+      luminairePitch: state.luminairePitch,
+      luminaireRoll: state.luminaireRoll,
+      luminaireMaintenance: state.luminaireMaintenance,
+      luminaireMultiplier: state.luminaireMultiplier,
+      luminaireTilt: state.luminaireTilt,
     });
-    if (res.project) {
-      patchState({
-        projectDoc: res.project,
-        projectDocContent: res.project.content,
-        projectDocDirty: false,
-        projectPath: res.project.path,
-        projectName: res.project.name,
-      });
-      await loadProjectJobs();
-    }
   };
 
   const addGrid = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ calcSetupError: "Calculation setup requires Tauri runtime." });
-      return;
-    }
-    const width = Number(state.gridWidth);
-    const height = Number(state.gridHeight);
-    const elevation = Number(state.gridElevation);
-    const nx = Number(state.gridNx);
-    const ny = Number(state.gridNy);
-    const ox = Number(state.gridOriginX);
-    const oy = Number(state.gridOriginY);
-    const oz = Number(state.gridOriginZ);
-    if (![width, height, elevation, nx, ny, ox, oy, oz].every(Number.isFinite) || width <= 0 || height <= 0 || nx < 2 || ny < 2) {
-      patchState({ calcSetupError: "Grid inputs are invalid." });
-      return;
-    }
-    patchState({ calcSetupLoading: true, calcSetupError: "", calcSetupLogStdout: "", calcSetupLogStderr: "" });
-    try {
-      const res = await tauriInvoke<GeometryOperationResult>("add_grid_to_project", {
-        projectPath: state.projectPath,
-        name: state.gridName.trim() ? state.gridName.trim() : null,
-        width,
-        height,
-        elevation,
-        nx: Math.round(nx),
-        ny: Math.round(ny),
-        originX: ox,
-        originY: oy,
-        originZ: oz,
-        roomId: state.gridRoomId.trim() ? state.gridRoomId.trim() : null,
-      });
-      await applyCalcSetupResult(res);
-    } catch (err) {
-      patchState({
-        calcSetupLoading: false,
-        calcSetupError: err instanceof Error ? err.message : String(err),
-      });
-    }
+    await calcSetup.addGrid({
+      gridName: state.gridName,
+      gridWidth: state.gridWidth,
+      gridHeight: state.gridHeight,
+      gridElevation: state.gridElevation,
+      gridNx: state.gridNx,
+      gridNy: state.gridNy,
+      gridOriginX: state.gridOriginX,
+      gridOriginY: state.gridOriginY,
+      gridOriginZ: state.gridOriginZ,
+      gridRoomId: state.gridRoomId,
+    });
   };
 
   const addJob = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ calcSetupError: "Calculation setup requires Tauri runtime." });
-      return;
-    }
-    if (!state.jobTypeInput.trim()) {
-      patchState({ calcSetupError: "Job type is required." });
-      return;
-    }
-    const seed = Number(state.jobSeedInput);
-    if (!Number.isFinite(seed)) {
-      patchState({ calcSetupError: "Job seed is invalid." });
-      return;
-    }
-    patchState({ calcSetupLoading: true, calcSetupError: "", calcSetupLogStdout: "", calcSetupLogStderr: "" });
-    try {
-      const res = await tauriInvoke<GeometryOperationResult>("add_job_to_project", {
-        projectPath: state.projectPath,
-        jobId: state.jobIdInput.trim() ? state.jobIdInput.trim() : null,
-        jobType: state.jobTypeInput.trim(),
-        backend: state.jobBackendInput.trim() ? state.jobBackendInput.trim() : "cpu",
-        seed: Math.round(seed),
-      });
-      await applyCalcSetupResult(res);
-    } catch (err) {
-      patchState({
-        calcSetupLoading: false,
-        calcSetupError: err instanceof Error ? err.message : String(err),
-      });
-    }
+    await calcSetup.addJob({
+      jobIdInput: state.jobIdInput,
+      jobTypeInput: state.jobTypeInput,
+      jobBackendInput: state.jobBackendInput,
+      jobSeedInput: state.jobSeedInput,
+    });
   };
 
   const runExportAction = async (cmd: "export_debug_bundle" | "export_client_bundle" | "export_backend_compare" | "export_roadway_report"): Promise<void> => {
@@ -2491,239 +1974,59 @@ export default function App() {
     }
   };
 
-  const parseAgentDiffPreview = (response: Record<string, unknown>): AgentDiffPreview | null => {
-    const raw = response.diff_preview as Record<string, unknown> | undefined;
-    const ops = (raw?.ops as unknown[]) ?? [];
-    if (!Array.isArray(ops) || ops.length === 0) {
-      return null;
-    }
-    const adds: AgentDiffPreview["adds"] = [];
-    const removes: string[] = [];
-    const moves: AgentDiffPreview["moves"] = [];
-
-    const findNum = (payload: Record<string, unknown>, keys: string[]): number | null => {
-      for (const k of keys) {
-        const v = Number(payload[k]);
-        if (Number.isFinite(v)) {
-          return v;
-        }
-      }
-      return null;
-    };
-
-    for (const opAny of ops) {
-      if (!opAny || typeof opAny !== "object") {
-        continue;
-      }
-      const op = opAny as Record<string, unknown>;
-      const kind = String(op.kind ?? "").toLowerCase();
-      const mode = String(op.op ?? "").toLowerCase();
-      const id = String(op.id ?? "");
-      const payload = op.payload && typeof op.payload === "object" ? (op.payload as Record<string, unknown>) : null;
-      if (kind !== "luminaire") {
-        continue;
-      }
-      if (mode === "add" && payload) {
-        const pos = payload.transform && typeof payload.transform === "object" ? (payload.transform as Record<string, unknown>).position : null;
-        const arr = Array.isArray(pos) ? pos : null;
-        const x = arr ? Number(arr[0]) : findNum(payload, ["x", "new_x"]);
-        const y = arr ? Number(arr[1]) : findNum(payload, ["y", "new_y"]);
-        const z = arr ? Number(arr[2]) : findNum(payload, ["z", "new_z"]);
-        if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
-          adds.push({ id: id || `add_${adds.length + 1}`, x, y, z });
-        }
-      }
-      if (mode === "remove" && id) {
-        removes.push(id);
-      }
-      if (mode === "modify" && payload && id) {
-        const oldPayload = payload.old && typeof payload.old === "object" ? (payload.old as Record<string, unknown>) : payload;
-        const newPayload = payload.new && typeof payload.new === "object" ? (payload.new as Record<string, unknown>) : payload;
-        const oldTransform = oldPayload.transform && typeof oldPayload.transform === "object" ? (oldPayload.transform as Record<string, unknown>) : null;
-        const newTransform = newPayload.transform && typeof newPayload.transform === "object" ? (newPayload.transform as Record<string, unknown>) : null;
-        const oldPos = Array.isArray(oldTransform?.position) ? (oldTransform?.position as unknown[]) : null;
-        const newPos = Array.isArray(newTransform?.position) ? (newTransform?.position as unknown[]) : null;
-        const oldX = oldPos ? Number(oldPos[0]) : findNum(oldPayload, ["old_x", "x", "from_x"]);
-        const oldY = oldPos ? Number(oldPos[1]) : findNum(oldPayload, ["old_y", "y", "from_y"]);
-        const newX = newPos ? Number(newPos[0]) : findNum(newPayload, ["new_x", "x", "to_x"]);
-        const newY = newPos ? Number(newPos[1]) : findNum(newPayload, ["new_y", "y", "to_y"]);
-        if (Number.isFinite(oldX) && Number.isFinite(oldY) && Number.isFinite(newX) && Number.isFinite(newY)) {
-          moves.push({ id, oldX, oldY, newX, newY });
-        }
-      }
-    }
-    if (adds.length === 0 && removes.length === 0 && moves.length === 0) {
-      return null;
-    }
-    return { adds, removes, moves };
-  };
-
   const runAgentIntent = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ agentError: "Agent runtime requires Tauri runtime." });
-      return;
-    }
-    if (!state.projectPath.trim()) {
-      patchState({ agentError: "Project path is required for agent runtime." });
-      return;
-    }
-    if (!state.agentIntent.trim()) {
-      patchState({ agentError: "Agent intent is empty." });
-      return;
-    }
-    let approvalsObj: Record<string, unknown> = {};
-    if (state.agentApprovalsJson.trim()) {
-      try {
-        const parsed = JSON.parse(state.agentApprovalsJson) as unknown;
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          approvalsObj = parsed as Record<string, unknown>;
-        } else {
-          patchState({ agentError: "Approvals JSON must be an object." });
-          return;
-        }
-      } catch (err) {
-        patchState({ agentError: err instanceof Error ? `Invalid approvals JSON: ${err.message}` : "Invalid approvals JSON." });
-        return;
-      }
-    }
-    approvalsObj.apply_diff = state.agentApprovalApplyDiff;
-    approvalsObj.run_job = state.agentApprovalRunJob;
-    const selectedIdx = Number(state.agentSelectedOptionIndex);
-    if (Number.isFinite(selectedIdx) && selectedIdx >= 0) {
-      approvalsObj.selected_option_index = Math.round(selectedIdx);
-    }
-    const approvalsJson = JSON.stringify(approvalsObj);
-    const userMessage: AgentConversationMessage = {
-      role: "user",
-      content: state.agentIntent.trim(),
-      timestamp: Date.now(),
-    };
-    const outboundConversation = [...state.agentConversation, userMessage];
-    patchState({
-      agentLoading: true,
-      agentError: "",
-      agentResponse: null,
-      agentConversation: outboundConversation,
-      agentDiffPreview: null,
-      agentDiffApproved: false,
+    const result = await agent.executeAgentTurn({
+      projectPath: state.projectPath,
+      intent: state.agentIntent,
+      approvalsJson: state.agentApprovalsJson,
+      applyDiff: state.agentApprovalApplyDiff,
+      runJob: state.agentApprovalRunJob,
+      selectedOptionIndex: state.agentSelectedOptionIndex,
     });
-    try {
-      const payload = await tauriInvoke<{ response: Record<string, unknown>; summary?: string; augmented_intent?: string }>("execute_agent_turn", {
-        projectPath: state.projectPath,
-        intent: state.agentIntent,
-        conversationJson: JSON.stringify(outboundConversation),
-        approvalsJson,
-      });
-      const warnings = ((payload.response.warnings as unknown[]) ?? []).length;
-      const errors = ((payload.response.errors as unknown[]) ?? []).length;
-      const actions = ((payload.response.actions as unknown[]) ?? []).length;
-      const ok = errors === 0;
-      const assistantActions =
-        ((payload.response.actions as unknown[]) ?? [])
-          .filter((v): v is Record<string, unknown> => !!v && typeof v === "object")
-          .map((v) => ({
-            kind: String(v.kind ?? "action"),
-            payload: v.payload && typeof v.payload === "object" ? (v.payload as Record<string, unknown>) : null,
-          }));
-      const assistantWarnings = ((payload.response.warnings as unknown[]) ?? []).map((v) => String(v));
-      const assistantErrors = ((payload.response.errors as unknown[]) ?? []).map((v) => String(v));
-      const assistantMessage: AgentConversationMessage = {
-        role: "assistant",
-        content: String(payload.summary || payload.response.plan || "Completed."),
-        timestamp: Date.now(),
-        actions: assistantActions,
-        warnings: assistantWarnings,
-        errors: assistantErrors,
-      };
-      const historyEntry: AgentRunEntry = {
-        atUnixMs: Date.now(),
-        intent: state.agentIntent,
-        approvalsJson,
-        ok,
-        actions,
-        warnings,
-        errors,
-      };
-      patchState({
-        agentLoading: false,
-        agentApprovalsJson: approvalsJson,
-        agentIntent: "",
-        agentResponse: payload.response,
-        agentConversation: [...outboundConversation, assistantMessage],
-        agentDiffPreview: parseAgentDiffPreview(payload.response),
-        agentDiffApproved: false,
-        agentRunHistory: [historyEntry, ...state.agentRunHistory].slice(0, 25),
-      });
-      await openProjectDocument(state.projectPath);
-    } catch (err) {
-      patchState({
-        agentLoading: false,
-        agentError: err instanceof Error ? err.message : String(err),
-      });
+    if (!result) {
+      return;
     }
+    const warnings = ((result.response.warnings as unknown[]) ?? []).length;
+    const errors = ((result.response.errors as unknown[]) ?? []).length;
+    const actions = ((result.response.actions as unknown[]) ?? []).length;
+    const ok = errors === 0;
+    const historyEntry: AgentRunEntry = {
+      atUnixMs: Date.now(),
+      intent: state.agentIntent,
+      approvalsJson: result.approvalsJson,
+      ok,
+      actions,
+      warnings,
+      errors,
+    };
+    patchState({
+      agentApprovalsJson: result.approvalsJson,
+      agentIntent: "",
+      agentResponse: result.response,
+      agentRunHistory: [historyEntry, ...state.agentRunHistory].slice(0, 25),
+    });
+    await openProjectDocument(state.projectPath);
   };
 
   const applyAgentDiffPreview = async (): Promise<void> => {
-    if (!hasTauri || !state.projectPath.trim()) {
-      patchState({ agentError: "Project path is required for applying agent diff." });
-      return;
-    }
     const lastUser = [...state.agentConversation].reverse().find((m) => m.role === "user");
     const intent = (lastUser?.content || state.agentIntent || "Apply the proposed diff").trim();
-    if (!intent) {
-      patchState({ agentError: "No agent intent available to apply diff." });
+    const result = await agent.executeAgentTurn({
+      projectPath: state.projectPath,
+      intent,
+      approvalsJson: state.agentApprovalsJson,
+      applyDiff: true,
+      runJob: state.agentApprovalRunJob,
+      selectedOptionIndex: state.agentSelectedOptionIndex,
+    });
+    if (!result) {
       return;
     }
-    let approvalsObj: Record<string, unknown> = {};
-    if (state.agentApprovalsJson.trim()) {
-      try {
-        const parsed = JSON.parse(state.agentApprovalsJson) as unknown;
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          approvalsObj = parsed as Record<string, unknown>;
-        }
-      } catch {
-        approvalsObj = {};
-      }
-    }
-    approvalsObj.apply_diff = true;
-    approvalsObj.run_job = state.agentApprovalRunJob;
-    const selectedIdx = Number(state.agentSelectedOptionIndex);
-    if (Number.isFinite(selectedIdx) && selectedIdx >= 0) {
-      approvalsObj.selected_option_index = Math.round(selectedIdx);
-    }
-    const approvalsJson = JSON.stringify(approvalsObj);
-    patchState({ agentLoading: true, agentError: "" });
-    try {
-      const payload = await tauriInvoke<{ response: Record<string, unknown>; summary?: string }>("execute_agent_turn", {
-        projectPath: state.projectPath,
-        intent,
-        conversationJson: JSON.stringify(state.agentConversation),
-        approvalsJson,
-      });
-      const actionsRaw = ((payload.response.actions as unknown[]) ?? []).filter((v): v is Record<string, unknown> => !!v && typeof v === "object");
-      const assistantMessage: AgentConversationMessage = {
-        role: "assistant",
-        content: String(payload.summary || payload.response.plan || "Applied."),
-        timestamp: Date.now(),
-        actions: actionsRaw.map((v) => ({
-          kind: String(v.kind ?? "action"),
-          payload: v.payload && typeof v.payload === "object" ? (v.payload as Record<string, unknown>) : null,
-        })),
-        warnings: ((payload.response.warnings as unknown[]) ?? []).map((v) => String(v)),
-        errors: ((payload.response.errors as unknown[]) ?? []).map((v) => String(v)),
-      };
-      patchState({
-        agentLoading: false,
-        agentApprovalsJson: approvalsJson,
-        agentResponse: payload.response,
-        agentConversation: [...state.agentConversation, assistantMessage],
-        agentDiffPreview: parseAgentDiffPreview(payload.response),
-        agentDiffApproved: true,
-      });
-      await openProjectDocument(state.projectPath);
-    } catch (err) {
-      patchState({ agentLoading: false, agentError: err instanceof Error ? err.message : String(err) });
-    }
+    patchState({
+      agentApprovalsJson: result.approvalsJson,
+      agentResponse: result.response,
+    });
+    await openProjectDocument(state.projectPath);
   };
 
   const batchUpdateSelectedLuminaires = async (): Promise<void> => {
@@ -2916,29 +2219,10 @@ export default function App() {
   };
 
   const assignMaterial = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ designError: "Design authoring requires Tauri runtime." });
-      return;
-    }
-    if (!state.materialIdInput.trim()) {
-      patchState({ designError: "Material id is required." });
-      return;
-    }
-    if (!state.materialSurfaceIdsCsv.trim()) {
-      patchState({ designError: "At least one surface id is required." });
-      return;
-    }
-    patchState({ designLoading: true, designError: "", designMessage: "", designResult: null });
-    try {
-      const res = await tauriInvoke<ToolOperationResult>("assign_material_in_project", {
-        projectPath: state.projectPath,
-        materialId: state.materialIdInput.trim(),
-        surfaceIdsCsv: state.materialSurfaceIdsCsv.trim(),
-      });
-      await applyDesignResult(res, true);
-    } catch (err) {
-      patchState({ designLoading: false, designError: err instanceof Error ? err.message : String(err) });
-    }
+    await design.assignMaterial({
+      materialIdInput: state.materialIdInput,
+      materialSurfaceIdsCsv: state.materialSurfaceIdsCsv,
+    });
   };
 
   const editRoom = async (): Promise<void> => {
@@ -3113,150 +2397,489 @@ export default function App() {
   };
 
   const addVariant = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ designError: "Variants require Tauri runtime." });
-      return;
-    }
-    if (!state.variantIdInput.trim() || !state.variantNameInput.trim()) {
-      patchState({ designError: "Variant id and name are required." });
-      return;
-    }
-    if (state.variantDiffOpsJson.trim()) {
-      try {
-        const parsed = JSON.parse(state.variantDiffOpsJson);
-        if (!Array.isArray(parsed)) {
-          patchState({ designError: "Variant diff JSON must be an array." });
-          return;
-        }
-      } catch (err) {
-        patchState({ designError: err instanceof Error ? `Invalid variant diff JSON: ${err.message}` : "Invalid variant diff JSON." });
-        return;
-      }
-    }
-    patchState({ designLoading: true, designError: "", designMessage: "", designResult: null });
-    try {
-      const res = await tauriInvoke<ToolOperationResult>("add_project_variant", {
-        projectPath: state.projectPath,
-        variantId: state.variantIdInput.trim(),
-        name: state.variantNameInput.trim(),
-        description: state.variantDescriptionInput.trim() ? state.variantDescriptionInput.trim() : null,
-        diffOpsJson: state.variantDiffOpsJson.trim() ? state.variantDiffOpsJson.trim() : "[]",
-      });
-      await applyDesignResult(res, true);
-    } catch (err) {
-      patchState({ designLoading: false, designError: err instanceof Error ? err.message : String(err) });
-    }
+    await design.addVariant({
+      variantIdInput: state.variantIdInput,
+      variantNameInput: state.variantNameInput,
+      variantDescriptionInput: state.variantDescriptionInput,
+      variantDiffOpsJson: state.variantDiffOpsJson,
+    });
   };
 
   const compareVariants = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ designError: "Variant comparison requires Tauri runtime." });
-      return;
-    }
-    const jobId = (state.variantCompareJobId || state.selectedJobId).trim();
-    if (!jobId) {
-      patchState({ designError: "Variant compare job id is required." });
-      return;
-    }
-    if (!state.variantCompareIdsCsv.trim()) {
-      patchState({ designError: "Variant ids CSV is required." });
-      return;
-    }
-    patchState({ designLoading: true, designError: "", designMessage: "", designResult: null, variantVisualResult: null });
-    try {
-      const payload = await tauriInvoke<VariantVisualResponse>("compare_variants_visual", {
-        projectPath: state.projectPath,
-        jobId,
-        variantIdsCsv: state.variantCompareIdsCsv.trim(),
-      });
-      const rows: JsonRow[] = payload.variants.map((v) => ({
-        id: v.id,
-        name: v.name,
-        mean_lux: v.metrics.mean_lux,
-        uniformity: v.metrics.uniformity,
-        ugr: v.metrics.ugr,
-        fixture_count: v.metrics.fixture_count,
-        compliant: v.compliant,
-        error: v.error ?? "",
-      }));
-      patchState({
-        designLoading: false,
-        designError: "",
-        designMessage: `Compared ${payload.variants.length} variants.`,
-        designResult: { rows },
-        variantVisualResult: payload,
-      });
-    } catch (err) {
-      patchState({ designLoading: false, designError: err instanceof Error ? err.message : String(err) });
-    }
+    await design.compareVariants({
+      variantCompareJobId: state.variantCompareJobId,
+      variantCompareIdsCsv: state.variantCompareIdsCsv,
+      variantCompareBaselineId: state.variantCompareBaselineId,
+    });
   };
 
   const proposeOptimizations = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ designError: "Optimization requires Tauri runtime." });
-      return;
-    }
-    const jobId = (state.optimizationJobId || state.selectedJobId).trim();
-    if (!jobId) {
-      patchState({ designError: "Optimization job id is required." });
-      return;
-    }
-    let topN = Number(state.optimizationTopN);
-    if (!Number.isFinite(topN) || topN < 1) {
-      patchState({ designError: "Optimization top N is invalid." });
-      return;
-    }
-    topN = Math.round(topN);
-    if (state.optimizationConstraintsJson.trim()) {
-      try {
-        const parsed = JSON.parse(state.optimizationConstraintsJson);
-        if (parsed !== null && typeof parsed !== "object") {
-          patchState({ designError: "Optimization constraints must be a JSON object." });
-          return;
-        }
-      } catch (err) {
-        patchState({
-          designError: err instanceof Error ? `Invalid optimization constraints JSON: ${err.message}` : "Invalid optimization constraints JSON.",
-        });
-        return;
-      }
-    }
-    patchState({ designLoading: true, designError: "", designMessage: "", designResult: null });
-    try {
-      const res = await tauriInvoke<ToolOperationResult>("propose_project_optimizations", {
-        projectPath: state.projectPath,
-        jobId,
-        constraintsJson: state.optimizationConstraintsJson.trim() ? state.optimizationConstraintsJson.trim() : "{}",
-        topN,
-      });
-      await applyDesignResult(res, false);
-    } catch (err) {
-      patchState({ designLoading: false, designError: err instanceof Error ? err.message : String(err) });
-    }
+    await design.proposeOptimizations({
+      optimizationJobId: state.optimizationJobId,
+      optimizationConstraintsJson: state.optimizationConstraintsJson,
+      optimizationTopN: state.optimizationTopN,
+    });
   };
 
   const applySelectedOptimizationOption = async (): Promise<void> => {
-    if (!hasTauri) {
-      patchState({ designError: "Optimization apply requires Tauri runtime." });
-      return;
-    }
     const selected =
       state.selectedTableTitle === "Optimization Options" && state.selectedRow ? state.selectedRow : optimizationOptionsRows[0] ?? null;
-    if (!selected) {
-      patchState({ designError: "No optimization option selected." });
-      return;
-    }
-    patchState({ designLoading: true, designError: "", designMessage: "", designResult: null });
-    try {
-      const res = await tauriInvoke<ToolOperationResult>("apply_project_optimization_option", {
-        projectPath: state.projectPath,
-        optionJson: JSON.stringify(selected),
-      });
-      await applyDesignResult(res, true);
-    } catch (err) {
-      patchState({ designLoading: false, designError: err instanceof Error ? err.message : String(err) });
-    }
+    await design.applyOptimizationOption(selected);
   };
+
+  useEffect(() => {
+    patchState({
+      projectPath: project.state.projectPath,
+      projectName: project.state.projectName,
+      projectJobs: project.state.projectJobs,
+      selectedJobId: project.state.selectedJobId,
+      projectDoc: project.state.projectDoc,
+      projectDocContent: project.state.projectDocContent,
+      projectDocDirty: project.state.projectDocDirty,
+      projectValidation: project.state.projectValidation,
+      projectLifecycleLoading: project.state.projectLifecycleLoading,
+      projectLifecycleError: project.state.projectLifecycleError,
+      recentProjects: project.state.recentProjects,
+      jobsLoading: project.state.jobsLoading,
+    });
+  }, [
+    project.state.jobsLoading,
+    project.state.projectDoc,
+    project.state.projectDocContent,
+    project.state.projectDocDirty,
+    project.state.projectJobs,
+    project.state.projectLifecycleError,
+    project.state.projectLifecycleLoading,
+    project.state.projectName,
+    project.state.projectPath,
+    project.state.projectValidation,
+    project.state.recentProjects,
+    project.state.selectedJobId,
+  ]);
+
+  useEffect(() => {
+    patchState({
+      geomRoomName: geometry.state.geomRoomName,
+      geomRoomWidth: geometry.state.geomRoomWidth,
+      geomRoomLength: geometry.state.geomRoomLength,
+      geomRoomHeight: geometry.state.geomRoomHeight,
+      geomOriginX: geometry.state.geomOriginX,
+      geomOriginY: geometry.state.geomOriginY,
+      geomOriginZ: geometry.state.geomOriginZ,
+      geomImportPath: geometry.state.geomImportPath,
+      geomImportFormat: geometry.state.geomImportFormat,
+      geomCleanSnapTolerance: geometry.state.geomCleanSnapTolerance,
+      geomCleanDetectRooms: geometry.state.geomCleanDetectRooms,
+      geomCleanMergeCoplanar: geometry.state.geomCleanMergeCoplanar,
+      geomLoading: geometry.state.geomLoading,
+      geomLogStdout: geometry.state.geomLogStdout,
+      geomLogStderr: geometry.state.geomLogStderr,
+      geomError: geometry.state.geomError,
+      editRoomId: geometry.state.editRoomId,
+      arrayRoomId: geometry.state.arrayRoomId,
+    });
+  }, [
+    geometry.state.arrayRoomId,
+    geometry.state.editRoomId,
+    geometry.state.geomCleanDetectRooms,
+    geometry.state.geomCleanMergeCoplanar,
+    geometry.state.geomCleanSnapTolerance,
+    geometry.state.geomError,
+    geometry.state.geomImportFormat,
+    geometry.state.geomImportPath,
+    geometry.state.geomLoading,
+    geometry.state.geomLogStderr,
+    geometry.state.geomLogStdout,
+    geometry.state.geomOriginX,
+    geometry.state.geomOriginY,
+    geometry.state.geomOriginZ,
+    geometry.state.geomRoomHeight,
+    geometry.state.geomRoomLength,
+    geometry.state.geomRoomName,
+    geometry.state.geomRoomWidth,
+  ]);
+
+  useEffect(() => {
+    patchState({
+      photometryFilePath: luminaires.state.photometryFilePath,
+      photometryAssetId: luminaires.state.photometryAssetId,
+      photometryFormat: luminaires.state.photometryFormat,
+      photometryLibraryQuery: luminaires.state.photometryLibraryQuery,
+      selectedPhotometryAssetId: luminaires.state.selectedPhotometryAssetId,
+      photometryVerifyLoading: luminaires.state.photometryVerifyLoading,
+      photometryVerifyError: luminaires.state.photometryVerifyError,
+      photometryVerifyResult: luminaires.state.photometryVerifyResult,
+      polarPlotData: luminaires.state.polarPlotData,
+      polarPlotLoading: luminaires.state.polarPlotLoading,
+      polarPlotError: luminaires.state.polarPlotError,
+      luminaireAssetId: luminaires.state.luminaireAssetId,
+      luminaireId: luminaires.state.luminaireId,
+      luminaireName: luminaires.state.luminaireName,
+      luminaireX: luminaires.state.luminaireX,
+      luminaireY: luminaires.state.luminaireY,
+      luminaireZ: luminaires.state.luminaireZ,
+      luminaireYaw: luminaires.state.luminaireYaw,
+      luminairePitch: luminaires.state.luminairePitch,
+      luminaireRoll: luminaires.state.luminaireRoll,
+      luminaireMaintenance: luminaires.state.luminaireMaintenance,
+      luminaireMultiplier: luminaires.state.luminaireMultiplier,
+      luminaireTilt: luminaires.state.luminaireTilt,
+      luminaireLoading: luminaires.state.luminaireLoading,
+      luminaireLogStdout: luminaires.state.luminaireLogStdout,
+      luminaireLogStderr: luminaires.state.luminaireLogStderr,
+      luminaireError: luminaires.state.luminaireError,
+      arrayRoomId: luminaires.state.arrayRoomId,
+      arrayAssetId: luminaires.state.arrayAssetId,
+      arrayRows: luminaires.state.arrayRows,
+      arrayCols: luminaires.state.arrayCols,
+      arrayMarginM: luminaires.state.arrayMarginM,
+      arrayMountHeightM: luminaires.state.arrayMountHeightM,
+      aimLuminaireId: luminaires.state.aimLuminaireId,
+      aimYawDeg: luminaires.state.aimYawDeg,
+      batchYawDeg: luminaires.state.batchYawDeg,
+      batchMaintenanceFactor: luminaires.state.batchMaintenanceFactor,
+      batchFluxMultiplier: luminaires.state.batchFluxMultiplier,
+      batchTiltDeg: luminaires.state.batchTiltDeg,
+    });
+  }, [
+    luminaires.state.aimLuminaireId,
+    luminaires.state.aimYawDeg,
+    luminaires.state.arrayAssetId,
+    luminaires.state.arrayCols,
+    luminaires.state.arrayMarginM,
+    luminaires.state.arrayMountHeightM,
+    luminaires.state.arrayRoomId,
+    luminaires.state.arrayRows,
+    luminaires.state.batchFluxMultiplier,
+    luminaires.state.batchMaintenanceFactor,
+    luminaires.state.batchTiltDeg,
+    luminaires.state.batchYawDeg,
+    luminaires.state.luminaireAssetId,
+    luminaires.state.luminaireError,
+    luminaires.state.luminaireId,
+    luminaires.state.luminaireLoading,
+    luminaires.state.luminaireLogStderr,
+    luminaires.state.luminaireLogStdout,
+    luminaires.state.luminaireMaintenance,
+    luminaires.state.luminaireMultiplier,
+    luminaires.state.luminaireName,
+    luminaires.state.luminairePitch,
+    luminaires.state.luminaireRoll,
+    luminaires.state.luminaireTilt,
+    luminaires.state.luminaireX,
+    luminaires.state.luminaireY,
+    luminaires.state.luminaireYaw,
+    luminaires.state.luminaireZ,
+    luminaires.state.photometryAssetId,
+    luminaires.state.photometryFilePath,
+    luminaires.state.photometryFormat,
+    luminaires.state.photometryLibraryQuery,
+    luminaires.state.photometryVerifyError,
+    luminaires.state.photometryVerifyLoading,
+    luminaires.state.photometryVerifyResult,
+    luminaires.state.polarPlotData,
+    luminaires.state.polarPlotError,
+    luminaires.state.polarPlotLoading,
+    luminaires.state.selectedPhotometryAssetId,
+  ]);
+
+  useEffect(() => {
+    patchState({
+      gridName: calcSetup.state.gridName,
+      gridWidth: calcSetup.state.gridWidth,
+      gridHeight: calcSetup.state.gridHeight,
+      gridElevation: calcSetup.state.gridElevation,
+      gridNx: calcSetup.state.gridNx,
+      gridNy: calcSetup.state.gridNy,
+      gridOriginX: calcSetup.state.gridOriginX,
+      gridOriginY: calcSetup.state.gridOriginY,
+      gridOriginZ: calcSetup.state.gridOriginZ,
+      gridRoomId: calcSetup.state.gridRoomId,
+      jobIdInput: calcSetup.state.jobIdInput,
+      jobTypeInput: calcSetup.state.jobTypeInput,
+      jobBackendInput: calcSetup.state.jobBackendInput,
+      jobSeedInput: calcSetup.state.jobSeedInput,
+      workplanePreset: calcSetup.state.workplanePreset,
+      calcSetupLoading: calcSetup.state.calcSetupLoading,
+      calcSetupLogStdout: calcSetup.state.calcSetupLogStdout,
+      calcSetupLogStderr: calcSetup.state.calcSetupLogStderr,
+      calcSetupError: calcSetup.state.calcSetupError,
+    });
+  }, [
+    calcSetup.state.calcSetupError,
+    calcSetup.state.calcSetupLoading,
+    calcSetup.state.calcSetupLogStderr,
+    calcSetup.state.calcSetupLogStdout,
+    calcSetup.state.gridElevation,
+    calcSetup.state.gridHeight,
+    calcSetup.state.gridName,
+    calcSetup.state.gridNx,
+    calcSetup.state.gridNy,
+    calcSetup.state.gridOriginX,
+    calcSetup.state.gridOriginY,
+    calcSetup.state.gridOriginZ,
+    calcSetup.state.gridRoomId,
+    calcSetup.state.gridWidth,
+    calcSetup.state.jobBackendInput,
+    calcSetup.state.jobIdInput,
+    calcSetup.state.jobSeedInput,
+    calcSetup.state.jobTypeInput,
+    calcSetup.state.workplanePreset,
+  ]);
+
+  useEffect(() => {
+    patchState({
+      materialIdInput: design.state.materialIdInput,
+      materialSurfaceIdsCsv: design.state.materialSurfaceIdsCsv,
+      variantIdInput: design.state.variantIdInput,
+      variantNameInput: design.state.variantNameInput,
+      variantDescriptionInput: design.state.variantDescriptionInput,
+      variantDiffOpsJson: design.state.variantDiffOpsJson,
+      variantCompareJobId: design.state.variantCompareJobId,
+      variantCompareIdsCsv: design.state.variantCompareIdsCsv,
+      variantCompareBaselineId: design.state.variantCompareBaselineId,
+      optimizationJobId: design.state.optimizationJobId,
+      optimizationConstraintsJson: design.state.optimizationConstraintsJson,
+      optimizationTopN: design.state.optimizationTopN,
+      designLoading: design.state.designLoading,
+      designError: design.state.designError,
+      designMessage: design.state.designMessage,
+      designResult: design.state.designResult,
+      variantVisualResult: design.state.variantVisualResult,
+    });
+  }, [
+    design.state.designError,
+    design.state.designLoading,
+    design.state.designMessage,
+    design.state.designResult,
+    design.state.materialIdInput,
+    design.state.materialSurfaceIdsCsv,
+    design.state.optimizationConstraintsJson,
+    design.state.optimizationJobId,
+    design.state.optimizationTopN,
+    design.state.variantCompareBaselineId,
+    design.state.variantCompareIdsCsv,
+    design.state.variantCompareJobId,
+    design.state.variantDescriptionInput,
+    design.state.variantDiffOpsJson,
+    design.state.variantIdInput,
+    design.state.variantNameInput,
+    design.state.variantVisualResult,
+  ]);
+
+  useEffect(() => {
+    patchState({
+      agentConversation: agent.state.agentConversation,
+      agentLoading: agent.state.agentLoading,
+      agentError: agent.state.agentError,
+      agentDiffPreview: agent.state.agentDiffPreview,
+      agentDiffApproved: agent.state.agentDiffApproved,
+    });
+  }, [
+    agent.state.agentConversation,
+    agent.state.agentDiffApproved,
+    agent.state.agentDiffPreview,
+    agent.state.agentError,
+    agent.state.agentLoading,
+  ]);
+
+  useEffect(() => {
+    viewport.patch({
+      falseColorData: state.falseColorData,
+      beamSpreadData: state.beamSpreadData,
+      falseColorOpacity: state.falseColorOpacity,
+      falseColorShowContours: state.falseColorShowContours,
+      falseColorShowValues: state.falseColorShowValues,
+      layerIsolux: state.layerIsolux,
+      isoluxLabelInterval: state.isoluxLabelInterval,
+      isoluxLevelCount: state.isoluxLevelCount,
+      isoluxCustomLevels: state.isoluxCustomLevels,
+      sceneZoom: state.sceneZoom,
+      scenePanX: state.scenePanX,
+      scenePanY: state.scenePanY,
+      sceneViewMode: state.sceneViewMode,
+      sceneCamYawDeg: state.sceneCamYawDeg,
+      sceneCamPitchDeg: state.sceneCamPitchDeg,
+      sceneCamDistance: state.sceneCamDistance,
+      sceneCamTargetX: state.sceneCamTargetX,
+      sceneCamTargetY: state.sceneCamTargetY,
+      sceneCamTargetZ: state.sceneCamTargetZ,
+      placementMode: state.placementMode,
+      layerRooms: state.layerRooms,
+      layerSurfaces: state.layerSurfaces,
+      layerOpenings: state.layerOpenings,
+      layerGrids: state.layerGrids,
+      layerGridPoints: state.layerGridPoints,
+      layerBeamSpread: state.layerBeamSpread,
+      layerFalseColor: state.layerFalseColor,
+      layerLuminaires: state.layerLuminaires,
+      layerTablePoints: state.layerTablePoints,
+      sceneSelectActive: state.sceneSelectActive,
+      sceneSelectX0: state.sceneSelectX0,
+      sceneSelectY0: state.sceneSelectY0,
+      sceneSelectX1: state.sceneSelectX1,
+      sceneSelectY1: state.sceneSelectY1,
+      sceneSelectedLuminaireIdsCsv: state.sceneSelectedLuminaireIdsCsv,
+      gizmoMoveStepM: state.gizmoMoveStepM,
+      gizmoRotateStepDeg: state.gizmoRotateStepDeg,
+      gizmoSnapEnabled: state.gizmoSnapEnabled,
+      gizmoMoveSnapM: state.gizmoMoveSnapM,
+      gizmoAngleSnapDeg: state.gizmoAngleSnapDeg,
+      gizmoAxisLock: state.gizmoAxisLock,
+      gizmoMoveFrame: state.gizmoMoveFrame,
+      gizmoPreviewDx: state.gizmoPreviewDx,
+      gizmoPreviewDy: state.gizmoPreviewDy,
+      gizmoPreviewYawDeg: state.gizmoPreviewYawDeg,
+      gizmoPreviewTarget: state.gizmoPreviewTarget,
+    });
+  }, [
+    state.beamSpreadData,
+    state.falseColorData,
+    state.falseColorOpacity,
+    state.falseColorShowContours,
+    state.falseColorShowValues,
+    state.gizmoAngleSnapDeg,
+    state.gizmoAxisLock,
+    state.gizmoMoveFrame,
+    state.gizmoMoveSnapM,
+    state.gizmoMoveStepM,
+    state.gizmoPreviewDx,
+    state.gizmoPreviewDy,
+    state.gizmoPreviewTarget,
+    state.gizmoPreviewYawDeg,
+    state.gizmoRotateStepDeg,
+    state.gizmoSnapEnabled,
+    state.isoluxCustomLevels,
+    state.isoluxLabelInterval,
+    state.isoluxLevelCount,
+    state.layerBeamSpread,
+    state.layerFalseColor,
+    state.layerGridPoints,
+    state.layerGrids,
+    state.layerIsolux,
+    state.layerLuminaires,
+    state.layerOpenings,
+    state.layerRooms,
+    state.layerSurfaces,
+    state.layerTablePoints,
+    state.placementMode,
+    state.sceneCamDistance,
+    state.sceneCamPitchDeg,
+    state.sceneCamTargetX,
+    state.sceneCamTargetY,
+    state.sceneCamTargetZ,
+    state.sceneCamYawDeg,
+    state.scenePanX,
+    state.scenePanY,
+    state.sceneSelectActive,
+    state.sceneSelectX0,
+    state.sceneSelectX1,
+    state.sceneSelectY0,
+    state.sceneSelectY1,
+    state.sceneSelectedLuminaireIdsCsv,
+    state.sceneViewMode,
+    state.sceneZoom,
+    viewport,
+    viewport.patch,
+  ]);
+
+  useEffect(() => {
+    patchState({
+      falseColorData: viewport.state.falseColorData,
+      beamSpreadData: viewport.state.beamSpreadData,
+      falseColorOpacity: viewport.state.falseColorOpacity,
+      falseColorShowContours: viewport.state.falseColorShowContours,
+      falseColorShowValues: viewport.state.falseColorShowValues,
+      layerIsolux: viewport.state.layerIsolux,
+      isoluxLabelInterval: viewport.state.isoluxLabelInterval,
+      isoluxLevelCount: viewport.state.isoluxLevelCount,
+      isoluxCustomLevels: viewport.state.isoluxCustomLevels,
+      sceneZoom: viewport.state.sceneZoom,
+      scenePanX: viewport.state.scenePanX,
+      scenePanY: viewport.state.scenePanY,
+      sceneViewMode: viewport.state.sceneViewMode,
+      sceneCamYawDeg: viewport.state.sceneCamYawDeg,
+      sceneCamPitchDeg: viewport.state.sceneCamPitchDeg,
+      sceneCamDistance: viewport.state.sceneCamDistance,
+      sceneCamTargetX: viewport.state.sceneCamTargetX,
+      sceneCamTargetY: viewport.state.sceneCamTargetY,
+      sceneCamTargetZ: viewport.state.sceneCamTargetZ,
+      placementMode: viewport.state.placementMode,
+      layerRooms: viewport.state.layerRooms,
+      layerSurfaces: viewport.state.layerSurfaces,
+      layerOpenings: viewport.state.layerOpenings,
+      layerGrids: viewport.state.layerGrids,
+      layerGridPoints: viewport.state.layerGridPoints,
+      layerBeamSpread: viewport.state.layerBeamSpread,
+      layerFalseColor: viewport.state.layerFalseColor,
+      layerLuminaires: viewport.state.layerLuminaires,
+      layerTablePoints: viewport.state.layerTablePoints,
+      sceneSelectActive: viewport.state.sceneSelectActive,
+      sceneSelectX0: viewport.state.sceneSelectX0,
+      sceneSelectY0: viewport.state.sceneSelectY0,
+      sceneSelectX1: viewport.state.sceneSelectX1,
+      sceneSelectY1: viewport.state.sceneSelectY1,
+      sceneSelectedLuminaireIdsCsv: viewport.state.sceneSelectedLuminaireIdsCsv,
+      gizmoMoveStepM: viewport.state.gizmoMoveStepM,
+      gizmoRotateStepDeg: viewport.state.gizmoRotateStepDeg,
+      gizmoSnapEnabled: viewport.state.gizmoSnapEnabled,
+      gizmoMoveSnapM: viewport.state.gizmoMoveSnapM,
+      gizmoAngleSnapDeg: viewport.state.gizmoAngleSnapDeg,
+      gizmoAxisLock: viewport.state.gizmoAxisLock,
+      gizmoMoveFrame: viewport.state.gizmoMoveFrame,
+      gizmoPreviewDx: viewport.state.gizmoPreviewDx,
+      gizmoPreviewDy: viewport.state.gizmoPreviewDy,
+      gizmoPreviewYawDeg: viewport.state.gizmoPreviewYawDeg,
+      gizmoPreviewTarget: viewport.state.gizmoPreviewTarget,
+    });
+  }, [
+    viewport.state.beamSpreadData,
+    viewport.state.falseColorData,
+    viewport.state.falseColorOpacity,
+    viewport.state.falseColorShowContours,
+    viewport.state.falseColorShowValues,
+    viewport.state.gizmoAngleSnapDeg,
+    viewport.state.gizmoAxisLock,
+    viewport.state.gizmoMoveFrame,
+    viewport.state.gizmoMoveSnapM,
+    viewport.state.gizmoMoveStepM,
+    viewport.state.gizmoPreviewDx,
+    viewport.state.gizmoPreviewDy,
+    viewport.state.gizmoPreviewTarget,
+    viewport.state.gizmoPreviewYawDeg,
+    viewport.state.gizmoRotateStepDeg,
+    viewport.state.gizmoSnapEnabled,
+    viewport.state.isoluxCustomLevels,
+    viewport.state.isoluxLabelInterval,
+    viewport.state.isoluxLevelCount,
+    viewport.state.layerBeamSpread,
+    viewport.state.layerFalseColor,
+    viewport.state.layerGridPoints,
+    viewport.state.layerGrids,
+    viewport.state.layerIsolux,
+    viewport.state.layerLuminaires,
+    viewport.state.layerOpenings,
+    viewport.state.layerRooms,
+    viewport.state.layerSurfaces,
+    viewport.state.layerTablePoints,
+    viewport.state.placementMode,
+    viewport.state.sceneCamDistance,
+    viewport.state.sceneCamPitchDeg,
+    viewport.state.sceneCamTargetX,
+    viewport.state.sceneCamTargetY,
+    viewport.state.sceneCamTargetZ,
+    viewport.state.sceneCamYawDeg,
+    viewport.state.scenePanX,
+    viewport.state.scenePanY,
+    viewport.state.sceneSelectActive,
+    viewport.state.sceneSelectX0,
+    viewport.state.sceneSelectX1,
+    viewport.state.sceneSelectY0,
+    viewport.state.sceneSelectY1,
+    viewport.state.sceneSelectedLuminaireIdsCsv,
+    viewport.state.sceneViewMode,
+    viewport.state.sceneZoom,
+  ]);
 
   const runner = useJobRunner({
     hasTauri,
@@ -3726,37 +3349,7 @@ export default function App() {
     };
   };
   const resetSceneView = (): void => {
-    if (state.sceneViewMode === "plan") {
-      patchState({ sceneZoom: 1, scenePanX: 0, scenePanY: 0 });
-      return;
-    }
-    if (!sceneBounds3d) {
-      patchState({
-        sceneCamYawDeg: "38",
-        sceneCamPitchDeg: "26",
-        sceneCamDistance: "18",
-        sceneCamTargetX: "0",
-        sceneCamTargetY: "0",
-        sceneCamTargetZ: "1.2",
-      });
-      return;
-    }
-    const tx = (sceneBounds3d.minX + sceneBounds3d.maxX) * 0.5;
-    const ty = (sceneBounds3d.minY + sceneBounds3d.maxY) * 0.5;
-    const tz = (sceneBounds3d.minZ + sceneBounds3d.maxZ) * 0.5;
-    const radius = Math.max(
-      Math.hypot(sceneBounds3d.maxX - sceneBounds3d.minX, sceneBounds3d.maxY - sceneBounds3d.minY),
-      sceneBounds3d.maxZ - sceneBounds3d.minZ,
-      1.0,
-    );
-    patchState({
-      sceneCamYawDeg: "38",
-      sceneCamPitchDeg: "26",
-      sceneCamDistance: (radius * 1.6).toFixed(3),
-      sceneCamTargetX: tx.toFixed(3),
-      sceneCamTargetY: ty.toFixed(3),
-      sceneCamTargetZ: tz.toFixed(3),
-    });
+    viewport.resetSceneView(state.sceneViewMode, sceneBounds3d);
   };
   const projectSvgCoord = (evt: { clientX: number; clientY: number; currentTarget: EventTarget & SVGSVGElement }): { x: number; y: number } => {
     const rect = evt.currentTarget.getBoundingClientRect();
@@ -6362,10 +5955,7 @@ export default function App() {
             <section className="rounded-md border border-border bg-panel p-3">
               <div className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">Agent Console</div>
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                <ToolbarButton
-                  onClick={() => patchState({ agentConversation: [], agentDiffPreview: null, agentDiffApproved: false })}
-                  disabled={state.agentLoading || state.agentConversation.length === 0}
-                >
+                <ToolbarButton onClick={() => agent.clearConversation()} disabled={state.agentLoading || state.agentConversation.length === 0}>
                   Clear Conversation
                 </ToolbarButton>
                 <ToolbarButton
