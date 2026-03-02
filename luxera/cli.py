@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 from typing import List
 
+from luxera.database.library import PhotometryLibrary
 from luxera.parser.pipeline import parse_and_analyse_ies
 from luxera.plotting.plots import save_default_plots
 from luxera.export.pdf_report import build_pdf_report
@@ -1007,6 +1008,82 @@ def _cmd_agent_context_reset(args: argparse.Namespace) -> int:
     return 0
 
 
+def _library_db_path(raw: str | None) -> Path:
+    if raw:
+        return Path(raw).expanduser().resolve()
+    return (Path.home() / ".luxera" / "photometry_library.sqlite").resolve()
+
+
+def _cmd_library_index(args: argparse.Namespace) -> int:
+    db = _library_db_path(args.db)
+    folder = Path(args.directory).expanduser().resolve()
+    with PhotometryLibrary(db) as lib:
+        count = lib.index_directory(folder, recursive=bool(args.recursive))
+        stats = lib.get_statistics()
+    print("Library Index")
+    print(f"  DB: {db}")
+    print(f"  Indexed new files: {count}")
+    print(f"  Total files: {stats.get('total_files', 0)}")
+    return 0
+
+
+def _cmd_library_search(args: argparse.Namespace) -> int:
+    db = _library_db_path(args.db)
+    with PhotometryLibrary(db) as lib:
+        rows, total = lib.search(
+            query=args.query,
+            manufacturer=args.manufacturer,
+            min_lumens=args.min_lumens,
+            max_lumens=args.max_lumens,
+            min_beam_angle=args.min_beam_angle,
+            max_beam_angle=args.max_beam_angle,
+            min_cct=args.min_cct,
+            max_cct=args.max_cct,
+            file_format=args.file_format,
+            photometric_type=args.photometric_type,
+            sort_by=args.sort_by,
+            sort_desc=not bool(args.sort_asc),
+            limit=args.limit,
+            offset=args.offset,
+        )
+    print("Library Search")
+    print(f"  DB: {db}")
+    print(f"  Total matches: {total}")
+    for r in rows:
+        print(
+            f"  - {r.id[:12]}  {r.file_format:<3}  {r.manufacturer or '-'}  "
+            f"{r.catalog_number or '-'}  lumens={r.total_lumens:.1f}  beam={r.beam_angle_deg if r.beam_angle_deg is not None else '-'}"
+        )
+    return 0
+
+
+def _cmd_library_stats(args: argparse.Namespace) -> int:
+    db = _library_db_path(args.db)
+    with PhotometryLibrary(db) as lib:
+        stats = lib.get_statistics()
+        manufacturers = lib.get_manufacturers()
+    print("Library Stats")
+    print(f"  DB: {db}")
+    print(json.dumps(stats, indent=2, sort_keys=True))
+    if manufacturers:
+        print("  Manufacturers:")
+        for m in manufacturers:
+            print(f"    - {m}")
+    return 0
+
+
+def _cmd_library_clean(args: argparse.Namespace) -> int:
+    db = _library_db_path(args.db)
+    with PhotometryLibrary(db) as lib:
+        removed = lib.remove_missing_files()
+        stats = lib.get_statistics()
+    print("Library Clean")
+    print(f"  DB: {db}")
+    print(f"  Removed missing records: {removed}")
+    print(f"  Remaining files: {stats.get('total_files', 0)}")
+    return 0
+
+
 def _cmd_validate(args: argparse.Namespace) -> int:
     suite = str(args.suite).strip().lower()
     if suite != "cie171":
@@ -1362,6 +1439,41 @@ def main(argv: list[str] | None = None) -> int:
     validate = sub.add_parser("validate", help="Run validation suites.")
     validate.add_argument("--suite", required=True, help="Validation suite id (e.g. cie171)")
     validate.set_defaults(func=_cmd_validate)
+
+    library = sub.add_parser("library", help="Photometric library indexing/search.")
+    library_sub = library.add_subparsers(dest="library_cmd", required=True)
+
+    li = library_sub.add_parser("index", help="Index IES/LDT files from a directory into SQLite.")
+    li.add_argument("directory", help="Folder containing photometry files")
+    li.add_argument("--db", default=None, help="SQLite DB path (default: ~/.luxera/photometry_library.sqlite)")
+    li.add_argument("--recursive", action="store_true", default=False, help="Recurse through subdirectories")
+    li.set_defaults(func=_cmd_library_index)
+
+    ls = library_sub.add_parser("search", help="Search indexed photometry records.")
+    ls.add_argument("--db", default=None, help="SQLite DB path (default: ~/.luxera/photometry_library.sqlite)")
+    ls.add_argument("--query", default=None, help="Free text query")
+    ls.add_argument("--manufacturer", default=None)
+    ls.add_argument("--min-lumens", type=float, default=None)
+    ls.add_argument("--max-lumens", type=float, default=None)
+    ls.add_argument("--min-beam-angle", type=float, default=None)
+    ls.add_argument("--max-beam-angle", type=float, default=None)
+    ls.add_argument("--min-cct", type=float, default=None)
+    ls.add_argument("--max-cct", type=float, default=None)
+    ls.add_argument("--file-format", default=None, help="IES or LDT")
+    ls.add_argument("--photometric-type", default=None, help="C, B, or A")
+    ls.add_argument("--sort-by", default="total_lumens")
+    ls.add_argument("--sort-asc", action="store_true", default=False)
+    ls.add_argument("--limit", type=int, default=50)
+    ls.add_argument("--offset", type=int, default=0)
+    ls.set_defaults(func=_cmd_library_search)
+
+    lst = library_sub.add_parser("stats", help="Show library statistics.")
+    lst.add_argument("--db", default=None, help="SQLite DB path (default: ~/.luxera/photometry_library.sqlite)")
+    lst.set_defaults(func=_cmd_library_stats)
+
+    lc = library_sub.add_parser("clean", help="Remove records for missing files.")
+    lc.add_argument("--db", default=None, help="SQLite DB path (default: ~/.luxera/photometry_library.sqlite)")
+    lc.set_defaults(func=_cmd_library_clean)
 
     args = p.parse_args(argv)
     return int(args.func(args))
