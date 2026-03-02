@@ -99,6 +99,49 @@ export interface PhotometryVerifyResponse {
   result?: Record<string, unknown> | null;
 }
 
+export interface FalseColorCell {
+  lux: number;
+  color: string;
+}
+
+export interface ContourPath {
+  level: number;
+  paths: number[][][];
+}
+
+export interface FalseColorGrid {
+  name: string;
+  origin: [number, number, number];
+  width: number;
+  height: number;
+  nx: number;
+  ny: number;
+  elevation: number;
+  cells: FalseColorCell[];
+  stats: { min: number; max: number; avg: number; u0: number };
+  contours: ContourPath[];
+}
+
+export interface FalseColorGridResponse {
+  grids: FalseColorGrid[];
+}
+
+export interface BeamSpreadLuminaire {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  yaw_deg: number;
+  beam_radius_c0: number;
+  beam_radius_c90: number;
+  field_radius_c0: number;
+  field_radius_c90: number;
+}
+
+export interface BeamSpreadResponse {
+  luminaires: BeamSpreadLuminaire[];
+}
+
 export interface JobRunResponse {
   projectPath: string;
   jobId: string;
@@ -204,6 +247,9 @@ export interface AppState {
   photometryVerifyLoading: boolean;
   photometryVerifyError: string;
   photometryVerifyResult: Record<string, unknown> | null;
+  polarPlotData: Record<string, unknown> | null;
+  polarPlotLoading: boolean;
+  polarPlotError: string;
   luminaireAssetId: string;
   luminaireId: string;
   luminaireName: string;
@@ -297,6 +343,11 @@ export interface AppState {
   designError: string;
   designMessage: string;
   designResult: Record<string, unknown> | null;
+  falseColorData: FalseColorGridResponse | null;
+  beamSpreadData: BeamSpreadResponse | null;
+  falseColorOpacity: string;
+  falseColorShowContours: boolean;
+  falseColorShowValues: boolean;
   sceneZoom: number;
   scenePanX: number;
   scenePanY: number;
@@ -311,6 +362,9 @@ export interface AppState {
   layerSurfaces: boolean;
   layerOpenings: boolean;
   layerGrids: boolean;
+  layerGridPoints: boolean;
+  layerBeamSpread: boolean;
+  layerFalseColor: boolean;
   layerLuminaires: boolean;
   layerTablePoints: boolean;
   sceneSelectActive: boolean;
