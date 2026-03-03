@@ -452,6 +452,7 @@ class ProfessionalReportBuilder:
         for asset_id in used_assets:
             asset = by_asset.get(asset_id)
             meta = asset.metadata if asset and isinstance(asset.metadata, dict) else {}
+            beam = self._to_float(meta.get("beam_angle_deg")) or 60.0
             fig = None
             if asset is not None and asset.path:
                 p = Path(asset.path).expanduser()
@@ -472,7 +473,6 @@ class ProfessionalReportBuilder:
                         fig = None
 
             if fig is None:
-                beam = self._to_float(meta.get("beam_angle_deg")) or 60.0
                 n = max(1.0, min(16.0, 180.0 / beam))
                 theta = np.linspace(0, 2 * np.pi, 360)
                 intensity = np.clip(np.cos(theta) ** (2 * n), 0, None)

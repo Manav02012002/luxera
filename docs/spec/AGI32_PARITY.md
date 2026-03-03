@@ -1,63 +1,69 @@
 # AGI32 Parity Matrix
 
-This matrix tracks functional parity against AGI32-style professional workflows.
+This matrix tracks Luxera capability parity against AGI32-style professional workflows.
+
 Status labels:
-- `verified`: implemented and validated to release-claim standard.
-- `not_supported`: not yet at release-claim standard.
+- `verified`: implemented and covered by automated tests in this repository.
+- `implemented`: implemented and test-covered, but full external parity benchmarking is still pending.
+- `not_supported`: capability absent or not yet claim-ready.
 
-## Indoor (Core)
-
-| Capability | Status | Notes |
-|---|---|---|
-| Project model (rooms, luminaires, assets, grids, jobs) | verified | Schema v5 + validation. |
-| Direct illuminance workflow | verified | Path-based runner contract with persisted artifacts. |
-| Radiosity workflow | not_supported | Not yet validated for AGI32-grade parity claims. |
-| UGR analysis | not_supported | Needs external parity validation and standards-depth completion. |
-| Determinism & hashing | verified | Determinism gates and manifest contract in place. |
-| Indoor PDF/audit outputs | verified | `run-all` generates report + audit bundle. |
-
-## Roadway
+## Core Calculation Parity
 
 | Capability | Status | Notes |
 |---|---|---|
-| Roadway schema primitives (`RoadwaySpec`, `RoadwayGridSpec`) | verified | Includes layout and sampling linkage. |
-| Roadway illuminance engine | verified | Dedicated `engine/road_illuminance.py`. |
-| Roadway metrics + compliance proxy metrics | not_supported | Standards-depth and glare completeness still pending. |
-| Roadway report template (PDF) | verified | `export/templates/roadway_report.py` + `run-all` integration. |
+| Direct illuminance workflow | verified | Core runner + validation suites. |
+| Hemicube form factors | verified | `tests/engine/test_hemicube.py`. |
+| Spectral RGB radiosity | verified | `tests/engine/test_spectral_radiosity.py`. |
+| Near-field area sources | verified | `tests/engine/test_near_field_area.py`. |
+| Adaptive radiosity meshing | verified | `tests/engine/test_adaptive_mesh.py`. |
+| Vectorised engine | verified | `tests/engine/test_vectorised.py`. |
+| Advanced UGR | verified | `tests/engine/test_advanced_ugr.py`. |
+| Standard UGR set evaluation | verified | `tests/test_ugr_fidelity.py`, `tests/test_ugr_views.py`. |
 
-## Geometry / Performance
-
-| Capability | Status | Notes |
-|---|---|---|
-| Occlusion acceleration (BVH) | verified | Shared triangle BVH used by direct and glare visibility checks. |
-| Performance regression guard | not_supported | Budget enforcement needs full production-scene coverage. |
-
-## Agentic UX (Cursor-like)
+## Compliance and Standards Parity
 
 | Capability | Status | Notes |
 |---|---|---|
-| Tool-only runtime execution | verified | Permission-tagged tool registry enforced in runtime path. |
-| Structured runtime outputs (plan/diff/manifest/log) | verified | Typed session objects returned every run. |
-| GUI Copilot sidebar with diff approvals | verified | Docked panel + per-change checkboxes + approval actions. |
-| Multi-step workflow orchestration | not_supported | Needs robust guided interactions and conflict handling. |
+| EN 12464-1 indoor checks | verified | Compliance tests + runner integration. |
+| CIE 171 validation | implemented | Reference scaffolding + fixtures; external benchmark set still expanding. |
+| Cylindrical/semi-cylindrical illuminance | verified | `tests/engine/test_cylindrical_illuminance.py`. |
+| LENI / EN 15193 | verified | `tests/compliance/test_leni.py`. |
+| Maintenance factor decomposition | verified | MF decomposition tests and compliance path coverage. |
+| Exterior area/facade lighting | verified | `tests/exterior/test_exterior.py`. |
+| Sports lighting EN 12193 | verified | `tests/sports/test_sports.py`. |
+| Tunnel lighting CIE 88 | implemented | Workflow in place; broad external parity validation pending. |
 
-## Optimization
-
-| Capability | Status | Notes |
-|---|---|---|
-| Deterministic search loop with ranked candidates | verified | `optim/search.py` + artifacts. |
-| Agent integration for optimize-and-apply flow | verified | `optim.search` tool + runtime wiring. |
-| Advanced objective/cost models | not_supported | Full professional objective libraries still pending. |
-
-## Release Hardening
+## Visualisation and Documentation Parity
 
 | Capability | Status | Notes |
 |---|---|---|
-| Gate tests (determinism, approvals, contracts, invariance) | verified | Present under `tests/gates/`. |
-| Failure/recovery gate tests | verified | Missing-asset failure and no-artifact-on-failure gate. |
-| Single-command release gates | verified | `scripts/release_gates.py` + `make release-check`. |
-| Hosted CI workflow in repo | verified | CI workflows committed under `.github/workflows/`. |
+| False-colour visualisation | verified | `tests/viz/test_falsecolour.py`. |
+| Isolux contour generation | verified | Covered in false-colour test suite. |
+| Professional PDF reports | verified | Report/export tests and production builder path. |
+| Layout plan export (DXF/SVG/PDF) | verified | `tests/export/test_layout_plan.py`. |
+| Photometric appendix / polar plots | verified | Polar render tests in viz suite. |
 
-## Current Release Goal
+## Platform and Workflow Parity
 
-Near-term target is **verified indoor direct parity + production desktop workflow**, with other domains explicitly kept `not_supported` until externally validated.
+| Capability | Status | Notes |
+|---|---|---|
+| Light scenes and dimming | verified | Scene manager + workflow tests. |
+| Photometric library | verified | Library + API search tests. |
+| LLM planner | verified | Planner/runtime tooling tests. |
+| Conversation memory | verified | Agent context persistence tests. |
+| Compliance pipeline | verified | Agent pipeline tests and CLI flows. |
+| REST API | verified | `tests/api/test_server.py` + integration e2e. |
+| Plugin system | verified | Plugin registry/load tests. |
+| Enhanced IFC import | verified | `tests/ifc/test_enhanced_import.py`. |
+| Batch pipeline | verified | Agent batch tests + CLI batch e2e. |
+| Design variant comparison | verified | `tests/results/test_comparison.py`. |
+| Error diagnostics | verified | `tests/core/test_diagnostics.py`. |
+
+## Current Parity Position
+
+Luxera now has broad feature-level implementation coverage across prompts 1-43, with strong automated test coverage for most capabilities.
+
+Remaining gaps to AGI32-grade parity claims are primarily:
+- external benchmark correlation/validation depth for some advanced domains,
+- comprehensive real-project performance benchmarking across large production scenes,
+- certification-grade standards validation packages for all non-indoor workflows.

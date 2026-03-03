@@ -10,7 +10,6 @@ from luxera.core.errors import (
     PhotmetryError,
     ProjectError,
 )
-from luxera.core.diagnostics import DiagnosticIssue, ProjectDiagnostics
 
 __all__ = [
     "Vector3",
@@ -26,6 +25,4 @@ __all__ = [
     "ComplianceError",
     "AgentError",
     "ERROR_CODES",
-    "DiagnosticIssue",
-    "ProjectDiagnostics",
 ]
