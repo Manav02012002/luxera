@@ -14,6 +14,7 @@ from luxera.parser.pipeline import parse_and_analyse_ies
 from luxera.parser.ies_parser import parse_ies_text
 from luxera.plotting.plots import save_default_plots
 from luxera.export.pdf_report import build_pdf_report
+from luxera.export.layout_plan import LayoutPlanGenerator
 from luxera.photometry.model import photometry_from_parsed_ies
 from luxera.project.io import load_project_schema, save_project_schema
 from luxera.project.validator import validate_project_for_job, ProjectValidationError
@@ -1370,6 +1371,45 @@ def _cmd_viz_polar(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_export_rcp(args: argparse.Namespace) -> int:
+    project_path = Path(args.project).expanduser().resolve()
+    project = load_project_schema(project_path)
+    out = Path(args.output).expanduser().resolve()
+    options: Dict[str, Any] = {
+        "show_iso_lux": bool(getattr(args, "show_iso_lux", False)),
+        "show_values": bool(getattr(args, "show_values", False)),
+        "show_dimensions": bool(getattr(args, "show_dimensions", True)),
+        "scale": str(getattr(args, "scale", "1:100")),
+        "paper_size": str(getattr(args, "paper_size", "A3")),
+    }
+    generator = LayoutPlanGenerator()
+    generator.generate_rcp(
+        project=project,
+        results=None,
+        output_format=str(args.format).lower(),
+        output_path=out,
+        options=options,
+    )
+    print(f"Saved RCP drawing: {out}")
+    return 0
+
+
+def _cmd_export_section(args: argparse.Namespace) -> int:
+    project_path = Path(args.project).expanduser().resolve()
+    project = load_project_schema(project_path)
+    out = Path(args.output).expanduser().resolve()
+    generator = LayoutPlanGenerator()
+    generator.generate_section(
+        project=project,
+        section_axis=str(args.axis).lower(),
+        section_position=float(args.position),
+        output_format=str(args.format).lower(),
+        output_path=out,
+    )
+    print(f"Saved section drawing: {out}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     _load_plugins_once()
     p = argparse.ArgumentParser(prog="luxera")
@@ -1409,6 +1449,28 @@ def main(argv: list[str] | None = None) -> int:
     viz_pol.add_argument("--output", required=True, help="Output image path (png/svg/pdf)")
     viz_pol.add_argument("--cmap", default="viridis", help="Matplotlib cmap or 'luxera'")
     viz_pol.set_defaults(func=_cmd_viz_polar)
+
+    export = sub.add_parser("export", help="Export layout drawings.")
+    export_sub = export.add_subparsers(dest="export_cmd", required=True)
+
+    export_rcp = export_sub.add_parser("rcp", help="Export reflected ceiling plan as SVG/PDF/DXF.")
+    export_rcp.add_argument("--project", required=True, help="Path to project JSON")
+    export_rcp.add_argument("--format", choices=["svg", "pdf", "dxf"], default="svg", help="Output format")
+    export_rcp.add_argument("--output", required=True, help="Output path")
+    export_rcp.add_argument("--scale", default="1:100", help="Drawing scale text")
+    export_rcp.add_argument("--paper-size", default="A3", help="Paper size label")
+    export_rcp.add_argument("--show-iso-lux", action="store_true", default=False, help="Overlay iso-lux contours if results are provided")
+    export_rcp.add_argument("--show-values", action="store_true", default=False, help="Overlay lux values if results are provided")
+    export_rcp.add_argument("--hide-dimensions", dest="show_dimensions", action="store_false", default=True, help="Hide dimension annotations")
+    export_rcp.set_defaults(func=_cmd_export_rcp)
+
+    export_section = export_sub.add_parser("section", help="Export section drawing as SVG/PDF.")
+    export_section.add_argument("--project", required=True, help="Path to project JSON")
+    export_section.add_argument("--axis", choices=["x", "y"], default="x", help="Section cut axis")
+    export_section.add_argument("--position", type=float, default=0.5, help="Normalised cut position [0..1]")
+    export_section.add_argument("--format", choices=["svg", "pdf"], default="svg", help="Output format")
+    export_section.add_argument("--output", required=True, help="Output path")
+    export_section.set_defaults(func=_cmd_export_section)
 
     g = sub.add_parser("gui", help="Launch Luxera View interactive GUI.")
     g.set_defaults(func=_cmd_gui)
