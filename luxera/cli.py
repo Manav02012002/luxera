@@ -400,6 +400,7 @@ def _cmd_add_job(args: argparse.Namespace) -> int:
                 "monte_carlo_samples": args.monte_carlo_samples,
                 "ugr_grid_spacing": args.ugr_grid_spacing,
                 "ugr_eye_heights": eye_heights,
+                "ugr_method": args.ugr_method,
             }
         elif args.type in {"direct", "emergency"}:
             settings = {
@@ -507,6 +508,7 @@ def _cmd_add_job(args: argparse.Namespace) -> int:
             type=args.type,  # type: ignore[arg-type]
             backend=args.backend,  # type: ignore[arg-type]
             settings=settings,
+            ugr_method=(args.ugr_method if args.type == "radiosity" else "standard"),
             seed=args.seed,
             daylight=daylight_spec if args.type == "daylight" else None,
             targets=[g.id for g in project.grids] if args.type == "daylight" else [],
@@ -1617,6 +1619,7 @@ def main(argv: list[str] | None = None) -> int:
     aj.add_argument("--monte-carlo-samples", type=int, default=16)
     aj.add_argument("--ugr-grid-spacing", type=float, default=2.0)
     aj.add_argument("--ugr-eye-heights", type=str, default="1.2,1.7", help="Comma-separated eye heights in meters")
+    aj.add_argument("--ugr-method", choices=["standard", "advanced"], default="standard", help="UGR computation method for radiosity jobs")
     aj.add_argument("--use-occlusion", action="store_true", default=False, help="Enable geometry occlusion for direct jobs")
     aj.add_argument("--no-occlusion", action="store_true", default=False, help="Disable geometry occlusion for direct jobs")
     aj.add_argument("--occlusion-include-room-shell", action="store_true", default=False, help="Use room shell surfaces as occluders")

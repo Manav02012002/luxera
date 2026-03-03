@@ -11,6 +11,7 @@ def en13032_radiosity_job(job_id: str = "en13032_radiosity") -> JobSpec:
     return JobSpec(
         id=job_id,
         type="radiosity",
+        ugr_method="standard",
         seed=0,
         settings={
             "max_iterations": 200,

@@ -512,6 +512,7 @@ class JobSpec:
     type: Literal["direct", "radiosity", "roadway", "emergency", "daylight"]
     backend: Literal["cpu", "df", "radiance"] = "cpu"
     settings: Dict[str, Any] = field(default_factory=dict)
+    ugr_method: str = "standard"
     seed: int = 0
     daylight: Optional[DaylightSpec] = None
     targets: List[str] = field(default_factory=list)

@@ -47,6 +47,7 @@ from luxera.derived.summary_tables import (
 import luxera
 from luxera.engine.radiosity_engine import RadiosityMethod, RadiositySettings, run_radiosity
 from luxera.engine.ugr_engine import compute_ugr_default, compute_ugr_for_views
+from luxera.engine.ugr_advanced import AdvancedUGREngine
 from luxera.engine.direct_illuminance import (
     build_direct_occlusion_context,
     build_grid_from_spec,
@@ -239,6 +240,7 @@ def _effective_job_settings(job: JobSpec) -> Dict[str, object]:
             "monte_carlo_samples": 16,
             "ugr_grid_spacing": 2.0,
             "ugr_eye_heights": [1.2, 1.7],
+            "ugr_method": str(getattr(job, "ugr_method", "standard")),
         }
     elif job.type == "roadway":
         defaults = {
@@ -983,16 +985,31 @@ def _run_radiosity(project: Project, job: JobSpec) -> Dict[str, object]:
     ugr_value = None
     ugr_grid_spacing = float(effective["ugr_grid_spacing"])
     ugr_eye_heights = list(effective["ugr_eye_heights"])
+    ugr_method = str(effective.get("ugr_method", getattr(job, "ugr_method", "standard"))).strip().lower()
     ugr_occluder_bvh = build_bvh(triangulate_surfaces(room.get_surfaces()))
-    ugr_analysis = compute_ugr_default(
-        room,
-        luminaires,
-        grid_spacing=ugr_grid_spacing,
-        eye_heights=ugr_eye_heights,
-        occluder_bvh=ugr_occluder_bvh,
-    )
-    if ugr_analysis is not None:
-        ugr_value = ugr_analysis.worst_case_ugr
+    if ugr_method == "advanced":
+        adv = AdvancedUGREngine()
+        adv_values: List[float] = []
+        for eye_h in ugr_eye_heights:
+            adv_res = adv.compute(
+                room=room,
+                luminaires=luminaires,
+                observer_height=float(eye_h),
+                observer_grid_spacing=ugr_grid_spacing,
+            )
+            adv_values.append(float(adv_res.ugr_max))
+        if adv_values:
+            ugr_value = max(adv_values)
+    else:
+        ugr_analysis = compute_ugr_default(
+            room,
+            luminaires,
+            grid_spacing=ugr_grid_spacing,
+            eye_heights=ugr_eye_heights,
+            occluder_bvh=ugr_occluder_bvh,
+        )
+        if ugr_analysis is not None:
+            ugr_value = ugr_analysis.worst_case_ugr
     ugr_views_payload = None
     if project.glare_views:
         view_analysis = compute_ugr_for_views(room, luminaires, project.glare_views, occluder_bvh=ugr_occluder_bvh)
@@ -1033,6 +1050,7 @@ def _run_radiosity(project: Project, job: JobSpec) -> Dict[str, object]:
         "energy": result.energy,
         "compliance": compliance.summary() if hasattr(compliance, "summary") else compliance,
         "ugr_worst_case": ugr_value,
+        "ugr_method": ugr_method,
         "ugr_views": ugr_views_payload,
     }
 
