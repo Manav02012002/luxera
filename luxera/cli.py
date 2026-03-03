@@ -7,13 +7,17 @@ import shutil
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List
+import numpy as np
 
 from luxera.database.library import PhotometryLibrary
 from luxera.parser.pipeline import parse_and_analyse_ies
+from luxera.parser.ies_parser import parse_ies_text
 from luxera.plotting.plots import save_default_plots
 from luxera.export.pdf_report import build_pdf_report
+from luxera.photometry.model import photometry_from_parsed_ies
 from luxera.project.io import load_project_schema, save_project_schema
 from luxera.project.validator import validate_project_for_job, ProjectValidationError
+from luxera.viz.falsecolour import FalseColourRenderer
 from luxera.project.schema import (
     Project,
     PhotometryAsset,
@@ -1277,6 +1281,95 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _latest_result_payload(project_path: Path, job_id: str | None = None) -> tuple[dict[str, Any], Path]:
+    project = load_project_schema(project_path)
+    if not project.results:
+        raise ValueError("No job results found in project")
+    ref = project.results[-1] if job_id is None else next((r for r in reversed(project.results) if r.job_id == job_id), None)
+    if ref is None:
+        raise ValueError(f"Job result not found: {job_id}")
+    result_dir = Path(ref.result_dir).expanduser().resolve()
+    result_json = result_dir / "result.json"
+    if not result_json.exists():
+        raise ValueError(f"Missing result.json in {result_dir}")
+    payload = json.loads(result_json.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("result.json payload is not an object")
+    return payload, result_dir
+
+
+def _extract_grid_for_viz(payload: dict[str, Any]) -> tuple[np.ndarray, tuple[float, float], float, float]:
+    if all(k in payload for k in ("grid_values", "grid_nx", "grid_ny", "grid_points")):
+        nx = int(payload["grid_nx"])
+        ny = int(payload["grid_ny"])
+        values = np.asarray(payload["grid_values"], dtype=float).reshape(ny, nx)
+        points = np.asarray(payload["grid_points"], dtype=float).reshape(-1, 3)
+    else:
+        calc_objects = payload.get("calc_objects")
+        if not isinstance(calc_objects, list):
+            raise ValueError("No grid payload found in result.json")
+        grid_obj = next((o for o in calc_objects if isinstance(o, dict) and str(o.get("type")) == "grid"), None)
+        if grid_obj is None:
+            raise ValueError("No grid calc object found in result.json")
+        nx = int(grid_obj.get("nx", 0) or 0)
+        ny = int(grid_obj.get("ny", 0) or 0)
+        if nx <= 0 or ny <= 0:
+            raise ValueError("Invalid grid dimensions in result payload")
+        values = np.asarray(grid_obj.get("values", []), dtype=float).reshape(ny, nx)
+        points = np.asarray(grid_obj.get("points", []), dtype=float).reshape(-1, 3)
+
+    if points.shape[0] != nx * ny:
+        raise ValueError("Grid points shape does not match nx*ny")
+    x = points[:, 0].reshape(ny, nx)
+    y = points[:, 1].reshape(ny, nx)
+    origin = (float(np.min(x)), float(np.min(y)))
+    width = float(np.max(x) - np.min(x))
+    height = float(np.max(y) - np.min(y))
+    return values, origin, width, height
+
+
+def _cmd_viz_heatmap(args: argparse.Namespace) -> int:
+    project_path = Path(args.project).expanduser().resolve()
+    out = Path(args.output).expanduser().resolve()
+    payload, _ = _latest_result_payload(project_path, getattr(args, "job_id", None))
+    values, origin, width, height = _extract_grid_for_viz(payload)
+    renderer = FalseColourRenderer(colour_scale=getattr(args, "cmap", "viridis"), vmin=float(np.min(values)), vmax=float(np.max(values) + 1e-9))
+    fig = renderer.render_grid_heatmap(values, origin, width, height, title="Illuminance (lux)", contour_levels=None)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    renderer.save(fig, out)
+    print(f"Saved heatmap: {out}")
+    return 0
+
+
+def _cmd_viz_isolux(args: argparse.Namespace) -> int:
+    project_path = Path(args.project).expanduser().resolve()
+    out = Path(args.output).expanduser().resolve()
+    payload, _ = _latest_result_payload(project_path, getattr(args, "job_id", None))
+    values, origin, width, height = _extract_grid_for_viz(payload)
+    renderer = FalseColourRenderer(colour_scale=getattr(args, "cmap", "viridis"), vmin=float(np.min(values)), vmax=float(np.max(values) + 1e-9))
+    fig = renderer.render_isolux_contours(values, origin, width, height)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    renderer.save(fig, out)
+    print(f"Saved isolux: {out}")
+    return 0
+
+
+def _cmd_viz_polar(args: argparse.Namespace) -> int:
+    ies_path = Path(args.ies).expanduser().resolve()
+    if not ies_path.exists():
+        print(f"[ERROR] File not found: {ies_path}")
+        return 2
+    text = ies_path.read_text(encoding="utf-8", errors="replace")
+    phot = photometry_from_parsed_ies(parse_ies_text(text, source_path=ies_path))
+    renderer = FalseColourRenderer(colour_scale=getattr(args, "cmap", "viridis"))
+    fig = renderer.render_polar_candela(photometry=phot, title="Candela Distribution")
+    out = Path(args.output).expanduser().resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    renderer.save(fig, out)
+    print(f"Saved polar plot: {out}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     _load_plugins_once()
     p = argparse.ArgumentParser(prog="luxera")
@@ -1293,6 +1386,29 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--pdf", action="store_true", help="Also generate a PDF report")
     v.add_argument("--horizontal-plane", type=float, default=None, help="Optional C-plane angle (degrees) for plot selection")
     v.set_defaults(func=_cmd_view)
+
+    viz = sub.add_parser("viz", help="Generate standalone visualisations.")
+    viz_sub = viz.add_subparsers(dest="viz_cmd", required=True)
+
+    viz_heat = viz_sub.add_parser("heatmap", help="Render false-colour heatmap from latest project result grid.")
+    viz_heat.add_argument("--project", required=True, help="Path to project JSON")
+    viz_heat.add_argument("--output", required=True, help="Output image path (png/svg/pdf)")
+    viz_heat.add_argument("--job", dest="job_id", default=None, help="Optional job id (default: latest result)")
+    viz_heat.add_argument("--cmap", default="viridis", help="Matplotlib cmap or 'luxera'")
+    viz_heat.set_defaults(func=_cmd_viz_heatmap)
+
+    viz_iso = viz_sub.add_parser("isolux", help="Render iso-lux contour plan from latest project result grid.")
+    viz_iso.add_argument("--project", required=True, help="Path to project JSON")
+    viz_iso.add_argument("--output", required=True, help="Output image path (png/svg/pdf)")
+    viz_iso.add_argument("--job", dest="job_id", default=None, help="Optional job id (default: latest result)")
+    viz_iso.add_argument("--cmap", default="viridis", help="Matplotlib cmap or 'luxera'")
+    viz_iso.set_defaults(func=_cmd_viz_isolux)
+
+    viz_pol = viz_sub.add_parser("polar", help="Render polar candela plot from an IES file.")
+    viz_pol.add_argument("--ies", required=True, help="Path to IES file")
+    viz_pol.add_argument("--output", required=True, help="Output image path (png/svg/pdf)")
+    viz_pol.add_argument("--cmap", default="viridis", help="Matplotlib cmap or 'luxera'")
+    viz_pol.set_defaults(func=_cmd_viz_polar)
 
     g = sub.add_parser("gui", help="Launch Luxera View interactive GUI.")
     g.set_defaults(func=_cmd_gui)

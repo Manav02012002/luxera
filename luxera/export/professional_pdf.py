@@ -18,8 +18,12 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from luxera.parser.ies_parser import parse_ies_text
+from luxera.parser.ldt_parser import parse_ldt_text
+from luxera.photometry.model import photometry_from_parsed_ies, photometry_from_parsed_ldt
 from luxera.project.schema import Project
 from luxera.reporting.schedules import build_luminaire_schedule
+from luxera.viz.falsecolour import FalseColourRenderer
 
 
 class ProfessionalReportBuilder:
@@ -340,25 +344,31 @@ class ProfessionalReportBuilder:
 
     def _isolux_plot(self):
         x, y, z = self._grid_for_plot()
-        fig, ax = plt.subplots(figsize=(8.6, 5.2), dpi=170)
-        cs = ax.contour(x, y, z, levels=8, colors="black", linewidths=0.9)
-        ax.clabel(cs, inline=True, fontsize=8, fmt="%.0f")
-        ax.set_title("Iso-lux Contour Plot")
-        ax.set_xlabel("X (m)")
-        ax.set_ylabel("Y (m)")
-        ax.grid(alpha=0.2)
+        renderer = FalseColourRenderer(colour_scale="viridis", vmin=float(np.min(z)), vmax=float(np.max(z) + 1e-9))
+        levels = np.linspace(float(np.min(z)), float(np.max(z)), 8).tolist()
+        fig = renderer.render_isolux_contours(
+            grid_values=z,
+            grid_origin=(float(np.min(x)), float(np.min(y))),
+            grid_width=float(np.max(x) - np.min(x)),
+            grid_height=float(np.max(y) - np.min(y)),
+            levels=levels,
+            luminaire_positions=[(float(l.transform.position[0]), float(l.transform.position[1])) for l in self.project.luminaires],
+        )
         img = self._fig_to_image(fig, width_cm=17.0, height_cm=10.5)
         return [Paragraph("Iso-lux Contour", self.styles["heading"]), Spacer(1, 0.15 * cm), img]
 
     def _heatmap_plot(self):
         x, y, z = self._grid_for_plot()
-        fig, ax = plt.subplots(figsize=(8.6, 5.2), dpi=170)
-        im = ax.imshow(z, origin="lower", cmap="turbo", extent=[x.min(), x.max(), y.min(), y.max()], aspect="auto")
-        cbar = fig.colorbar(im, ax=ax)
-        cbar.set_label("Illuminance (lux)")
-        ax.set_title("False-colour Illuminance Heatmap")
-        ax.set_xlabel("X (m)")
-        ax.set_ylabel("Y (m)")
+        renderer = FalseColourRenderer(colour_scale="luxera", vmin=float(np.min(z)), vmax=float(np.max(z) + 1e-9))
+        levels = np.linspace(float(np.min(z)), float(np.max(z)), 8).tolist()
+        fig = renderer.render_grid_heatmap(
+            grid_values=z,
+            grid_origin=(float(np.min(x)), float(np.min(y))),
+            grid_width=float(np.max(x) - np.min(x)),
+            grid_height=float(np.max(y) - np.min(y)),
+            title="False-colour Illuminance Heatmap",
+            contour_levels=levels,
+        )
         img = self._fig_to_image(fig, width_cm=17.0, height_cm=10.5)
         return [Paragraph("False-colour Heatmap", self.styles["heading"]), Spacer(1, 0.15 * cm), img]
 
@@ -442,18 +452,38 @@ class ProfessionalReportBuilder:
         for asset_id in used_assets:
             asset = by_asset.get(asset_id)
             meta = asset.metadata if asset and isinstance(asset.metadata, dict) else {}
-            beam = self._to_float(meta.get("beam_angle_deg")) or 60.0
-            n = max(1.0, min(16.0, 180.0 / beam))
-            theta = np.linspace(0, 2 * np.pi, 360)
-            intensity = np.clip(np.cos(theta) ** (2 * n), 0, None)
-            intensity = intensity / max(np.max(intensity), 1e-9)
+            fig = None
+            if asset is not None and asset.path:
+                p = Path(asset.path).expanduser()
+                if not p.is_absolute() and self.project.root_dir:
+                    p = (Path(self.project.root_dir).expanduser() / p).resolve()
+                if p.exists():
+                    try:
+                        txt = p.read_text(encoding="utf-8", errors="replace")
+                        if str(asset.format).upper() == "LDT":
+                            phot = photometry_from_parsed_ldt(parse_ldt_text(txt))
+                        else:
+                            phot = photometry_from_parsed_ies(parse_ies_text(txt, source_path=p))
+                        fig = FalseColourRenderer(colour_scale="viridis").render_polar_candela(
+                            photometry=phot,
+                            title=f"Luminaire {asset_id}",
+                        )
+                    except Exception:
+                        fig = None
 
-            fig = plt.figure(figsize=(5.3, 4.2), dpi=170)
-            ax = fig.add_subplot(111, projection="polar")
-            ax.plot(theta, intensity, color="#1f4e79", linewidth=1.8)
-            ax.fill(theta, intensity, color="#90caf9", alpha=0.35)
-            ax.set_title(f"Luminaire {asset_id}", va="bottom", fontsize=10)
-            ax.set_rticks([0.25, 0.5, 0.75, 1.0])
+            if fig is None:
+                beam = self._to_float(meta.get("beam_angle_deg")) or 60.0
+                n = max(1.0, min(16.0, 180.0 / beam))
+                theta = np.linspace(0, 2 * np.pi, 360)
+                intensity = np.clip(np.cos(theta) ** (2 * n), 0, None)
+                intensity = intensity / max(np.max(intensity), 1e-9)
+                fig = plt.figure(figsize=(5.3, 4.2), dpi=170)
+                ax = fig.add_subplot(111, projection="polar")
+                ax.plot(theta, intensity, color="#1f4e79", linewidth=1.8)
+                ax.fill(theta, intensity, color="#90caf9", alpha=0.35)
+                ax.set_title(f"Luminaire {asset_id}", va="bottom", fontsize=10)
+                ax.set_rticks([0.25, 0.5, 0.75, 1.0])
+
             img = self._fig_to_image(fig, width_cm=11.5, height_cm=8.0)
 
             table = self._styled_table(
