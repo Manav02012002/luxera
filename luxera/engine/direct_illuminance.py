@@ -18,6 +18,7 @@ from luxera.calculation.illuminance import (
     calculate_direct_illuminance,
     calculate_grid_illuminance,
 )
+from luxera.engine.vectorised import ParallelEngine, VectorisedDirectEngine
 from luxera.geometry.core import Material, Polygon, Room, Surface, Vector3
 from luxera.geometry.spatial import point_in_polygon
 from luxera.geometry.materials import material_from_spec
@@ -30,6 +31,8 @@ from luxera.photometry.canonical import canonical_from_photometry
 from luxera.photometry.interp import build_interpolation_lut
 from luxera.cache.photometry_cache import load_lut_from_cache, save_lut_to_cache
 from luxera.photometry.model import photometry_from_parsed_ies, photometry_from_parsed_ldt
+from luxera.photometry.sample import sample_intensity_cd
+from luxera.photometry.interp import sample_lut_intensity_cd
 from luxera.compliance.maintenance import MAINTENANCE_PROFILES, MaintenanceFactorComponents, compute_maintenance_factors
 from luxera.project.schema import ArbitraryPlaneSpec, CalcGrid, LineGridSpec, PointSetSpec, PolygonWorkplaneSpec, Project, RoomSpec, VerticalPlaneSpec
 from luxera.core.units import project_scale_to_meters
@@ -593,6 +596,9 @@ def run_direct_grid(
     use_occlusion: bool = False,
     occlusion_epsilon: float = 1e-6,
     near_field_correction: bool = False,
+    vectorised: bool = True,
+    parallel: bool = False,
+    n_workers: Optional[int] = None,
 ) -> DirectGridResult:
     grid = build_grid_from_spec(grid_spec)
     if grid_spec.sample_mask and grid_spec.sample_points:
@@ -632,6 +638,101 @@ def run_direct_grid(
     )
     tri = occlusion.triangles if occlusion is not None else None
     bvh = occlusion.bvh if occlusion is not None else None
+
+    if vectorised and not near_field_correction and luminaires:
+        points = np.array([p.to_tuple() for p in grid.get_points()], dtype=float)
+        normals = np.repeat(np.array([grid.normal.to_tuple()], dtype=float), points.shape[0], axis=0)
+        lum_pos = np.array([lum.transform.position.to_tuple() for lum in luminaires], dtype=float)
+        lum_peak = np.array([float(np.max(np.asarray(lum.photometry.candela, dtype=float))) for lum in luminaires], dtype=float)
+        lum_flux = np.array([float(lum.flux_multiplier) for lum in luminaires], dtype=float)
+        lum_mf = np.ones((len(luminaires),), dtype=float)
+
+        def _lookup_fn(directions_mx1x3: np.ndarray, lum_idx: int) -> np.ndarray:
+            lum = luminaires[lum_idx]
+            R = np.asarray(lum.transform.get_rotation_matrix(), dtype=float)
+            dirs = np.asarray(directions_mx1x3[:, 0, :], dtype=float)
+            out = np.zeros((dirs.shape[0],), dtype=float)
+            tilt_data = lum.photometry.tilt
+            tilt_active = bool(
+                tilt_data is not None and str(getattr(tilt_data, "type", "")).upper() in {"INCLUDE", "FILE"}
+            )
+            can_use_lut = (
+                lum.lut is not None
+                and abs(float(lum.tilt_deg)) <= 1e-12
+                and not tilt_active
+            )
+            for i in range(dirs.shape[0]):
+                local_dir = R.T @ (-dirs[i])
+                if float(local_dir[2]) >= 0.0:
+                    out[i] = 0.0
+                    continue
+                if can_use_lut:
+                    out[i] = float(sample_lut_intensity_cd(lum.lut, Vector3.from_array(local_dir)))
+                else:
+                    out[i] = float(sample_intensity_cd(lum.photometry, Vector3.from_array(local_dir), tilt_deg=lum.tilt_deg))
+            return out
+
+        vec_engine = VectorisedDirectEngine()
+        if use_occlusion:
+            if parallel:
+                par_engine = ParallelEngine(n_workers=n_workers)
+                values = par_engine.compute_parallel(
+                    vec_engine,
+                    points,
+                    normals,
+                    lum_pos,
+                    lum_peak,
+                    lum_flux,
+                    lum_mf,
+                    occlusion_triangles=(tri or []),
+                    bvh=bvh,
+                )
+            else:
+                values = vec_engine.compute_grid_with_occlusion(
+                    points,
+                    normals,
+                    lum_pos,
+                    lum_peak,
+                    lum_flux,
+                    lum_mf,
+                    occlusion_triangles=(tri or []),
+                    bvh=bvh,
+                    intensity_lookup_fn=_lookup_fn,
+                )
+        else:
+            if parallel:
+                # Parallel wrapper uses picklable numpy payloads (no closure lookup callback).
+                par_engine = ParallelEngine(n_workers=n_workers)
+                values = par_engine.compute_parallel(
+                    vec_engine,
+                    points,
+                    normals,
+                    lum_pos,
+                    lum_peak,
+                    lum_flux,
+                    lum_mf,
+                )
+            else:
+                values = vec_engine.compute_grid(
+                    points,
+                    normals,
+                    lum_pos,
+                    lum_peak,
+                    lum_flux,
+                    lum_mf,
+                    intensity_lookup_fn=_lookup_fn,
+                )
+
+        values_2d = values.reshape(grid.ny, grid.nx)
+        result = IlluminanceResult(grid=grid, values=values_2d)
+        return DirectGridResult(
+            points=points,
+            values=values.reshape(-1),
+            nx=grid.nx,
+            ny=grid.ny,
+            result=result,
+        )
+
     result = calculate_grid_illuminance(
         grid,
         luminaires,
