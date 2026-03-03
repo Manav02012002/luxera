@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
 from luxera.engine.radiosity.form_factors import FormFactorConfig, build_form_factor_matrix
+from luxera.engine.radiosity.adaptive_mesh import AdaptiveRadiosityMesh
 from luxera.geometry.bvh import BVHNode, build_bvh, triangulate_surfaces
 from luxera.geometry.core import Surface
 
@@ -38,6 +39,8 @@ class RadiosityConfig:
     hemicube_resolution: int = 128
     spectral: bool = False
     seed: int = 0
+    adaptive_meshing: bool = False
+    adaptive_luminaire_positions: Optional[List[Tuple[float, float, float]]] = None
 
 
 @dataclass(frozen=True)
@@ -74,6 +77,119 @@ def _energy(radiosity: np.ndarray, irradiance: np.ndarray, areas: np.ndarray, re
     )
 
 
+def _form_factor_cfg(config: RadiosityConfig) -> FormFactorConfig:
+    return FormFactorConfig(
+        method=(
+            "analytic"
+            if str(config.form_factor_method).lower().startswith("an")
+            else "hemicube"
+            if str(config.form_factor_method).lower().startswith("hemi")
+            else "monte_carlo"
+        ),
+        use_visibility=bool(config.use_visibility),
+        monte_carlo_samples=int(config.monte_carlo_samples),
+        hemicube_resolution=int(config.hemicube_resolution),
+    )
+
+
+def _solve_scalar_pass(
+    patches: List[Surface],
+    form_factors: np.ndarray,
+    direct_illuminance: Optional[Dict[str, float]],
+    config: RadiosityConfig,
+    *,
+    initial_radiosity: Optional[np.ndarray] = None,
+) -> tuple[np.ndarray, np.ndarray, SolverStatus, EnergyAccounting]:
+    warnings: List[str] = []
+    n = len(patches)
+    areas = np.array([max(p.area, 1e-12) for p in patches], dtype=float)
+    reflectance = np.array([max(0.0, min(1.0, p.material.reflectance)) for p in patches], dtype=float)
+    emission = np.zeros((n,), dtype=float)
+    if direct_illuminance:
+        for i, p in enumerate(patches):
+            pid = str(p.id).split("__patch_", 1)[0]
+            E = float(direct_illuminance.get(pid, 0.0))
+            emission[i] = E * reflectance[i]
+
+    # Keep progressive shooting energy accounting stable across refinement passes.
+    # Warm-start radiosity estimates are currently used only for patch-selection
+    # heuristics in mesh refinement, not as direct state injection here.
+    _ = initial_radiosity
+    B = emission.copy()
+    unshot = emission.copy()
+
+    alpha = max(0.0, min(1.0, float(config.damping)))
+    if alpha <= 0.0:
+        warnings.append("damping<=0 forces static solution; set damping in (0,1].")
+        alpha = 1.0
+
+    total_emitted = float(np.sum(emission * areas))
+    residual = 0.0 if total_emitted <= 1e-12 else 1.0
+    converged = False
+    max_iters = max(1, int(config.max_iters))
+    tol = max(float(config.tol), 1e-12)
+
+    it = 0
+    for it in range(max_iters):
+        unshot_flux = unshot * areas
+        source_idx = int(np.argmax(unshot_flux))
+        source_flux = float(unshot_flux[source_idx])
+        if source_flux <= 1e-15:
+            residual = 0.0
+            converged = True
+            break
+
+        if total_emitted > 1e-12:
+            residual = float(np.sum(unshot_flux) / total_emitted)
+        else:
+            residual = 0.0
+            converged = True
+            break
+
+        if residual <= tol:
+            converged = True
+            break
+
+        shot = alpha * unshot[source_idx]
+        unshot[source_idx] -= shot
+        delta_irradiance = form_factors[:, source_idx] * shot
+        delta_radiosity = reflectance * delta_irradiance
+        B += delta_radiosity
+        unshot += delta_radiosity
+
+        if not np.all(np.isfinite(B)) or not np.all(np.isfinite(unshot)):
+            warnings.append("non-finite radiosity detected; clamped and stopped.")
+            B = np.nan_to_num(B, nan=0.0, posinf=0.0, neginf=0.0)
+            unshot = np.nan_to_num(unshot, nan=0.0, posinf=0.0, neginf=0.0)
+            residual = float("inf")
+            break
+    else:
+        warnings.append("max iterations reached before convergence.")
+
+    remaining_unshot_flux = float(np.sum(unshot * areas))
+    total_area = float(np.sum(areas))
+    if remaining_unshot_flux > 0.0 and total_area > 1e-12:
+        ambient_irradiance = remaining_unshot_flux / total_area
+        B += reflectance * ambient_irradiance
+        unshot[:] = 0.0
+        residual = 0.0 if total_emitted <= 1e-12 else float(max(0.0, residual))
+
+    I = form_factors @ B
+    e = _energy(B, I, areas, reflectance, emission)
+    denom = max(e.total_emitted, 1e-9)
+    balance_error = abs(e.total_emitted - (e.total_absorbed + e.total_reflected)) / denom
+    if balance_error > 0.05:
+        warnings.append(f"energy conservation error exceeds 5% ({100.0 * balance_error:.2f}%).")
+
+    status = SolverStatus(
+        converged=converged,
+        iterations=(it + 1) if n > 0 else 0,
+        residual=float(residual),
+        warnings=warnings,
+    )
+    return B, I, status, e
+
+
 def solve_radiosity(
     surfaces: List[Surface],
     direct_illuminance: Optional[Dict[str, float]],
@@ -107,33 +223,22 @@ def solve_radiosity(
             irradiance=z,
         )
 
-    warnings: List[str] = []
-    patches = _create_patch_surfaces(surfaces, config.patch_max_area)
     rng = np.random.default_rng(int(config.seed))
     bvh: Optional[BVHNode] = build_bvh(triangulate_surfaces(surfaces)) if config.use_visibility else None
-    F = build_form_factor_matrix(
-        patches,
-        surfaces,
-        config=FormFactorConfig(
-            method=(
-                "analytic"
-                if str(config.form_factor_method).lower().startswith("an")
-                else "hemicube"
-                if str(config.form_factor_method).lower().startswith("hemi")
-                else "monte_carlo"
-            ),
-            use_visibility=bool(config.use_visibility),
-            monte_carlo_samples=int(config.monte_carlo_samples),
-            hemicube_resolution=int(config.hemicube_resolution),
-        ),
-        rng=rng,
-        bvh=bvh,
-    )
+    ff_cfg = _form_factor_cfg(config)
 
-    n = len(patches)
-    areas = np.array([max(p.area, 1e-12) for p in patches], dtype=float)
+    adaptive: Optional[AdaptiveRadiosityMesh] = None
+    if bool(config.adaptive_meshing):
+        lum_positions = [np.asarray(p, dtype=float) for p in (config.adaptive_luminaire_positions or [])]
+        adaptive = AdaptiveRadiosityMesh(initial_max_area=float(config.patch_max_area))
+        patches = adaptive.create_adaptive_mesh(surfaces, lum_positions)
+    else:
+        patches = _create_patch_surfaces(surfaces, config.patch_max_area)
 
     if bool(config.spectral):
+        areas = np.array([max(p.area, 1e-12) for p in patches], dtype=float)
+        F = build_form_factor_matrix(patches, surfaces, config=ff_cfg, rng=rng, bvh=bvh)
+        n = len(patches)
         from luxera.engine.radiosity.spectral import CCTConverter, SpectralRadiositySolver
 
         reflectance_rgb = np.zeros((n, 3), dtype=float)
@@ -167,7 +272,6 @@ def solve_radiosity(
         irr = spectral.illuminance_photopic
         e_spec = spectral.energy_rgb
         total_emitted = float(np.sum(e_spec))
-        # Convert channel energy back to scalar accounting for existing API.
         energy = EnergyAccounting(
             total_emitted=total_emitted,
             total_absorbed=float(np.sum((1.0 - np.clip(np.mean(reflectance_rgb, axis=1), 0.0, 1.0)) * irr * areas)),
@@ -183,100 +287,36 @@ def solve_radiosity(
             irradiance=irr,
         )
 
-    reflectance = np.array([max(0.0, min(1.0, p.material.reflectance)) for p in patches], dtype=float)
-    emission = np.zeros((n,), dtype=float)
-    if direct_illuminance:
-        for i, p in enumerate(patches):
-            pid = str(p.id).split("__patch_", 1)[0]
-            E = float(direct_illuminance.get(pid, 0.0))
-            # Treat direct incident irradiance as source for secondary diffuse bounce.
-            emission[i] = E * reflectance[i]
+    max_passes = adaptive.max_passes if adaptive is not None else 1
+    initial_B: Optional[np.ndarray] = None
+    F = np.zeros((len(patches), len(patches)), dtype=float)
+    B = np.zeros((len(patches),), dtype=float)
+    I = np.zeros((len(patches),), dtype=float)
+    status = SolverStatus(converged=True, iterations=0, residual=0.0, warnings=[])
+    energy = EnergyAccounting(0.0, 0.0, 0.0, 0.0)
 
-    # Progressive radiosity state.
-    # B tracks total radiosity; unshot tracks radiosity yet to be distributed.
-    B = emission.copy()
-    unshot = emission.copy()
-    alpha = max(0.0, min(1.0, float(config.damping)))
-    if alpha <= 0.0:
-        warnings.append("damping<=0 forces static solution; set damping in (0,1].")
-        alpha = 1.0
-
-    total_emitted = float(np.sum(emission * areas))
-    residual = 0.0 if total_emitted <= 1e-12 else 1.0
-    converged = False
-    max_iters = max(1, int(config.max_iters))
-    tol = max(float(config.tol), 1e-12)
-
-    it = 0
-    for it in range(max_iters):
-        unshot_flux = unshot * areas
-        source_idx = int(np.argmax(unshot_flux))
-        source_flux = float(unshot_flux[source_idx])
-        if source_flux <= 1e-15:
-            residual = 0.0
-            converged = True
+    for pidx in range(max_passes):
+        F = build_form_factor_matrix(patches, surfaces, config=ff_cfg, rng=rng, bvh=bvh)
+        B, I, status, energy = _solve_scalar_pass(
+            patches,
+            F,
+            direct_illuminance,
+            config,
+            initial_radiosity=initial_B,
+        )
+        if adaptive is None or pidx >= max_passes - 1:
             break
-
-        if total_emitted > 1e-12:
-            residual = float(np.sum(unshot_flux) / total_emitted)
-        else:
-            # When there is no emitted energy, system is trivially converged.
-            residual = 0.0
-            converged = True
+        new_patches, warm = adaptive.refine_by_gradient(patches, B)
+        if len(new_patches) == len(patches):
             break
+        patches = new_patches
+        initial_B = warm
 
-        if residual <= tol:
-            converged = True
-            break
-
-        # Shoot a damped fraction of the source patch unshot radiosity.
-        shot = alpha * unshot[source_idx]
-        unshot[source_idx] -= shot
-
-        # F @ B convention means column `source_idx` contains transfer from source to all receivers.
-        delta_irradiance = F[:, source_idx] * shot
-        delta_radiosity = reflectance * delta_irradiance
-        B += delta_radiosity
-        unshot += delta_radiosity
-
-        if not np.all(np.isfinite(B)) or not np.all(np.isfinite(unshot)):
-            warnings.append("non-finite radiosity detected; clamped and stopped.")
-            B = np.nan_to_num(B, nan=0.0, posinf=0.0, neginf=0.0)
-            unshot = np.nan_to_num(unshot, nan=0.0, posinf=0.0, neginf=0.0)
-            residual = float("inf")
-            break
-    else:
-        warnings.append("max iterations reached before convergence.")
-
-    # Ambient catch-up: distribute residual unshot flux as uniform irradiance.
-    # TODO: replace with geometry-aware residual redistribution for non-convex scenes.
-    remaining_unshot_flux = float(np.sum(unshot * areas))
-    total_area = float(np.sum(areas))
-    if remaining_unshot_flux > 0.0 and total_area > 1e-12:
-        ambient_irradiance = remaining_unshot_flux / total_area
-        ambient_delta = reflectance * ambient_irradiance
-        B += ambient_delta
-        unshot[:] = 0.0
-        residual = 0.0 if total_emitted <= 1e-12 else float(max(0.0, residual))
-
-    I = F @ B
-    e = _energy(B, I, areas, reflectance, emission)
-    denom = max(e.total_emitted, 1e-9)
-    balance_error = abs(e.total_emitted - (e.total_absorbed + e.total_reflected)) / denom
-    if balance_error > 0.05:
-        warnings.append(f"energy conservation error exceeds 5% ({100.0 * balance_error:.2f}%).")
-
-    status = SolverStatus(
-        converged=converged,
-        iterations=(it + 1) if n > 0 else 0,
-        residual=float(residual),
-        warnings=warnings,
-    )
     return RadiositySolveResult(
         patches=patches,
         form_factors=F,
         status=status,
-        energy=_energy(B, I, areas, reflectance, emission),
+        energy=energy,
         radiosity=B,
         irradiance=I,
     )
