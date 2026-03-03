@@ -13,6 +13,8 @@ from typing import Dict, List, Optional
 import numpy as np
 
 from luxera.core.hashing import hash_job_spec, sha256_bytes, sha256_file
+from luxera.core.errors import CalculationError
+from luxera.core.diagnostics import ProjectDiagnostics
 from luxera.project.schema import Project, JobSpec, JobResultRef, PhotometryAsset, CalcGrid
 from luxera.project.io import load_project_schema, save_project_schema
 from luxera.project.validator import validate_project_for_job, ProjectValidationError
@@ -85,6 +87,12 @@ from luxera.geometry.core import Vector3
 
 class RunnerError(Exception):
     pass
+
+
+def _format_diagnostic_issue(issue) -> str:
+    target = f" [{issue.element_id}]" if getattr(issue, "element_id", None) else ""
+    suggestion = f" Suggestion: {issue.suggestion}" if getattr(issue, "suggestion", "") else ""
+    return f"- ({issue.severity.upper()}) [{issue.code}] {issue.message}{target}{suggestion}"
 
 
 def _scale_grid_spec(grid: CalcGrid, s: float) -> CalcGrid:
@@ -287,6 +295,24 @@ def _effective_job_settings(job: JobSpec) -> Dict[str, object]:
 
 def run_job_in_memory(project: Project, job_id: str) -> JobResultRef:
     job = _get_job(project, job_id)
+    diagnostics = ProjectDiagnostics().check(project)
+    diag_errors = [d for d in diagnostics if str(d.severity).lower() == "error"]
+    diag_warnings = [d for d in diagnostics if str(d.severity).lower() == "warning"]
+    if diag_warnings:
+        print("Project diagnostics warnings:")
+        for w in diag_warnings:
+            print(_format_diagnostic_issue(w))
+    if diag_errors:
+        lines = "\n".join(_format_diagnostic_issue(e) for e in diag_errors)
+        raise RunnerError(
+            str(
+                CalculationError(
+                    message=f"Project diagnostics found blocking issues before run:\n{lines}",
+                    code="PRJ-002",
+                    suggestion="Fix the reported diagnostics or run `luxera check --project <file>` for full details.",
+                )
+            )
+        )
     try:
         validate_project_for_job(project, job)
     except ProjectValidationError as e:

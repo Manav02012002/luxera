@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
 from luxera.project.schema import Project
-from luxera.project.variants import _apply_variant
 
 
 @dataclass(frozen=True)
@@ -239,6 +238,7 @@ class VariantRunner:
         4. Return list.
         """
         from luxera.project.runner import run_job_in_memory
+        from luxera.project.variants import _apply_variant
 
         if not project.variants:
             return []

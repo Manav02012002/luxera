@@ -18,6 +18,7 @@ from luxera.export.layout_plan import LayoutPlanGenerator
 from luxera.photometry.model import photometry_from_parsed_ies
 from luxera.project.io import load_project_schema, save_project_schema
 from luxera.project.validator import validate_project_for_job, ProjectValidationError
+from luxera.core.diagnostics import ProjectDiagnostics
 from luxera.viz.falsecolour import FalseColourRenderer
 from luxera.project.schema import (
     Project,
@@ -145,6 +146,45 @@ def _cmd_init_project(args: argparse.Namespace) -> int:
     save_project_schema(project, path)
     print(f"Initialized project: {path}")
     return 0
+
+
+def _cmd_check(args: argparse.Namespace) -> int:
+    project_path = Path(args.project).expanduser().resolve()
+    if not project_path.exists():
+        print(f"[ERROR] Project file not found: {project_path}")
+        return 2
+    project = load_project_schema(project_path)
+    issues = ProjectDiagnostics().check(project)
+
+    RED = "\x1b[31m"
+    YELLOW = "\x1b[33m"
+    BLUE = "\x1b[34m"
+    RESET = "\x1b[0m"
+
+    sev_color = {"error": RED, "warning": YELLOW, "info": BLUE}
+    counts = {"error": 0, "warning": 0, "info": 0}
+    for issue in issues:
+        s = str(issue.severity).lower()
+        if s in counts:
+            counts[s] += 1
+
+    print("Luxera Diagnostics")
+    print(f"  Project: {project_path}")
+    print(f"  Errors: {counts['error']}  Warnings: {counts['warning']}  Info: {counts['info']}")
+
+    if not issues:
+        print("  No issues found.")
+        return 0
+
+    for issue in issues:
+        s = str(issue.severity).lower()
+        color = sev_color.get(s, "")
+        target = f" [{issue.element_id}]" if issue.element_id else ""
+        print(f"{color}[{issue.code}] {issue.message}{target}{RESET}")
+        if issue.suggestion:
+            print(f"    Suggestion: {issue.suggestion}")
+
+    return 2 if counts["error"] > 0 else 0
 
 
 def _cmd_add_photometry(args: argparse.Namespace) -> int:
@@ -1529,6 +1569,10 @@ def main(argv: list[str] | None = None) -> int:
     init.add_argument("project", help="Path to project JSON")
     init.add_argument("--name", default=None, help="Project name (default: filename stem)")
     init.set_defaults(func=_cmd_init_project)
+
+    check = sub.add_parser("check", help="Run project diagnostics and print actionable issues.")
+    check.add_argument("--project", required=True, help="Path to project JSON")
+    check.set_defaults(func=_cmd_check)
 
     ap = sub.add_parser("add-photometry", help="Add an IES/LDT asset to a project.")
     ap.add_argument("project", help="Path to project JSON")

@@ -9,6 +9,7 @@ from luxera.agent.planner import PlannerBackend
 from luxera.agent.tools.api import AgentTools
 from luxera.agent.tools.registry import AgentToolRegistry, build_default_registry
 from luxera.agent.types import AgentPlan, AgentSessionLog, ProjectDiff as AgentProjectDiff, RunManifest
+from luxera.core.errors import AgentError, CalculationError, GeometryError, LuxeraError, PhotmetryError, ProjectError
 from luxera.project.diff import ProjectDiff, DiffOp
 from luxera.project.io import load_project_schema
 
@@ -56,6 +57,39 @@ class AgentRuntime:
         self._tool_call_depth += 1
         try:
             return self.registry.call(tool_name, *args, **kwargs)
+        except LuxeraError:
+            raise
+        except Exception as e:
+            name = str(tool_name)
+            if name.startswith("project."):
+                raise ProjectError(
+                    message=f"Tool call failed for {name}: {e}",
+                    code="PRJ-002",
+                    suggestion="Check project schema/inputs and re-run diagnostics (`luxera check --project ...`).",
+                ) from e
+            if name.startswith("geom."):
+                raise GeometryError(
+                    message=f"Geometry tool failed for {name}: {e}",
+                    code="GEO-001",
+                    suggestion="Inspect imported geometry for degenerate or non-planar elements.",
+                ) from e
+            if name.startswith("phot") or "photometry" in name:
+                raise PhotmetryError(
+                    message=f"Photometry tool failed for {name}: {e}",
+                    code="PHO-001",
+                    suggestion="Verify photometry assets and file integrity.",
+                ) from e
+            if name.startswith("run.") or name.startswith("optim."):
+                raise CalculationError(
+                    message=f"Calculation tool failed for {name}: {e}",
+                    code="CAL-003",
+                    suggestion="Review calculation settings and geometry; try reducing complexity and rerun.",
+                ) from e
+            raise AgentError(
+                message=f"Agent tool call failed for {name}: {e}",
+                code="AGT-002",
+                suggestion="Retry the action or reduce task scope; ensure required tools are available.",
+            ) from e
         finally:
             self._tool_call_depth -= 1
 
