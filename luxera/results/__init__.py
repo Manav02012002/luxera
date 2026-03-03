@@ -12,6 +12,14 @@ from luxera.results.heatmaps import write_surface_heatmaps
 from luxera.results.surface_grids import SurfaceGrid, compute_surface_grids
 from luxera.results.grid_viz import write_grid_heatmap_and_isolux
 from luxera.results.compare import compare_job_results
+from luxera.results.comparison import (
+    ComparisonReport,
+    DesignComparator,
+    VariantResult,
+    VariantRunner,
+    report_to_jsonable,
+    save_comparison_report,
+)
 from luxera.results.contracts import GridResult, SummaryResult
 
 __all__ = [
@@ -28,6 +36,12 @@ __all__ = [
     "SurfaceGrid",
     "compute_surface_grids",
     "compare_job_results",
+    "VariantResult",
+    "ComparisonReport",
+    "DesignComparator",
+    "VariantRunner",
+    "report_to_jsonable",
+    "save_comparison_report",
     "GridResult",
     "SummaryResult",
 ]

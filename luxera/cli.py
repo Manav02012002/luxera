@@ -803,6 +803,54 @@ def _cmd_compare_variants(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_compare(args: argparse.Namespace) -> int:
+    from luxera.results.comparison import DesignComparator, VariantRunner, report_to_jsonable
+
+    project_path = Path(args.project).expanduser().resolve()
+    project = load_project_schema(project_path)
+    project.root_dir = str(project_path.parent)
+    out = Path(args.output).expanduser().resolve()
+
+    weights = None
+    if getattr(args, "weights", None):
+        try:
+            parsed = json.loads(str(args.weights))
+        except Exception as e:
+            print(f"[ERROR] Invalid --weights JSON: {e}")
+            return 2
+        if not isinstance(parsed, dict):
+            print("[ERROR] --weights must be a JSON object")
+            return 2
+        weights = {str(k): float(v) for k, v in parsed.items() if isinstance(v, (int, float))}
+
+    try:
+        variants = VariantRunner().run_all_variants(project)
+    except Exception as e:
+        print(f"[ERROR] Variant run failed: {e}")
+        return 2
+    if not variants:
+        print("[ERROR] No variants defined in project.")
+        return 2
+
+    comparator = DesignComparator()
+    report = comparator.compare(variants, weights=weights)
+    table = comparator.generate_comparison_table(variants)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    comparator.generate_comparison_chart(variants, out)
+
+    table_path = out.with_suffix(".txt")
+    table_path.write_text(table + "\n", encoding="utf-8")
+    json_path = out.with_suffix(".json")
+    json_path.write_text(json.dumps(report_to_jsonable(report), indent=2, sort_keys=True), encoding="utf-8")
+
+    print(f"Comparison chart: {out}")
+    print(f"Comparison table: {table_path}")
+    print(f"Comparison report: {json_path}")
+    if report.best_variant_name:
+        print(f"Best variant: {report.best_variant_name}")
+    return 0
+
+
 def _cmd_golden_run(args: argparse.Namespace) -> int:
     from luxera.testing.golden import discover_golden_cases, load_golden_case, run_golden_case
 
@@ -1708,6 +1756,16 @@ def main(argv: list[str] | None = None) -> int:
     report.add_argument("--job", dest="job_id", default=None, help="Optional job id (default: latest result)")
     report.add_argument("--style", choices=["standard", "professional"], default="standard", help="Report rendering style")
     report.set_defaults(func=_cmd_report)
+
+    cmpv = sub.add_parser("compare", help="Run and score all project variants, then export chart/report artifacts.")
+    cmpv.add_argument("--project", required=True, help="Path to project JSON")
+    cmpv.add_argument("--output", required=True, help="Output chart path (png/svg/pdf)")
+    cmpv.add_argument(
+        "--weights",
+        default=None,
+        help='Optional JSON weights override, e.g. {"compliance":0.4,"uniformity":0.2,"energy_efficiency":0.2,"ugr":0.1,"cost":0.1}',
+    )
+    cmpv.set_defaults(func=_cmd_compare)
 
     autopilot = sub.add_parser("autopilot", help="Run one-command compliance automation from natural-language intent.")
     autopilot.add_argument("intent", help='Design intent, e.g. "500 lux open plan office 12x8m EN 12464"')
