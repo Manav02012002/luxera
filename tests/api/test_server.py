@@ -20,7 +20,10 @@ class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 @pytest.fixture()
 def api_server():
     LuxeraAPIHandler._projects.clear()
-    server = ThreadingTCPServer(("127.0.0.1", 0), LuxeraAPIHandler)
+    try:
+        server = ThreadingTCPServer(("127.0.0.1", 0), LuxeraAPIHandler)
+    except PermissionError:
+        pytest.skip("Socket bind not permitted in current sandbox environment")
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     host, port = server.server_address

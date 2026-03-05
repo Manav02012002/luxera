@@ -95,13 +95,91 @@
       "plan": "Execute job and persist immutable result artifacts.",
       "tool_calls": [],
       "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/obstructed/.luxera/results/833ee93d594f1fd2c6a7c70d70f10b52cfa9d1951a7fd075dc9af17d9dc51af7"
+      ],
+      "created_at": 1772600796.773825,
+      "diffs": [],
+      "id": "5dd74a03-07fe-41b1-bebb-de2e4edd5c31",
+      "job_hashes": [
+        "833ee93d594f1fd2c6a7c70d70f10b52cfa9d1951a7fd075dc9af17d9dc51af7"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/obstructed/.luxera/results/833ee93d594f1fd2c6a7c70d70f10b52cfa9d1951a7fd075dc9af17d9dc51af7"
+      ],
+      "created_at": 1772601581.389812,
+      "diffs": [],
+      "id": "5d85bc3e-604a-464a-9076-3f541f030150",
+      "job_hashes": [
+        "833ee93d594f1fd2c6a7c70d70f10b52cfa9d1951a7fd075dc9af17d9dc51af7"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/obstructed/.luxera/results/833ee93d594f1fd2c6a7c70d70f10b52cfa9d1951a7fd075dc9af17d9dc51af7"
+      ],
+      "created_at": 1772601909.6265469,
+      "diffs": [],
+      "id": "d81e24fd-67fe-4413-8ef6-07a2f7f8bd82",
+      "job_hashes": [
+        "833ee93d594f1fd2c6a7c70d70f10b52cfa9d1951a7fd075dc9af17d9dc51af7"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/obstructed/.luxera/results/833ee93d594f1fd2c6a7c70d70f10b52cfa9d1951a7fd075dc9af17d9dc51af7"
+      ],
+      "created_at": 1772602316.754588,
+      "diffs": [],
+      "id": "081cc6f4-c816-4986-a8c8-7441b68994a9",
+      "job_hashes": [
+        "833ee93d594f1fd2c6a7c70d70f10b52cfa9d1951a7fd075dc9af17d9dc51af7"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
     }
   ],
   "arbitrary_planes": [],
   "asset_bundle_path": null,
   "assistant_redo_stack": [],
   "assistant_undo_stack": [],
+  "block_instances": [],
   "compliance_profiles": [],
+  "control_groups": [],
   "escape_routes": [],
   "geometry": {
     "axis_transform_applied": null,
@@ -114,6 +192,7 @@
         "height": 2.0,
         "id": "o_block",
         "kind": "partition",
+        "layer_id": null,
         "name": "Blocker",
         "vertices": [
           [
@@ -149,6 +228,7 @@
         "footprint": null,
         "height": 3.0,
         "id": "r1",
+        "layer_id": null,
         "length": 6.0,
         "level_id": null,
         "name": "ObstructedRoom",
@@ -173,6 +253,9 @@
       "evaluation_height_offset": 0.0,
       "height": 6.0,
       "id": "g1",
+      "illuminance_metric": "horizontal",
+      "layer_id": null,
+      "mask_near_openings": false,
       "metric_set": [
         "E_avg",
         "E_min",
@@ -188,6 +271,7 @@
       ],
       "nx": 9,
       "ny": 7,
+      "opening_mask_margin": 0.0,
       "origin": [
         0.0,
         0.0,
@@ -196,6 +280,7 @@
       "room_id": "r1",
       "sample_mask": [],
       "sample_points": [],
+      "semicylindrical_facing": null,
       "width": 8.0,
       "zone_id": null
     }
@@ -214,55 +299,74 @@
         "use_occlusion": true
       },
       "targets": [],
-      "type": "direct"
+      "type": "direct",
+      "ugr_method": "standard"
     }
   ],
   "layers": [
     {
+      "color": null,
       "id": "room",
       "name": "Rooms",
       "order": 10,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "wall",
       "name": "Walls",
       "order": 20,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "ceiling_grid",
       "name": "Ceiling Grid",
       "order": 30,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "opening",
       "name": "Openings",
       "order": 40,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "luminaire",
       "name": "Luminaires",
       "order": 50,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "grid",
       "name": "Calc Grids",
       "order": 60,
+      "style": null,
       "visible": true
     }
   ],
+  "light_scenes": [],
   "line_grids": [],
   "luminaire_families": [],
   "luminaires": [
     {
+      "emergency_operation": null,
+      "emergency_output_factor": null,
       "family_id": null,
       "flux_multiplier": 1.0,
       "id": "l1",
+      "layer_id": null,
+      "maintenance_components": null,
       "maintenance_factor": 1.0,
+      "maintenance_schedule": null,
       "mounting_height_m": null,
       "mounting_type": null,
       "name": "L1",
@@ -289,10 +393,15 @@
       }
     },
     {
+      "emergency_operation": null,
+      "emergency_output_factor": null,
       "family_id": null,
       "flux_multiplier": 1.0,
       "id": "l2",
+      "layer_id": null,
+      "maintenance_components": null,
       "maintenance_factor": 1.0,
+      "maintenance_schedule": null,
       "mounting_height_m": null,
       "mounting_type": null,
       "name": "L2",
@@ -324,6 +433,7 @@
   "name": "validation_obstructed",
   "param": {
     "footprints": [],
+    "instances": [],
     "openings": [],
     "rooms": [],
     "shared_walls": [],
@@ -342,11 +452,12 @@
     }
   ],
   "point_sets": [],
+  "polygon_workplanes": [],
   "results": [
     {
-      "job_hash": "fef81612dede908c1ac299f65d261f401e164eb6a968dff830fa2b26adde2309",
+      "job_hash": "833ee93d594f1fd2c6a7c70d70f10b52cfa9d1951a7fd075dc9af17d9dc51af7",
       "job_id": "j_direct",
-      "result_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/obstructed/.luxera/results/fef81612dede908c1ac299f65d261f401e164eb6a968dff830fa2b26adde2309",
+      "result_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/obstructed/.luxera/results/833ee93d594f1fd2c6a7c70d70f10b52cfa9d1951a7fd075dc9af17d9dc51af7",
       "summary": {
         "calc_object_count": 1,
         "calc_objects": [
@@ -357,15 +468,15 @@
               "E_avg": 78.70973699723864,
               "E_max": 238.82039589895265,
               "E_min": 21.292322735204515,
-              "P50": 63.19393345183642,
-              "P90": 152.65793596577944,
+              "P50": 63.193933451836415,
+              "P90": 152.65793596577942,
               "U0": 0.27051701031540115,
               "U1": 0.0891562157204258,
               "max_lux": 238.82039589895265,
               "mean_lux": 78.70973699723864,
               "min_lux": 21.292322735204515,
-              "p50_lux": 63.19393345183642,
-              "p90_lux": 152.65793596577944,
+              "p50_lux": 63.193933451836415,
+              "p90_lux": 152.65793596577942,
               "uniformity_diversity": 0.0891562157204258,
               "uniformity_ratio": 0.27051701031540115
             },
@@ -377,14 +488,56 @@
         "global_worst_min_lux": 21.292322735204515,
         "global_worst_uniformity_ratio": 0.27051701031540115,
         "highest_ugr": 0.0,
+        "indoor_planes": {
+          "cylindrical": [
+            {
+              "Eavg": 47.22584219834318,
+              "U0": 0.1623102061892407,
+              "id": "cyl_1"
+            }
+          ],
+          "maintenance_factor": 1.0,
+          "per_plane": [
+            {
+              "Eavg": 78.70973699723864,
+              "U0": 0.27051701031540115,
+              "id": "g1",
+              "source": "workplane"
+            },
+            {
+              "Eavg": 39.35486849861932,
+              "U0": 0.13525850515770058,
+              "id": "auto_wall_1",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 39.35486849861932,
+              "U0": 0.13525850515770058,
+              "id": "auto_wall_2",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 39.35486849861932,
+              "U0": 0.13525850515770058,
+              "id": "auto_wall_3",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 39.35486849861932,
+              "U0": 0.13525850515770058,
+              "id": "auto_wall_4",
+              "source": "auto_wall"
+            }
+          ]
+        },
         "max_lux": 238.82039589895265,
         "mean_lux": 78.70973699723864,
         "mean_of_means_lux": 78.70973699723864,
         "min_lux": 21.292322735204515,
         "occluder_count": 0,
         "occlusion_enabled": true,
-        "p50_lux": 63.19393345183642,
-        "p90_lux": 152.65793596577944,
+        "p50_lux": 63.193933451836415,
+        "p90_lux": 152.65793596577942,
         "uniformity_diversity": 0.0891562157204258,
         "uniformity_ratio": 0.27051701031540115,
         "worst_min_lux": 21.292322735204515,
@@ -395,7 +548,9 @@
   "roadway_grids": [],
   "roadways": [],
   "root_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/obstructed",
-  "schema_version": 5,
+  "schema_version": 6,
+  "selection_sets": [],
+  "symbols_2d": [],
   "variants": [],
   "vertical_planes": [],
   "workplanes": []

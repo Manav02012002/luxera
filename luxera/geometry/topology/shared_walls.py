@@ -34,7 +34,7 @@ def build_shared_walls_from_rooms(rooms: list[RoomParam], thickness: float = 0.2
     return out
 
 
-def _near(a: Tuple[float, float], b: Tuple[float, float], eps: float = 1e-6) -> bool:
+def _near(a: Tuple[float, float], b: Tuple[float, float], eps: float = 0.000001) -> bool:
     return abs(float(a[0]) - float(b[0])) <= eps and abs(float(a[1]) - float(b[1])) <= eps
 
 

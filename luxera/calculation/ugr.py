@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Dict
+from typing import Callable, List, Optional, Tuple, Dict
 import numpy as np
 
 from luxera.geometry.core import Vector3, Room
@@ -54,6 +54,9 @@ class LuminaireForUGR:
     luminance: float  # cd/m²
     width: float = 0.6
     length: float = 0.6
+    # Compatibility fields used by older callers/tests.
+    normal: Optional[Vector3] = None
+    intensity_cd_fn: Optional[Callable[[Vector3], float]] = None
     
     @staticmethod
     def from_ies_and_position(
@@ -74,7 +77,8 @@ class LuminaireForUGR:
         area = luminous_width * luminous_length
         # Luminance = Intensity / (Area × cos(θ))
         # For direct view (θ ≈ 0), L = I / A
-        luminance = ies_candela_at_angle / area if area > 0 else 0
+        # UGR luminance proxy uses intensity over luminous area.
+        luminance = ies_candela_at_angle / area if area > 0 else 0.0
         
         return LuminaireForUGR(
             position=position,
@@ -248,7 +252,7 @@ def calculate_solid_angle(
     
     # Assume luminaire faces down (typical for ceiling mounted)
     # Angle from luminaire normal to observer direction
-    lum_normal = Vector3(0, 0, -1)  # Pointing down
+    lum_normal = luminaire.normal or Vector3(0, 0, -1)  # Pointing down by default
     cos_theta = abs(to_lum.normalize().dot(lum_normal))
     
     # Solid angle
@@ -385,8 +389,15 @@ def calculate_ugr_at_position(
         # Position index
         p = calculate_guth_position_index(H, T)
         
-        # Luminance (adjusted for viewing angle)
-        L = lum.luminance
+        # Luminance in observer direction.
+        if lum.intensity_cd_fn is not None and lum.luminous_area > 0:
+            try:
+                intensity_cd = float(lum.intensity_cd_fn(observer.eye_position))
+            except Exception:
+                intensity_cd = 0.0
+            L = max(0.0, intensity_cd / max(lum.luminous_area, 1e-12))
+        else:
+            L = lum.luminance
         
         # Contribution to sum
         contribution = (L ** 2 * omega) / (p ** 2)

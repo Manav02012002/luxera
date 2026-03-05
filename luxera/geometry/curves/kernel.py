@@ -81,12 +81,12 @@ class PolyCurve2D:
         for i in range(len(pts) - 1):
             a = pts[i][1]
             b = pts[i + 1][0]
-            if math.hypot(float(a[0]) - float(b[0]), float(a[1]) - float(b[1])) > 1e-5:
+            if math.hypot(float(a[0]) - float(b[0]), float(a[1]) - float(b[1])) > 0.00001:
                 raise ValueError("polycurve parts are not end-to-start continuous")
         if self.closed:
             a = pts[-1][1]
             b = pts[0][0]
-            if math.hypot(float(a[0]) - float(b[0]), float(a[1]) - float(b[1])) > 1e-5:
+            if math.hypot(float(a[0]) - float(b[0]), float(a[1]) - float(b[1])) > 0.00001:
                 raise ValueError("closed polycurve must connect end-to-start")
 
     def as_intersection_parts(self) -> List[Segment2D | Arc]:

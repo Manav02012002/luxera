@@ -891,6 +891,72 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_parity_selector(args: argparse.Namespace) -> dict[str, Any]:
+    if getattr(args, "pack", None):
+        return {"include_packs": [str(args.pack)]}
+    selector_path = getattr(args, "selector", None)
+    if selector_path:
+        path = Path(selector_path).expanduser().resolve()
+        import yaml
+
+        payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        if isinstance(payload, dict) and "selectors" in payload and isinstance(payload["selectors"], list):
+            include_packs: list[str] = []
+            for row in payload["selectors"]:
+                if not isinstance(row, dict):
+                    continue
+                if not bool(row.get("enabled", True)):
+                    continue
+                if str(row.get("kind", "")).strip().lower() == "pack":
+                    val = str(row.get("value", "")).strip()
+                    if val:
+                        include_packs.append(val)
+            if include_packs:
+                return {"include_packs": include_packs}
+        if isinstance(payload, dict):
+            return dict(payload)
+    return {}
+
+
+def _cmd_parity_run(args: argparse.Namespace) -> int:
+    from luxera.parity.corpus import run_corpus
+
+    selector = _load_parity_selector(args)
+    parity_root = Path(getattr(args, "parity_root", "parity")).expanduser().resolve()
+    out_dir = Path(args.out).expanduser().resolve() if getattr(args, "out", None) else Path("out/parity_runs").resolve()
+    result = run_corpus(
+        parity_root=parity_root,
+        selector=selector,
+        baseline=str(getattr(args, "baseline", "luxera")),
+        out_dir=out_dir,
+        update_goldens=bool(getattr(args, "update_goldens", False)),
+    )
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+def _cmd_parity_update(args: argparse.Namespace) -> int:
+    if str(getattr(args, "baseline", "luxera")) != "luxera":
+        print("[ERROR] parity update supports only --baseline luxera")
+        return 2
+    setattr(args, "update_goldens", True)
+    return _cmd_parity_run(args)
+
+
+def _cmd_parity_report(args: argparse.Namespace) -> int:
+    in_dir = Path(args.in_dir).expanduser().resolve()
+    summary_json = in_dir / "summary.json"
+    summary_md = in_dir / "summary.md"
+    if summary_json.exists():
+        print(summary_json.read_text(encoding="utf-8"))
+    elif summary_md.exists():
+        print(summary_md.read_text(encoding="utf-8"))
+    else:
+        print(f"[ERROR] Missing parity summary in {in_dir}")
+        return 2
+    return 0
+
+
 def _cmd_golden_run(args: argparse.Namespace) -> int:
     from luxera.testing.golden import discover_golden_cases, load_golden_case, run_golden_case
 
@@ -1288,7 +1354,8 @@ def _library_db_path(raw: str | None) -> Path:
 
 
 def _cmd_library_index(args: argparse.Namespace) -> int:
-    db = _library_db_path(args.db)
+    db_raw = getattr(args, "db", None) or getattr(args, "out", None)
+    db = _library_db_path(db_raw)
     folder = Path(args.directory).expanduser().resolve()
     with PhotometryLibrary(db) as lib:
         count = lib.index_directory(folder, recursive=bool(args.recursive))
@@ -1302,16 +1369,54 @@ def _cmd_library_index(args: argparse.Namespace) -> int:
 
 def _cmd_library_search(args: argparse.Namespace) -> int:
     db = _library_db_path(args.db)
+    raw_query = str(args.query or "").strip()
+    query_tokens = [t for t in raw_query.split() if t]
+    parsed_filters: dict[str, Any] = {}
+    residual_tokens: list[str] = []
+    for tok in query_tokens:
+        low = tok.lower()
+        if low.startswith("manufacturer:") and ":" in tok:
+            parsed_filters["manufacturer"] = tok.split(":", 1)[1]
+            continue
+        if low.startswith("lumens>="):
+            try:
+                parsed_filters["min_lumens"] = float(tok.split(">=", 1)[1])
+                continue
+            except ValueError:
+                pass
+        if low.startswith("beam<"):
+            try:
+                parsed_filters["max_beam_angle"] = float(tok.split("<", 1)[1])
+                continue
+            except ValueError:
+                pass
+        if low.startswith("beam>"):
+            try:
+                parsed_filters["min_beam_angle"] = float(tok.split(">", 1)[1])
+                continue
+            except ValueError:
+                pass
+        if low.startswith("cct="):
+            try:
+                cct = float(tok.split("=", 1)[1])
+                parsed_filters["min_cct"] = cct
+                parsed_filters["max_cct"] = cct
+                continue
+            except ValueError:
+                pass
+        residual_tokens.append(tok)
+    residual_query = " ".join(residual_tokens) if residual_tokens else None
+
     with PhotometryLibrary(db) as lib:
         rows, total = lib.search(
-            query=args.query,
-            manufacturer=args.manufacturer,
-            min_lumens=args.min_lumens,
-            max_lumens=args.max_lumens,
-            min_beam_angle=args.min_beam_angle,
-            max_beam_angle=args.max_beam_angle,
-            min_cct=args.min_cct,
-            max_cct=args.max_cct,
+            query=residual_query,
+            manufacturer=args.manufacturer if args.manufacturer is not None else parsed_filters.get("manufacturer"),
+            min_lumens=args.min_lumens if args.min_lumens is not None else parsed_filters.get("min_lumens"),
+            max_lumens=args.max_lumens if args.max_lumens is not None else parsed_filters.get("max_lumens"),
+            min_beam_angle=args.min_beam_angle if args.min_beam_angle is not None else parsed_filters.get("min_beam_angle"),
+            max_beam_angle=args.max_beam_angle if args.max_beam_angle is not None else parsed_filters.get("max_beam_angle"),
+            min_cct=args.min_cct if args.min_cct is not None else parsed_filters.get("min_cct"),
+            max_cct=args.max_cct if args.max_cct is not None else parsed_filters.get("max_cct"),
             file_format=args.file_format,
             photometric_type=args.photometric_type,
             sort_by=args.sort_by,
@@ -1319,6 +1424,37 @@ def _cmd_library_search(args: argparse.Namespace) -> int:
             limit=args.limit,
             offset=args.offset,
         )
+    if bool(getattr(args, "json", False)):
+        payload = [
+            {
+                "id": r.id,
+                "file_path": str(r.file_path),
+                "file_format": r.file_format,
+                "manufacturer": r.manufacturer,
+                "catalog_number": r.catalog_number,
+                "luminaire_name": getattr(r, "luminaire_name", None) or getattr(r, "luminaire_description", None),
+                "description": getattr(r, "description", None) or getattr(r, "luminaire_description", None),
+                "total_lumens": r.total_lumens,
+                "beam_angle_deg": r.beam_angle_deg,
+                "cct_k": r.cct_k,
+                "cri": r.cri,
+                "photometric_type": r.photometric_type,
+                "width_m": getattr(r, "width_m", None)
+                if hasattr(r, "width_m")
+                else ((r.luminous_width_mm / 1000.0) if getattr(r, "luminous_width_mm", None) is not None else None),
+                "length_m": getattr(r, "length_m", None)
+                if hasattr(r, "length_m")
+                else ((r.luminous_length_mm / 1000.0) if getattr(r, "luminous_length_mm", None) is not None else None),
+                "height_m": getattr(r, "height_m", None),
+                "symmetry": r.symmetry,
+                "source_hash": getattr(r, "source_hash", None) or getattr(r, "id", None),
+                "created_at": getattr(r, "created_at", None) or getattr(r, "indexed_at", None),
+                "updated_at": getattr(r, "updated_at", None) or getattr(r, "indexed_at", None),
+            }
+            for r in rows
+        ]
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
     print("Library Search")
     print(f"  DB: {db}")
     print(f"  Total matches: {total}")
@@ -1358,17 +1494,92 @@ def _cmd_library_clean(args: argparse.Namespace) -> int:
 
 
 def _cmd_validate(args: argparse.Namespace) -> int:
-    suite = str(args.suite).strip().lower()
+    # Backward-compatible validate subcommands:
+    # - validate list
+    # - validate run <suite|suite/case> --out <dir>
+    # - validate report <suite|suite/case> --out <dir>
+    from luxera.validation.harness import discover_cases, parse_target, run_cases, write_suite_report
+
+    cmd = str(getattr(args, "validate_cmd", "") or "").strip().lower()
+    root = Path(getattr(args, "root", None) or "tests/validation").expanduser().resolve()
+    suites = discover_cases(root)
+
+    if cmd == "list":
+        if not suites:
+            print("No validation suites discovered.")
+            return 0
+        for suite, cases in suites.items():
+            print(f"{suite}:")
+            for case in cases:
+                print(f"  - {case.case_id}")
+        return 0
+
+    if cmd == "run":
+        target = str(args.target)
+        out = Path(args.out).expanduser().resolve()
+        try:
+            selected = parse_target(target, suites)
+        except ValueError as e:
+            print(f"[ERROR] {e}")
+            return 2
+        run_cases(selected, out)
+        print(f"Validation run complete: {len(selected)} case(s)")
+        return 0
+
+    if cmd == "report":
+        suite_target = str(args.suite)
+        out = Path(args.out).expanduser().resolve()
+        try:
+            selected = parse_target(suite_target, suites)
+        except ValueError as e:
+            print(f"[ERROR] {e}")
+            return 2
+        results = run_cases(selected, out)
+        suite_name = suite_target.split("/", 1)[0]
+        md_path, json_path = write_suite_report(suite_name, results, out)
+        print(f"Validation report written:\n  {json_path}\n  {md_path}")
+        return 0
+
+    # Legacy fallback: validate --suite cie171
+    suite = str(getattr(args, "suite", "")).strip().lower()
     if suite != "cie171":
-        print(f"[ERROR] Unsupported validation suite: {args.suite}")
-        print("Supported suites: cie171")
+        print("[ERROR] Unsupported validation command")
         return 2
     from luxera.validation.cie171_runner import CIE171ValidationRunner
 
     runner = CIE171ValidationRunner()
     results = runner.run_all()
-    report = runner.generate_report(results)
-    print(report)
+    print(runner.generate_report(results))
+    return 0
+
+
+def _cmd_agent_run(args: argparse.Namespace) -> int:
+    """Compatibility shim for `luxera agent run ...` used by legacy tests."""
+    from luxera.runner import run_job, RunnerError
+    from luxera.export.pdf_report import build_project_pdf_report
+    from luxera.export.debug_bundle import export_debug_bundle
+
+    project_path = Path(args.project).expanduser().resolve()
+    out_dir = Path(getattr(args, "out", "out")).expanduser().resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    project = load_project_schema(project_path)
+    if not project.jobs:
+        print("[ERROR] No jobs found in project.")
+        return 2
+    job_id = str(getattr(args, "job_id", "") or project.jobs[0].id)
+    try:
+        ref = run_job(project_path, job_id)
+    except RunnerError as e:
+        print(f"[ERROR] Agent run failed: {e}")
+        return 2
+    project = load_project_schema(project_path)
+    report_path = out_dir / "report.pdf"
+    bundle_path = out_dir / "audit_bundle.zip"
+    build_project_pdf_report(project, ref, report_path)
+    export_debug_bundle(project, ref, bundle_path)
+    print("Agent run complete")
+    print(f"  Report: {report_path}")
+    print(f"  Audit bundle: {bundle_path}")
     return 0
 
 
@@ -1837,6 +2048,30 @@ def main(argv: list[str] | None = None) -> int:
     cv.add_argument("--baseline", default=None, help="Optional baseline variant id for delta columns")
     cv.set_defaults(func=_cmd_compare_variants)
 
+    parity = sub.add_parser("parity", help="Parity harness for reference scene packs.")
+    parity_sub = parity.add_subparsers(dest="parity_cmd", required=True)
+
+    pr = parity_sub.add_parser("run", help="Run parity corpus selection and emit run artifacts.")
+    pr.add_argument("--selector", default=None, help="Selector YAML path")
+    pr.add_argument("--pack", default=None, help="Single pack id to run")
+    pr.add_argument("--baseline", default="luxera", help="Baseline id (default: luxera)")
+    pr.add_argument("--out", default=None, help="Output directory")
+    pr.add_argument("--parity-root", default="parity", help="Parity corpus root")
+    pr.set_defaults(func=_cmd_parity_run)
+
+    pu = parity_sub.add_parser("update", help="Run parity corpus and update expected goldens.")
+    pu.add_argument("--selector", default=None, help="Selector YAML path")
+    pu.add_argument("--pack", default=None, help="Single pack id to update")
+    pu.add_argument("--baseline", default="luxera", help="Baseline id; must be luxera")
+    pu.add_argument("--out", default=None, help="Output directory")
+    pu.add_argument("--parity-root", default="parity", help="Parity corpus root")
+    pu.add_argument("--force", action="store_true", default=False, help="Compatibility flag")
+    pu.set_defaults(func=_cmd_parity_update)
+
+    pp = parity_sub.add_parser("report", help="Print summary details from a parity corpus run directory.")
+    pp.add_argument("--in", dest="in_dir", required=True, help="Parity run directory containing summary artifacts")
+    pp.set_defaults(func=_cmd_parity_report)
+
     golden = sub.add_parser("golden", help="Golden regression harness tooling.")
     golden_sub = golden.add_subparsers(dest="golden_cmd", required=True)
 
@@ -1921,6 +2156,13 @@ def main(argv: list[str] | None = None) -> int:
     agent_chat.add_argument("--project", required=True, help="Path to project JSON")
     agent_chat.set_defaults(func=_cmd_agent_chat)
 
+    agent_run = agent_sub.add_parser("run", help="Compatibility mode: run project calculation and export report/bundle.")
+    agent_run.add_argument("--project", required=True, help="Path to project JSON")
+    agent_run.add_argument("--out", default="out", help="Output directory for report and bundle")
+    agent_run.add_argument("--approve-all", action="store_true", default=False, help="Accepted for compatibility")
+    agent_run.add_argument("--job-id", default=None, help="Optional job id override")
+    agent_run.set_defaults(func=_cmd_agent_run)
+
     agent_batch = agent_sub.add_parser("batch", help="Run agent intents in non-interactive batch mode.")
     agent_batch.add_argument("--file", default=None, help="Batch file (.json/.yaml/.yml)")
     agent_batch.add_argument("--project", default=None, help="Project path (required if --file not used)")
@@ -1929,7 +2171,26 @@ def main(argv: list[str] | None = None) -> int:
     agent_batch.set_defaults(func=_cmd_agent_batch)
 
     validate = sub.add_parser("validate", help="Run validation suites.")
-    validate.add_argument("--suite", required=True, help="Validation suite id (e.g. cie171)")
+    validate_sub = validate.add_subparsers(dest="validate_cmd")
+
+    validate_list = validate_sub.add_parser("list", help="List discovered validation suites/cases.")
+    validate_list.add_argument("--root", default=None, help="Validation root (default: tests/validation)")
+    validate_list.set_defaults(func=_cmd_validate)
+
+    validate_run = validate_sub.add_parser("run", help="Run validation suite or case target.")
+    validate_run.add_argument("target", help="Suite or suite/case_id")
+    validate_run.add_argument("--out", required=True, help="Output directory for run artifacts")
+    validate_run.add_argument("--root", default=None, help="Validation root (default: tests/validation)")
+    validate_run.set_defaults(func=_cmd_validate)
+
+    validate_report = validate_sub.add_parser("report", help="Run suite and emit markdown/json summary.")
+    validate_report.add_argument("suite", help="Suite or suite/case_id")
+    validate_report.add_argument("--out", required=True, help="Output directory for report artifacts")
+    validate_report.add_argument("--root", default=None, help="Validation root (default: tests/validation)")
+    validate_report.set_defaults(func=_cmd_validate)
+
+    # Keep old single-flag mode for backward compatibility.
+    validate.add_argument("--suite", required=False, help="Legacy validation suite id (e.g. cie171)")
     validate.set_defaults(func=_cmd_validate)
 
     library = sub.add_parser("library", help="Photometric library indexing/search.")
@@ -1938,6 +2199,7 @@ def main(argv: list[str] | None = None) -> int:
     li = library_sub.add_parser("index", help="Index IES/LDT files from a directory into SQLite.")
     li.add_argument("directory", help="Folder containing photometry files")
     li.add_argument("--db", default=None, help="SQLite DB path (default: ~/.luxera/photometry_library.sqlite)")
+    li.add_argument("--out", default=None, help="Compatibility alias for --db")
     li.add_argument("--recursive", action="store_true", default=False, help="Recurse through subdirectories")
     li.set_defaults(func=_cmd_library_index)
 
@@ -1957,6 +2219,7 @@ def main(argv: list[str] | None = None) -> int:
     ls.add_argument("--sort-asc", action="store_true", default=False)
     ls.add_argument("--limit", type=int, default=50)
     ls.add_argument("--offset", type=int, default=0)
+    ls.add_argument("--json", action="store_true", default=False, help="Output results as JSON")
     ls.set_defaults(func=_cmd_library_search)
 
     lst = library_sub.add_parser("stats", help="Show library statistics.")

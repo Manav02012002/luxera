@@ -45,6 +45,7 @@ class Photometry:
     tilt_applied_angle: Literal["gamma"] = "gamma"
     luminous_width_m: Optional[float] = None
     luminous_length_m: Optional[float] = None
+    luminous_height_m: Optional[float] = None
     ies_units_type: Optional[int] = None
 
 
@@ -59,6 +60,25 @@ def photometry_from_parsed_ies(doc: ParsedIES) -> Photometry:
     c_angles = np.array(doc.angles.horizontal_deg, dtype=float)
     gamma_angles = np.array(doc.angles.vertical_deg, dtype=float)
     candela = np.array(doc.candela.values_cd_scaled, dtype=float)
+
+    # Deterministically normalize non-monotonic or duplicate angle series.
+    if candela.size:
+        uniq_gamma = np.array(sorted(set(float(x) for x in gamma_angles.tolist())), dtype=float)
+        if uniq_gamma.size != gamma_angles.size or not np.all(np.diff(gamma_angles) > 0):
+            cols = []
+            for g in uniq_gamma:
+                idx = np.where(np.isclose(gamma_angles, g))[0]
+                cols.append(np.mean(candela[:, idx], axis=1))
+            candela = np.stack(cols, axis=1)
+            gamma_angles = uniq_gamma
+        uniq_c = np.array(sorted(set(float(x) for x in c_angles.tolist())), dtype=float)
+        if uniq_c.size != c_angles.size or not np.all(np.diff(c_angles) > 0):
+            rows = []
+            for c in uniq_c:
+                idx = np.where(np.isclose(c_angles, c))[0]
+                rows.append(np.mean(candela[idx, :], axis=0))
+            candela = np.stack(rows, axis=0)
+            c_angles = uniq_c
 
     lumens = doc.photometry.num_lamps * doc.photometry.lumens_per_lamp
     symmetry = infer_symmetry(list(c_angles))
@@ -94,6 +114,7 @@ def photometry_from_parsed_ies(doc: ParsedIES) -> Photometry:
             tilt_source = "NONE"
             tilt = TiltData(type="NONE")
 
+    scale = 0.3048 if int(doc.photometry.units_type) == 1 else 1.0
     return Photometry(
         system=system,
         c_angles_deg=c_angles,
@@ -105,8 +126,9 @@ def photometry_from_parsed_ies(doc: ParsedIES) -> Photometry:
         tilt_source=tilt_source,
         tilt_file=tilt_file,
         tilt_applied_angle="gamma",
-        luminous_width_m=doc.photometry.width,
-        luminous_length_m=doc.photometry.length,
+        luminous_width_m=float(doc.photometry.width) * scale,
+        luminous_length_m=float(doc.photometry.length) * scale,
+        luminous_height_m=float(doc.photometry.height) * scale,
         ies_units_type=int(doc.photometry.units_type),
     )
 
@@ -124,6 +146,19 @@ def photometry_from_parsed_ldt(doc: ParsedLDT) -> Photometry:
     elif doc.header.symmetry == 4:
         symmetry = "FULL"
 
+    geometry = doc.header.geometry
+    luminous_height_mm = getattr(geometry, "luminous_height_mm", None)
+    if luminous_height_mm is None:
+        # EULUMDAT commonly provides four directional luminous heights; use their mean.
+        directional_heights = [
+            getattr(geometry, "luminous_height_c0_mm", None),
+            getattr(geometry, "luminous_height_c90_mm", None),
+            getattr(geometry, "luminous_height_c180_mm", None),
+            getattr(geometry, "luminous_height_c270_mm", None),
+        ]
+        values = [float(v) for v in directional_heights if v is not None]
+        luminous_height_mm = (sum(values) / float(len(values))) if values else None
+
     return Photometry(
         system="C",
         c_angles_deg=c_angles,
@@ -132,7 +167,8 @@ def photometry_from_parsed_ldt(doc: ParsedLDT) -> Photometry:
         luminous_flux_lm=None,
         symmetry=symmetry,
         tilt=None,
-        luminous_width_m=doc.header.geometry.luminous_width_mm / 1000.0 if doc.header.geometry.luminous_width_mm else None,
-        luminous_length_m=doc.header.geometry.luminous_length_mm / 1000.0 if doc.header.geometry.luminous_length_mm else None,
+        luminous_width_m=geometry.luminous_width_mm / 1000.0 if geometry.luminous_width_mm else None,
+        luminous_length_m=geometry.luminous_length_mm / 1000.0 if geometry.luminous_length_mm else None,
+        luminous_height_m=luminous_height_mm / 1000.0 if luminous_height_mm else None,
         ies_units_type=None,
     )

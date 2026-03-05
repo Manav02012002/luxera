@@ -95,13 +95,91 @@
       "plan": "Execute job and persist immutable result artifacts.",
       "tool_calls": [],
       "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/l_shape/.luxera/results/0995f400d7d6d2e14a2ddc2af2e10f434f805d7af47d851ee43f3ba7a0c4513c"
+      ],
+      "created_at": 1772600796.185904,
+      "diffs": [],
+      "id": "52b4380f-b996-4df0-a874-13b640d637c7",
+      "job_hashes": [
+        "0995f400d7d6d2e14a2ddc2af2e10f434f805d7af47d851ee43f3ba7a0c4513c"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/l_shape/.luxera/results/0995f400d7d6d2e14a2ddc2af2e10f434f805d7af47d851ee43f3ba7a0c4513c"
+      ],
+      "created_at": 1772601580.7628229,
+      "diffs": [],
+      "id": "7feac81c-f26b-41ab-af71-8af63effe2c7",
+      "job_hashes": [
+        "0995f400d7d6d2e14a2ddc2af2e10f434f805d7af47d851ee43f3ba7a0c4513c"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/l_shape/.luxera/results/0995f400d7d6d2e14a2ddc2af2e10f434f805d7af47d851ee43f3ba7a0c4513c"
+      ],
+      "created_at": 1772601908.945838,
+      "diffs": [],
+      "id": "fd7b7b04-9029-482a-9b5e-8f9390dec3e4",
+      "job_hashes": [
+        "0995f400d7d6d2e14a2ddc2af2e10f434f805d7af47d851ee43f3ba7a0c4513c"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/l_shape/.luxera/results/0995f400d7d6d2e14a2ddc2af2e10f434f805d7af47d851ee43f3ba7a0c4513c"
+      ],
+      "created_at": 1772602316.166661,
+      "diffs": [],
+      "id": "eb8f66a6-729a-4df2-ad47-73878b68eac8",
+      "job_hashes": [
+        "0995f400d7d6d2e14a2ddc2af2e10f434f805d7af47d851ee43f3ba7a0c4513c"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
     }
   ],
   "arbitrary_planes": [],
   "asset_bundle_path": null,
   "assistant_redo_stack": [],
   "assistant_undo_stack": [],
+  "block_instances": [],
   "compliance_profiles": [],
+  "control_groups": [],
   "escape_routes": [],
   "geometry": {
     "axis_transform_applied": null,
@@ -120,6 +198,7 @@
         "footprint": null,
         "height": 3.0,
         "id": "r1",
+        "layer_id": null,
         "length": 4.0,
         "level_id": null,
         "name": "LMain",
@@ -139,6 +218,7 @@
         "footprint": null,
         "height": 3.0,
         "id": "r2",
+        "layer_id": null,
         "length": 6.0,
         "level_id": null,
         "name": "LBranch",
@@ -163,6 +243,9 @@
       "evaluation_height_offset": 0.0,
       "height": 10.0,
       "id": "g1",
+      "illuminance_metric": "horizontal",
+      "layer_id": null,
+      "mask_near_openings": false,
       "metric_set": [
         "E_avg",
         "E_min",
@@ -178,6 +261,7 @@
       ],
       "nx": 9,
       "ny": 9,
+      "opening_mask_margin": 0.0,
       "origin": [
         0.0,
         0.0,
@@ -186,6 +270,7 @@
       "room_id": "r1",
       "sample_mask": [],
       "sample_points": [],
+      "semicylindrical_facing": null,
       "width": 10.0,
       "zone_id": null
     }
@@ -204,55 +289,74 @@
         "use_occlusion": false
       },
       "targets": [],
-      "type": "direct"
+      "type": "direct",
+      "ugr_method": "standard"
     }
   ],
   "layers": [
     {
+      "color": null,
       "id": "room",
       "name": "Rooms",
       "order": 10,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "wall",
       "name": "Walls",
       "order": 20,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "ceiling_grid",
       "name": "Ceiling Grid",
       "order": 30,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "opening",
       "name": "Openings",
       "order": 40,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "luminaire",
       "name": "Luminaires",
       "order": 50,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "grid",
       "name": "Calc Grids",
       "order": 60,
+      "style": null,
       "visible": true
     }
   ],
+  "light_scenes": [],
   "line_grids": [],
   "luminaire_families": [],
   "luminaires": [
     {
+      "emergency_operation": null,
+      "emergency_output_factor": null,
       "family_id": null,
       "flux_multiplier": 1.0,
       "id": "l1",
+      "layer_id": null,
+      "maintenance_components": null,
       "maintenance_factor": 1.0,
+      "maintenance_schedule": null,
       "mounting_height_m": null,
       "mounting_type": null,
       "name": "L1",
@@ -279,10 +383,15 @@
       }
     },
     {
+      "emergency_operation": null,
+      "emergency_output_factor": null,
       "family_id": null,
       "flux_multiplier": 1.0,
       "id": "l2",
+      "layer_id": null,
+      "maintenance_components": null,
       "maintenance_factor": 1.0,
+      "maintenance_schedule": null,
       "mounting_height_m": null,
       "mounting_type": null,
       "name": "L2",
@@ -314,6 +423,7 @@
   "name": "validation_l_shape",
   "param": {
     "footprints": [],
+    "instances": [],
     "openings": [],
     "rooms": [],
     "shared_walls": [],
@@ -332,11 +442,12 @@
     }
   ],
   "point_sets": [],
+  "polygon_workplanes": [],
   "results": [
     {
-      "job_hash": "521072a98ea566c0b0226280db5ac19e1895687bb8cd3461362110b4b1e9777e",
+      "job_hash": "0995f400d7d6d2e14a2ddc2af2e10f434f805d7af47d851ee43f3ba7a0c4513c",
       "job_id": "j_direct",
-      "result_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/l_shape/.luxera/results/521072a98ea566c0b0226280db5ac19e1895687bb8cd3461362110b4b1e9777e",
+      "result_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/l_shape/.luxera/results/0995f400d7d6d2e14a2ddc2af2e10f434f805d7af47d851ee43f3ba7a0c4513c",
       "summary": {
         "calc_object_count": 1,
         "calc_objects": [
@@ -344,20 +455,20 @@
             "id": "g1",
             "name": "LGrid",
             "summary": {
-              "E_avg": 43.215403240297206,
+              "E_avg": 43.2154032402972,
               "E_max": 180.4238311394975,
               "E_min": 2.5183403844661676,
-              "P50": 26.63445353007713,
+              "P50": 26.634453530077135,
               "P90": 94.43475034216915,
-              "U0": 0.058274138284978044,
+              "U0": 0.05827413828497805,
               "U1": 0.013957914365087799,
               "max_lux": 180.4238311394975,
-              "mean_lux": 43.215403240297206,
+              "mean_lux": 43.2154032402972,
               "min_lux": 2.5183403844661676,
-              "p50_lux": 26.63445353007713,
+              "p50_lux": 26.634453530077135,
               "p90_lux": 94.43475034216915,
               "uniformity_diversity": 0.013957914365087799,
-              "uniformity_ratio": 0.058274138284978044
+              "uniformity_ratio": 0.05827413828497805
             },
             "type": "grid"
           }
@@ -365,27 +476,71 @@
         "compliance": null,
         "global_highest_ugr": 0.0,
         "global_worst_min_lux": 2.5183403844661676,
-        "global_worst_uniformity_ratio": 0.058274138284978044,
+        "global_worst_uniformity_ratio": 0.05827413828497805,
         "highest_ugr": 0.0,
+        "indoor_planes": {
+          "cylindrical": [
+            {
+              "Eavg": 25.92924194417832,
+              "U0": 0.03496448297098683,
+              "id": "cyl_1"
+            }
+          ],
+          "maintenance_factor": 1.0,
+          "per_plane": [
+            {
+              "Eavg": 43.2154032402972,
+              "U0": 0.05827413828497805,
+              "id": "g1",
+              "source": "workplane"
+            },
+            {
+              "Eavg": 21.6077016201486,
+              "U0": 0.05,
+              "id": "auto_wall_1",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 21.6077016201486,
+              "U0": 0.05,
+              "id": "auto_wall_2",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 21.6077016201486,
+              "U0": 0.05,
+              "id": "auto_wall_3",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 21.6077016201486,
+              "U0": 0.05,
+              "id": "auto_wall_4",
+              "source": "auto_wall"
+            }
+          ]
+        },
         "max_lux": 180.4238311394975,
-        "mean_lux": 43.215403240297206,
-        "mean_of_means_lux": 43.215403240297206,
+        "mean_lux": 43.2154032402972,
+        "mean_of_means_lux": 43.2154032402972,
         "min_lux": 2.5183403844661676,
         "occluder_count": 0,
         "occlusion_enabled": false,
-        "p50_lux": 26.63445353007713,
+        "p50_lux": 26.634453530077135,
         "p90_lux": 94.43475034216915,
         "uniformity_diversity": 0.013957914365087799,
-        "uniformity_ratio": 0.058274138284978044,
+        "uniformity_ratio": 0.05827413828497805,
         "worst_min_lux": 2.5183403844661676,
-        "worst_uniformity_ratio": 0.058274138284978044
+        "worst_uniformity_ratio": 0.05827413828497805
       }
     }
   ],
   "roadway_grids": [],
   "roadways": [],
   "root_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/l_shape",
-  "schema_version": 5,
+  "schema_version": 6,
+  "selection_sets": [],
+  "symbols_2d": [],
   "variants": [],
   "vertical_planes": [],
   "workplanes": []

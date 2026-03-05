@@ -106,6 +106,8 @@ class LuminaireInstance:
     family_id: Optional[str] = None
     mounting_type: Optional[str] = None
     mounting_height_m: Optional[float] = None
+    emergency_operation: Optional[str] = None
+    emergency_output_factor: Optional[float] = None
     layer_id: Optional[str] = None
     tags: List[str] = field(default_factory=list)
 
@@ -352,6 +354,37 @@ class GlareViewSpec:
 
 
 @dataclass
+class RoadwaySegmentSpec:
+    length_m: float
+    lane_count: int
+    lane_widths_m: List[float] = field(default_factory=list)
+    curve_radius_m: Optional[float] = None
+    curve_angle_deg: Optional[float] = None
+    curve_direction: Literal["left", "right"] = "left"
+    bank_angle_deg: float = 0.0
+    lateral_offset_m: float = 0.0
+
+
+@dataclass
+class RoadwayPoleRowSpec:
+    id: str
+    spacing_m: float
+    offset_m: float = 0.0
+    mounting_height_m: Optional[float] = None
+
+
+@dataclass
+class RoadwayObserverSpec:
+    id: str
+    lane_number: int
+    method: str = "luminance"
+    back_offset_m: float = 60.0
+    height_m: float = 1.5
+    lateral_offset_m: Optional[float] = None
+    enabled: bool = True
+
+
+@dataclass
 class RoadwaySpec:
     id: str
     name: str
@@ -364,6 +397,10 @@ class RoadwaySpec:
     pole_spacing_m: Optional[float] = None
     tilt_deg: Optional[float] = None
     aim_deg: Optional[float] = None
+    profile: Optional[str] = None
+    segment: Optional[RoadwaySegmentSpec] = None
+    pole_rows: List[RoadwayPoleRowSpec] = field(default_factory=list)
+    observers: List[RoadwayObserverSpec] = field(default_factory=list)
 
 
 @dataclass
@@ -383,6 +420,8 @@ class RoadwayGridSpec:
     mounting_height_m: Optional[float] = None
     setback_m: Optional[float] = None
     observer_height_m: float = 1.5
+    observer_method: Optional[str] = None
+    observers: List[RoadwayObserverSpec] = field(default_factory=list)
     metric_set: List[str] = field(default_factory=lambda: ["E_avg", "E_min", "E_max", "U0", "UL", "L_avg"])
 
 
@@ -478,6 +517,7 @@ class DaylightSpec:
 @dataclass
 class EmergencyModeSpec:
     emergency_factor: float = 1.0
+    battery_output_factor: Optional[float] = None
     include_luminaires: List[str] = field(default_factory=list)
     include_luminaire_ids: List[str] = field(default_factory=list)
     include_tags: List[str] = field(default_factory=list)

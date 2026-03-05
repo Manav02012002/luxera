@@ -1,4 +1,5 @@
 from __future__ import annotations
+"""Contract: docs/spec/solver_contracts.md, docs/spec/near_field.md."""
 
 import math
 from dataclasses import dataclass

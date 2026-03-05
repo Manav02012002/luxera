@@ -29,20 +29,26 @@ class ProjectDiagnostics:
 
     def check(self, project: Project) -> List[DiagnosticIssue]:
         issues: List[DiagnosticIssue] = []
+        has_roadway_scope = bool(project.roadways or project.roadway_grids or any(str(j.type) == "roadway" for j in project.jobs))
+        job_types = {str(j.type) for j in project.jobs}
+        if not job_types:
+            job_types = {"direct"}
+        needs_luminaires = bool(job_types.intersection({"direct", "radiosity", "roadway", "emergency"}))
+        needs_indoor_grid = bool(job_types.intersection({"direct", "radiosity", "daylight", "emergency"}))
 
         rooms = list(project.geometry.rooms)
-        has_geometry = bool(rooms or project.geometry.surfaces)
+        has_geometry = bool(rooms or project.geometry.surfaces or has_roadway_scope)
         if not has_geometry:
             issues.append(
                 DiagnosticIssue(
-                    severity="error",
+                    severity="warning",
                     code="PRJ-002",
                     message="Project has no rooms or imported geometry.",
                     suggestion="Add at least one room or import a geometry model before running calculations.",
                 )
             )
 
-        if not project.luminaires:
+        if needs_luminaires and not project.luminaires:
             issues.append(
                 DiagnosticIssue(
                     severity="error",
@@ -52,13 +58,23 @@ class ProjectDiagnostics:
                 )
             )
 
-        if not project.grids:
+        has_any_grid = bool(
+            project.grids
+            or project.roadway_grids
+            or project.vertical_planes
+            or project.arbitrary_planes
+            or project.point_sets
+            or project.line_grids
+            or project.workplanes
+            or project.glare_views
+        )
+        if not has_any_grid and needs_indoor_grid:
             issues.append(
                 DiagnosticIssue(
                     severity="error",
                     code="CAL-002",
                     message=ERROR_CODES["CAL-002"],
-                    suggestion="Add at least one calculation grid before running a job.",
+                    suggestion="Add at least one calculation grid (indoor or roadway) before running a job.",
                 )
             )
 

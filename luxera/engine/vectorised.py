@@ -1,4 +1,5 @@
 from __future__ import annotations
+"""Contract: docs/spec/solver_contracts.md, docs/spec/performance_contract.md."""
 
 import math
 import multiprocessing as mp

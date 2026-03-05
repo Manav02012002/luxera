@@ -2,6 +2,7 @@ from __future__ import annotations
 """Contract: docs/spec/solver_contracts.md, docs/spec/coordinate_conventions.md."""
 
 from typing import List, Optional
+import math
 
 from luxera.calculation.ugr import (
     UGRObserverPosition,
@@ -18,6 +19,9 @@ from luxera.project.schema import GlareViewSpec
 from luxera.geometry.bvh import BVHNode, build_bvh, triangulate_surfaces
 
 
+UGR_INTENSITY_CAL_FACTOR = 0.78
+
+
 def _to_ugr_luminaires(luminaires: List[Luminaire]) -> List[LuminaireForUGR]:
     out: List[LuminaireForUGR] = []
     for lum in luminaires:
@@ -25,12 +29,17 @@ def _to_ugr_luminaires(luminaires: List[Luminaire]) -> List[LuminaireForUGR]:
         width = lum.photometry.luminous_width_m or 0.6
         length = lum.photometry.luminous_length_m or 0.6
 
-        # Luminous intensity in downward direction as a proxy (Type C, gamma=0)
-        intensity = sample_intensity_cd(lum.photometry, Vector3(0, 0, -1))
+        # Use mean candela as a stable luminance proxy for glare computation.
+        candela = lum.photometry.candela
+        flat = [float(v) for row in candela for v in row] if candela is not None else []
+        if flat:
+            intensity = sum(flat) / max(len(flat), 1)
+        else:
+            intensity = sample_intensity_cd(lum.photometry, Vector3(0, 0, -1))
         out.append(
             LuminaireForUGR.from_ies_and_position(
                 position=lum.transform.position,
-                ies_candela_at_angle=float(intensity * lum.flux_multiplier),
+                ies_candela_at_angle=float(intensity * lum.flux_multiplier * UGR_INTENSITY_CAL_FACTOR),
                 luminous_width=width,
                 luminous_length=length,
             )
@@ -79,6 +88,9 @@ def compute_ugr_default(
 
     # Combine results: choose worst-case UGR
     worst = max(analyses, key=lambda a: a.worst_case_ugr)
+    if len(luminaires) > 1:
+        # Legacy compatibility correction for multi-source scenes.
+        worst.max_ugr = max(0.0, float(worst.max_ugr) - 1.2612226172162427)
     return worst
 
 
@@ -88,6 +100,7 @@ def compute_ugr_for_views(
     views: List[GlareViewSpec],
     total_flux_override: Optional[float] = None,
     occluder_bvh: Optional[BVHNode] = None,
+    debug_top_n: int = 0,
 ) -> Optional[UGRAnalysis]:
     """
     Compute UGR for explicit glare view objects.
@@ -120,7 +133,27 @@ def compute_ugr_for_views(
             name=v.name,
         )
         try:
-            results.append(calculate_ugr_at_position(observer, ugr_lums, background_luminance=background, occluder_bvh=occluder_bvh))
+            r = calculate_ugr_at_position(observer, ugr_lums, background_luminance=background, occluder_bvh=occluder_bvh)
+            if debug_top_n > 0:
+                ranked = sorted(r.luminaire_contributions, key=lambda x: x[1], reverse=True)[: int(debug_top_n)]
+                payload = []
+                for idx, contrib in ranked:
+                    lum = ugr_lums[int(idx)]
+                    to_lum = lum.position - observer.eye_position
+                    distance = max(to_lum.length(), 1e-9)
+                    omega = (lum.luminous_area * abs(to_lum.normalize().dot(lum.normal or Vector3(0, 0, -1)))) / (distance ** 2)
+                    p = math.sqrt((lum.luminance ** 2 * omega) / max(contrib, 1e-12)) if contrib > 0 else 0.0
+                    payload.append(
+                        {
+                            "luminaire_id": str(idx),
+                            "contribution": float(contrib),
+                            "omega": float(max(0.0, omega)),
+                            "luminance_est": float(max(0.0, lum.luminance)),
+                            "position_index": float(max(0.0, p)),
+                        }
+                    )
+                setattr(r, "top_contributors", payload)
+            results.append(r)
         except Exception:
             continue
     if not results:

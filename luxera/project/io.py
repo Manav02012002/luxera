@@ -32,6 +32,9 @@ from luxera.project.schema import (
     LineGridSpec,
     GlareViewSpec,
     EscapeRouteSpec,
+    RoadwayObserverSpec,
+    RoadwayPoleRowSpec,
+    RoadwaySegmentSpec,
     RoadwaySpec,
     RoadwayGridSpec,
     ComplianceProfile,
@@ -179,6 +182,8 @@ def _project_from_dict(d: Dict[str, Any]) -> Project:
                 family_id=l.get("family_id"),
                 mounting_type=l.get("mounting_type"),
                 mounting_height_m=l.get("mounting_height_m"),
+                emergency_operation=l.get("emergency_operation"),
+                emergency_output_factor=l.get("emergency_output_factor"),
                 layer_id=l.get("layer_id"),
                 tags=[str(x) for x in l.get("tags", [])] if isinstance(l.get("tags"), list) else [],
             )
@@ -191,8 +196,42 @@ def _project_from_dict(d: Dict[str, Any]) -> Project:
         point_sets=[PointSetSpec(**ps) for ps in d.get("point_sets", [])],
         line_grids=[LineGridSpec(**lg) for lg in d.get("line_grids", [])],
         glare_views=[GlareViewSpec(**gv) for gv in d.get("glare_views", [])],
-        roadways=[RoadwaySpec(**rw) for rw in d.get("roadways", [])],
-        roadway_grids=[RoadwayGridSpec(**rg) for rg in d.get("roadway_grids", [])],
+        roadways=[
+            RoadwaySpec(
+                **{
+                    **rw,
+                    "segment": (
+                        RoadwaySegmentSpec(**rw["segment"])
+                        if isinstance(rw, dict) and isinstance(rw.get("segment"), dict)
+                        else rw.get("segment")
+                    ),
+                    "pole_rows": [
+                        RoadwayPoleRowSpec(**row)
+                        for row in (rw.get("pole_rows", []) if isinstance(rw, dict) else [])
+                        if isinstance(row, dict)
+                    ],
+                    "observers": [
+                        RoadwayObserverSpec(**obs)
+                        for obs in (rw.get("observers", []) if isinstance(rw, dict) else [])
+                        if isinstance(obs, dict)
+                    ],
+                }
+            )
+            for rw in d.get("roadways", [])
+        ],
+        roadway_grids=[
+            RoadwayGridSpec(
+                **{
+                    **rg,
+                    "observers": [
+                        RoadwayObserverSpec(**obs)
+                        for obs in (rg.get("observers", []) if isinstance(rg, dict) else [])
+                        if isinstance(obs, dict)
+                    ],
+                }
+            )
+            for rg in d.get("roadway_grids", [])
+        ],
         compliance_profiles=[ComplianceProfile(**cp) for cp in d.get("compliance_profiles", [])],
         symbols_2d=[Symbol2DSpec(**s) for s in d.get("symbols_2d", [])],
         block_instances=[BlockInstanceSpec(**b) for b in d.get("block_instances", [])],

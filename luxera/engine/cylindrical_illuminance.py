@@ -1,4 +1,5 @@
 from __future__ import annotations
+"""Contract: docs/spec/solver_contracts.md, docs/spec/indoor_multiplane.md."""
 
 from typing import List, Optional, Tuple
 
@@ -162,4 +163,3 @@ class CylindricalIlluminanceEngine:
             ny=grid.ny,
             result=IlluminanceResult(grid=grid, values=values_2d),
         )
-

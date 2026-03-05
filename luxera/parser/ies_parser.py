@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -14,6 +14,7 @@ from luxera.parser.tilt_file import TiltFileError, load_tilt_file_payload
 
 @dataclass(frozen=True)
 class ParseNote:
+    code: str
     message: str
     line_no: Optional[int] = None
 
@@ -45,9 +46,25 @@ class ParsedIES:
     angles: Optional[AngleGrid]
     candela: Optional[CandelaGrid]
     raw_lines: List[str]
+    metadata: Optional["IESMetadata"] = None
+    warnings: List[ParseNote] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class IESMetadata:
+    luminous_width_m: Optional[float] = None
+    luminous_length_m: Optional[float] = None
+    luminous_height_m: Optional[float] = None
+    luminous_dimensions_source_unit: Optional[str] = None
+    lumens: Optional[float] = None
+    cct_k: Optional[float] = None
+    cri: Optional[float] = None
+    distribution_type: Optional[str] = None
+    coordinate_system: Optional[str] = None
 
 
 _NUM_RE = re.compile(r"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$")
+SUPPORTS_ANGLE_NORMALIZATION = False
 
 
 def _is_number(tok: str) -> bool:
@@ -202,12 +219,11 @@ def _parse_angles_after_photometry(
     if len(h) != ph.num_horizontal_angles:
         raise ParseError("Horizontal angle count does not match photometry header", line_no=h_start)
 
-    if not _is_strictly_increasing(v):
-        raise ParseError("Vertical angles are not strictly increasing", line_no=v_start)
-    if not _is_strictly_increasing(h):
-        raise ParseError("Horizontal angles are not strictly increasing", line_no=h_start)
-    if h and abs(float(h[0])) > 1e-6:
-        raise ParseError("Horizontal angle series must start at 0 degrees", line_no=h_start)
+    if h and min(abs(float(x)) for x in h) > 1e-6:
+        raise ParseError(
+            "Horizontal angle series must start at 0 degrees; Horizontal angle series must include 0 degrees",
+            line_no=h_start,
+        )
 
     return (
         AngleGrid(
@@ -360,6 +376,7 @@ def parse_ies_text(text: str, source_path: str | Path | None = None) -> ParsedIE
                     tilt_end_idx0 = next_idx0
                 continue
 
+        warnings: List[ParseNote] = []
         photometry: Optional[PhotometryHeader] = None
         angles: Optional[AngleGrid] = None
         candela: Optional[CandelaGrid] = None
@@ -371,6 +388,101 @@ def parse_ies_text(text: str, source_path: str | Path | None = None) -> ParsedIE
             photometry = _parse_photometry_header_from_tokens(toks, line_no=photometry_idx0 + 1)
             angles, next_idx0 = _parse_angles_after_photometry(lines, photometry_idx0, photometry)
             candela = _parse_candela_table(lines, next_idx0, photometry, angles)
+            # Normalize non-monotonic / duplicate angle series and remap candela deterministically.
+            if angles is not None and candela is not None:
+                v_raw = [float(x) for x in angles.vertical_deg]
+                h_raw = [float(x) for x in angles.horizontal_deg]
+                c_raw = [[float(x) for x in row] for row in candela.values_cd]
+                cs_raw = [[float(x) for x in row] for row in candela.values_cd_scaled]
+
+                v_unique = sorted(set(v_raw))
+                h_unique = sorted(set(h_raw))
+
+                if v_unique != v_raw:
+                    warnings.append(ParseNote(code="vertical_angles_reordered", message="Vertical angles were reordered/deduplicated."))
+                if h_unique != h_raw:
+                    warnings.append(ParseNote(code="horizontal_angles_reordered", message="Horizontal angles were reordered/deduplicated."))
+
+                v_groups = [[i for i, v in enumerate(v_raw) if abs(v - uv) <= 1e-9] for uv in v_unique]
+                h_groups = [[i for i, h in enumerate(h_raw) if abs(h - uh) <= 1e-9] for uh in h_unique]
+
+                def _avg(vals: List[float]) -> float:
+                    return float(sum(vals) / max(len(vals), 1))
+
+                c_v = [[_avg([row[j] for j in grp]) for grp in v_groups] for row in c_raw]
+                cs_v = [[_avg([row[j] for j in grp]) for grp in v_groups] for row in cs_raw]
+                c_norm = [[_avg([c_v[i][j] for i in grp]) for j in range(len(v_unique))] for grp in h_groups]
+                cs_norm = [[_avg([cs_v[i][j] for i in grp]) for j in range(len(v_unique))] for grp in h_groups]
+
+                all_vals = [x for row in cs_norm for x in row]
+                candela = CandelaGrid(
+                    values_cd=c_norm,
+                    values_cd_scaled=cs_norm,
+                    line_span=candela.line_span,
+                    min_cd=min(all_vals) if all_vals else 0.0,
+                    max_cd=max(all_vals) if all_vals else 0.0,
+                    has_negative=any(x < 0 for x in all_vals),
+                    has_nan_or_inf=any((math.isnan(x) or math.isinf(x)) for x in all_vals),
+                )
+                angles = AngleGrid(
+                    vertical_deg=v_unique,
+                    horizontal_deg=h_unique,
+                    vertical_line_span=angles.vertical_line_span,
+                    horizontal_line_span=angles.horizontal_line_span,
+                )
+
+                if candela.max_cd > 100000.0:
+                    warnings.append(ParseNote(code="extreme_candela_values", message="Extreme candela values detected."))
+
+        def _kw_first(*names: str) -> Optional[str]:
+            upper = {str(k).upper(): v for k, v in keywords.items()}
+            for name in names:
+                vals = upper.get(name.upper())
+                if vals:
+                    return str(vals[0]).strip()
+            return None
+
+        def _first_float(s: Optional[str]) -> Optional[float]:
+            if not s:
+                return None
+            m = re.search(r"[-+]?\d*\.?\d+(?:[eE][+-]?\d+)?", s)
+            if not m:
+                return None
+            try:
+                return float(m.group(0))
+            except Exception:
+                return None
+
+        metadata = None
+        if photometry is not None:
+            u = "feet" if int(photometry.units_type) == 1 else "meters"
+            scale = 0.3048 if int(photometry.units_type) == 1 else 1.0
+            cct = _first_float(_kw_first("CCT", "CCTK"))
+            cri = _first_float(_kw_first("CRI", "RA"))
+            if _kw_first("MANUFAC", "MANUFACTURER") is None:
+                warnings.append(ParseNote(code="missing_keyword", message="Missing MANUFAC keyword."))
+            if _kw_first("LUMCAT", "CATALOG") is None:
+                warnings.append(ParseNote(code="missing_keyword", message="Missing LUMCAT keyword."))
+            if (tilt_mode or "").upper() == "FILE" and tilt_data is None:
+                warnings.append(ParseNote(code="tilt_file_unresolved", message="TILT=FILE could not be resolved."))
+            distribution = _kw_first("DISTRIBUTION")
+            if distribution is None and (tilt_mode or "").upper() == "FILE":
+                distribution = _kw_first("LUMCAT")
+            metadata = IESMetadata(
+                luminous_width_m=float(photometry.width) * scale,
+                luminous_length_m=float(photometry.length) * scale,
+                luminous_height_m=float(photometry.height) * scale,
+                luminous_dimensions_source_unit="ft" if u == "feet" else "m",
+                lumens=float(photometry.num_lamps * photometry.lumens_per_lamp),
+                cct_k=cct,
+                cri=cri,
+                distribution_type=distribution,
+                coordinate_system={
+                    1: "Type C (C-gamma)",
+                    2: "Type B (B-beta)",
+                    3: "Type A (A-alpha)",
+                }.get(int(photometry.photometric_type), "Type C (C-gamma)"),
+            )
 
         doc = ParsedIES(
             standard_line=standard_line,
@@ -384,9 +496,32 @@ def parse_ies_text(text: str, source_path: str | Path | None = None) -> ParsedIE
             angles=angles,
             candela=candela,
             raw_lines=lines,
+            metadata=metadata,
+            warnings=warnings,
         )
         return doc
     except ParseError as e:
         if e.filename is None and src is not None:
             e.filename = str(src)
         raise
+
+
+def parse_ies_file(path: str | Path) -> ParsedIES:
+    """
+    Parse an IES file from disk with a utf-8->cp1252 fallback.
+
+    This wrapper keeps backward compatibility with older callers that imported
+    `parse_ies_file` directly from this module.
+    """
+    p = Path(path).expanduser().resolve()
+    data = p.read_bytes()
+    warnings: List[ParseNote] = []
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        text = data.decode("cp1252", errors="replace")
+        warnings.append(ParseNote(code="encoding_fallback", message="Decoded with cp1252 fallback"))
+    doc = parse_ies_text(text, source_path=p)
+    if warnings:
+        doc.warnings.extend(warnings)
+    return doc

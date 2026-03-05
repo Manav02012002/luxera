@@ -95,13 +95,243 @@
       "plan": "Execute job and persist immutable result artifacts.",
       "tool_calls": [],
       "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room/.luxera/results/b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "created_at": 1772600773.2375722,
+      "diffs": [],
+      "id": "f040b949-dd6a-4dd5-80c7-a0f71ade63ac",
+      "job_hashes": [
+        "b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room/.luxera/results/b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "created_at": 1772600773.734575,
+      "diffs": [],
+      "id": "32012c82-2f32-4c73-81b4-0f0db2d1a92d",
+      "job_hashes": [
+        "b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room/.luxera/results/b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "created_at": 1772600790.885834,
+      "diffs": [],
+      "id": "1a4d5b60-bb14-438b-b39a-bb360d206182",
+      "job_hashes": [
+        "b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room/.luxera/results/b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "created_at": 1772601556.846998,
+      "diffs": [],
+      "id": "1dc68b23-2281-4b77-b9b0-b1a3e31a5073",
+      "job_hashes": [
+        "b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room/.luxera/results/b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "created_at": 1772601557.360588,
+      "diffs": [],
+      "id": "06450a8f-701f-4622-97f8-63f2e2d32843",
+      "job_hashes": [
+        "b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room/.luxera/results/b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "created_at": 1772601575.208865,
+      "diffs": [],
+      "id": "156345f7-660a-4a8b-b1af-08b1406b5a4f",
+      "job_hashes": [
+        "b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room/.luxera/results/b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "created_at": 1772601885.239386,
+      "diffs": [],
+      "id": "417cc643-6618-4ac2-ae84-4314eda95fe8",
+      "job_hashes": [
+        "b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room/.luxera/results/b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "created_at": 1772601885.760341,
+      "diffs": [],
+      "id": "b260728a-3c82-4c2d-aa45-c80d6b19dcae",
+      "job_hashes": [
+        "b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room/.luxera/results/b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "created_at": 1772601903.0129411,
+      "diffs": [],
+      "id": "886ae8e1-0176-4b7d-8e86-732eb1b1ec06",
+      "job_hashes": [
+        "b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room/.luxera/results/b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "created_at": 1772602291.768673,
+      "diffs": [],
+      "id": "edefc28d-e08e-420a-9484-afb88248dbe9",
+      "job_hashes": [
+        "b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room/.luxera/results/b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "created_at": 1772602292.328535,
+      "diffs": [],
+      "id": "9bd5c515-1014-4f8f-b69c-921401903d37",
+      "job_hashes": [
+        "b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "action": "runner.run_job",
+      "artifacts": [
+        "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room/.luxera/results/b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "created_at": 1772602310.827065,
+      "diffs": [],
+      "id": "04d3f402-95bc-4710-a4b2-63d7ede8e0ac",
+      "job_hashes": [
+        "b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d"
+      ],
+      "metadata": {
+        "job_id": "j_direct",
+        "job_type": "direct"
+      },
+      "plan": "Execute job and persist immutable result artifacts.",
+      "tool_calls": [],
+      "warnings": []
     }
   ],
   "arbitrary_planes": [],
   "asset_bundle_path": null,
   "assistant_redo_stack": [],
   "assistant_undo_stack": [],
+  "block_instances": [],
   "compliance_profiles": [],
+  "control_groups": [],
   "escape_routes": [],
   "geometry": {
     "axis_transform_applied": null,
@@ -120,6 +350,7 @@
         "footprint": null,
         "height": 3.0,
         "id": "r1",
+        "layer_id": null,
         "length": 6.0,
         "level_id": null,
         "name": "Box",
@@ -144,6 +375,9 @@
       "evaluation_height_offset": 0.0,
       "height": 6.0,
       "id": "g1",
+      "illuminance_metric": "horizontal",
+      "layer_id": null,
+      "mask_near_openings": false,
       "metric_set": [
         "E_avg",
         "E_min",
@@ -159,6 +393,7 @@
       ],
       "nx": 5,
       "ny": 5,
+      "opening_mask_margin": 0.0,
       "origin": [
         0.0,
         0.0,
@@ -167,6 +402,7 @@
       "room_id": "r1",
       "sample_mask": [],
       "sample_points": [],
+      "semicylindrical_facing": null,
       "width": 6.0,
       "zone_id": null
     }
@@ -185,55 +421,74 @@
         "use_occlusion": false
       },
       "targets": [],
-      "type": "direct"
+      "type": "direct",
+      "ugr_method": "standard"
     }
   ],
   "layers": [
     {
+      "color": null,
       "id": "room",
       "name": "Rooms",
       "order": 10,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "wall",
       "name": "Walls",
       "order": 20,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "ceiling_grid",
       "name": "Ceiling Grid",
       "order": 30,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "opening",
       "name": "Openings",
       "order": 40,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "luminaire",
       "name": "Luminaires",
       "order": 50,
+      "style": null,
       "visible": true
     },
     {
+      "color": null,
       "id": "grid",
       "name": "Calc Grids",
       "order": 60,
+      "style": null,
       "visible": true
     }
   ],
+  "light_scenes": [],
   "line_grids": [],
   "luminaire_families": [],
   "luminaires": [
     {
+      "emergency_operation": null,
+      "emergency_output_factor": null,
       "family_id": null,
       "flux_multiplier": 1.0,
       "id": "l1",
+      "layer_id": null,
+      "maintenance_components": null,
       "maintenance_factor": 1.0,
+      "maintenance_schedule": null,
       "mounting_height_m": null,
       "mounting_type": null,
       "name": "L1",
@@ -265,6 +520,7 @@
   "name": "validation_box_room",
   "param": {
     "footprints": [],
+    "instances": [],
     "openings": [],
     "rooms": [],
     "shared_walls": [],
@@ -283,11 +539,12 @@
     }
   ],
   "point_sets": [],
+  "polygon_workplanes": [],
   "results": [
     {
-      "job_hash": "e3480f722249c60f829f37f26e3eeae151db2957a22a43ce607eb73c71ce1505",
+      "job_hash": "b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d",
       "job_id": "j_direct",
-      "result_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room/.luxera/results/e3480f722249c60f829f37f26e3eeae151db2957a22a43ce607eb73c71ce1505",
+      "result_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room/.luxera/results/b4264c477072ae44f3dc9377eee50b480857f9aed925861911697807d35af35d",
       "summary": {
         "calc_object_count": 1,
         "calc_objects": [
@@ -298,15 +555,15 @@
               "E_avg": 46.19722454445375,
               "E_max": 225.00000000000006,
               "E_min": 11.86510672265132,
-              "P50": 27.72364415139845,
-              "P90": 94.22512489480874,
+              "P50": 27.723644151398446,
+              "P90": 94.22512489480876,
               "U0": 0.2568359211976901,
               "U1": 0.05273380765622807,
               "max_lux": 225.00000000000006,
               "mean_lux": 46.19722454445375,
               "min_lux": 11.86510672265132,
-              "p50_lux": 27.72364415139845,
-              "p90_lux": 94.22512489480874,
+              "p50_lux": 27.723644151398446,
+              "p90_lux": 94.22512489480876,
               "uniformity_diversity": 0.05273380765622807,
               "uniformity_ratio": 0.2568359211976901
             },
@@ -318,14 +575,56 @@
         "global_worst_min_lux": 11.86510672265132,
         "global_worst_uniformity_ratio": 0.2568359211976901,
         "highest_ugr": 0.0,
+        "indoor_planes": {
+          "cylindrical": [
+            {
+              "Eavg": 27.71833472667225,
+              "U0": 0.15410155271861406,
+              "id": "cyl_1"
+            }
+          ],
+          "maintenance_factor": 1.0,
+          "per_plane": [
+            {
+              "Eavg": 46.19722454445375,
+              "U0": 0.2568359211976901,
+              "id": "g1",
+              "source": "workplane"
+            },
+            {
+              "Eavg": 23.098612272226877,
+              "U0": 0.12841796059884505,
+              "id": "auto_wall_1",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 23.098612272226877,
+              "U0": 0.12841796059884505,
+              "id": "auto_wall_2",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 23.098612272226877,
+              "U0": 0.12841796059884505,
+              "id": "auto_wall_3",
+              "source": "auto_wall"
+            },
+            {
+              "Eavg": 23.098612272226877,
+              "U0": 0.12841796059884505,
+              "id": "auto_wall_4",
+              "source": "auto_wall"
+            }
+          ]
+        },
         "max_lux": 225.00000000000006,
         "mean_lux": 46.19722454445375,
         "mean_of_means_lux": 46.19722454445375,
         "min_lux": 11.86510672265132,
         "occluder_count": 0,
         "occlusion_enabled": false,
-        "p50_lux": 27.72364415139845,
-        "p90_lux": 94.22512489480874,
+        "p50_lux": 27.723644151398446,
+        "p90_lux": 94.22512489480876,
         "uniformity_diversity": 0.05273380765622807,
         "uniformity_ratio": 0.2568359211976901,
         "worst_min_lux": 11.86510672265132,
@@ -336,7 +635,9 @@
   "roadway_grids": [],
   "roadways": [],
   "root_dir": "/Users/manavmadanrawal/Dev/luxera/tests/golden/projects/box_room",
-  "schema_version": 5,
+  "schema_version": 6,
+  "selection_sets": [],
+  "symbols_2d": [],
   "variants": [],
   "vertical_planes": [],
   "workplanes": []

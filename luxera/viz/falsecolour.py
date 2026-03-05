@@ -72,8 +72,10 @@ class FalseColourRenderer:
         cbar.set_label("Illuminance (lux)")
 
         if contour_levels is not None and len(contour_levels) > 0:
-            cs = ax.contour(xg, yg, vals, levels=contour_levels, colors="black", linewidths=0.8, alpha=0.75)
-            ax.clabel(cs, fmt="%.0f", fontsize=7)
+            levels = sorted({float(v) for v in contour_levels})
+            if len(levels) >= 2:
+                cs = ax.contour(xg, yg, vals, levels=levels, colors="black", linewidths=0.8, alpha=0.75)
+                ax.clabel(cs, fmt="%.0f", fontsize=7)
 
         if show_values and nx * ny <= 100:
             for j in range(ny):
@@ -116,7 +118,10 @@ class FalseColourRenderer:
         if not levels:
             eavg = float(np.mean(vals))
             levels = [0.5 * eavg, 0.75 * eavg, eavg, 1.25 * eavg, 1.5 * eavg]
-        levels = sorted(float(v) for v in levels)
+        levels = sorted({float(v) for v in levels})
+        if len(levels) < 2:
+            base = float(levels[0]) if levels else float(np.mean(vals))
+            levels = [base, base + max(1e-6, abs(base) * 0.01)]
 
         cf = ax.contourf(xg, yg, vals, levels=levels, cmap=self._resolve_cmap(), alpha=0.85)
         cs = ax.contour(xg, yg, vals, levels=levels, colors="black", linewidths=0.9)
